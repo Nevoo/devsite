@@ -5,18 +5,12 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
         <p>
-          Edit <code>src/App.js</code> and save to reload.
+          Hi, i'm Rouven! <br />
+          I'm a full-stack developer mainly working with Flutter and JavaScript
+          based in Germany.  <br />
+          I am passionate about learning new technologies all the time, the latest design trends and all that kind of stuff!
         </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
       </header>
     </div>
   );
