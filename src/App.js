@@ -13,6 +13,10 @@ function App() {
       </header>
     </div>
   );
+
+  function test() {
+    console.log("test")
+  }
 }
 
 export default App;
