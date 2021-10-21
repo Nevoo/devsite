@@ -4,6 +4,7 @@
   "private": true,
   "author": "Rouven Lührs",
   "license": "MIT",
+  "description": "My Personal Portfolio Website",
   "dependencies": {
     "@testing-library/jest-dom": "^5.14.1",
     "@testing-library/react": "^11.2.7",
