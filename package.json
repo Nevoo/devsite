@@ -1,40 +1,34 @@
 {
   "name": "devsite",
-  "version": "0.1.0",
-  "private": true,
-  "author": "Rouven Lührs",
-  "license": "MIT",
-  "dependencies": {
-    "@testing-library/jest-dom": "^5.14.1",
-    "@testing-library/react": "^11.2.7",
-    "@testing-library/user-event": "^12.8.3",
-    "react": "^17.0.2",
-    "react-dom": "^17.0.2",
-    "react-scripts": "4.0.3",
-    "web-vitals": "^1.1.2"
-  },
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nevoo/devsite.git"
   },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Nevoo/devsite/issues"
+  },
+  "homepage": "https://github.com/Nevoo/devsite#readme",
+  "dependencies": {
+    "@chakra-ui/react": "^1.6.10",
+    "@emotion/react": "^11.5.0",
+    "@emotion/styled": "^11.3.0",
+    "framer-motion": "^4.1.17",
+    "next": "^11.1.2",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.1.0",
+    "eslint-config-next": "^11.1.2",
+    "prettier": "^2.4.1"
   }
 }
