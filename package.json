@@ -1,18 +1,20 @@
 {
   "name": "devsite",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Personal Portfolio Website",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "next dev -H 0.0.0.0",
+    "build": "next build",
+    "prettier": "prettier -write .",
+    "lint": "next lint"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nevoo/devsite.git"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Rouven Lührs<rouven@luehrs.dev>",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Nevoo/devsite/issues"
   },
@@ -21,10 +23,16 @@
     "@chakra-ui/react": "^1.6.10",
     "@emotion/react": "^11.5.0",
     "@emotion/styled": "^11.3.0",
+    "@react-spring/three": "^9.3.0",
+    "@react-three/cannon": "^4.0.1",
+    "@react-three/drei": "^7.17.2",
+    "@react-three/fiber": "^7.0.17",
     "framer-motion": "^4.1.17",
     "next": "^11.1.2",
     "react": "^17.0.2",
-    "react-dom": "^17.0.2"
+    "react-dom": "^17.0.2",
+    "sass": "^1.43.4",
+    "three": "^0.133.1"
   },
   "devDependencies": {
     "eslint": "^8.1.0",
