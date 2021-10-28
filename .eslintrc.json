@@ -3,14 +3,14 @@
     "extends": "next",
     "rules": {
         "no-unused-vars": [
-            "error",
+            "warn",
             {
                 "argsIgnorePattern": "^_",
                 "varsIgnorePattern": "^_"
             }
         ],
         "quotes": [
-            "error",
+            "warn",
             "double"
         ]
     }
