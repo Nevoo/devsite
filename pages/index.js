@@ -5,7 +5,7 @@ import RootUI from "../components/main_ui/root_ui/root_ui";
 import SpinningMeshes from "../components/main_ui/template_mesh";
 
 const IndexPage = () => {
-    const props = { shadows: true, colorManagement: true, camera: { position: [0, 2, 10], fov: 60 } };
+    const props = { shadows: true, colorManagement: true, camera: { position: [0, 0, 10], fov: 60 } };
     return (
         <Main>
             <Flex height="100vh">

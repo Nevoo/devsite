@@ -2,18 +2,32 @@ import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { softShadows, Text } from "@react-three/drei";
 import { useSpring, a } from "@react-spring/three";
+import { MathUtils } from "three";
 
 softShadows();
 
-const SpinningMesh = ({ position, args, color }) => {
+const SpinningMesh = ({ position, args, color, textRef }) => {
     const mesh = useRef();
-    useFrame(() => (mesh.current.rotation.x = mesh.current.rotation.y += 0.01));
+
+    const hoverColor = "#f12711";
 
     const [isExpanded, setExpanded] = useState(false);
 
+    useFrame(({ mouse }) => {
+        mesh.current.rotation.x = mesh.current.rotation.y += 0.01;
+
+        if (textRef.current) {
+            if (isExpanded) {
+                textRef.current.color = hoverColor;
+            } else {
+                textRef.current.color = "white";
+            }
+        }
+    });
+
     const props = useSpring({
         scale: isExpanded ? [1.4, 1.4, 1.4] : [1, 1, 1],
-        color: isExpanded ? "#f12711" : color
+        color: isExpanded ? hoverColor : color
     });
 
     const onHover = () => setExpanded(!isExpanded);
@@ -27,17 +41,18 @@ const SpinningMesh = ({ position, args, color }) => {
     );
 }
 
-const Headlines = () => {
+const Headlines = ({ photoTextRef, devTextRef }) => {
     const fontUrl = "https://fonts.gstatic.com/s/raleway/v14/1Ptrg8zYS_SKggPNwK4vaqI.woff";
+
     const config = { color: "white", font: fontUrl, fontSize: "0.7", anchorX: "center", anchorY: "middle" };
 
     return (
         <group>
             {/* <Suspense fallback={false}> */}
-            <Text position={[-4, 0.5, 2]} {...config}>
+            <Text ref={photoTextRef} position={[-3, -0.5, 2]} {...config}>
                 PHOTOGRAPHY
             </Text>
-            <Text position={[4, 0.5, 2]} {...config}>
+            <Text ref={devTextRef} position={[3.5, -0.5, 2]} {...config}>
                 DEVELOPMENT
             </Text>
             {/* </Suspense> */}
@@ -46,6 +61,9 @@ const Headlines = () => {
 }
 
 const SpinningMeshes = () => {
+    const photoTextRef = useRef();
+    const devTextRef = useRef();
+
     return (
         <group>
             <ambientLight intensity={0.3} />
@@ -71,9 +89,9 @@ const SpinningMeshes = () => {
                     <shadowMaterial attach='material' opacity={0.3} />
                 </mesh>
             </group>
-            <Headlines />
-            <SpinningMesh position={[-5, 1, -4]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
-            <SpinningMesh position={[5, 1, -4]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
+            <Headlines photoTextRef={photoTextRef} devTextRef={devTextRef} />
+            <SpinningMesh textRef={photoTextRef} position={[-5, 1, -4]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
+            <SpinningMesh textRef={devTextRef} position={[5, 1, -4]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
         </group>
     );
 }
