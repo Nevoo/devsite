@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { softShadows } from "@react-three/drei";
+import { softShadows, Text } from "@react-three/drei";
 import { useSpring, a } from "@react-spring/three";
 
 softShadows();
@@ -27,10 +27,27 @@ const SpinningMesh = ({ position, args, color }) => {
     );
 }
 
+const Headlines = () => {
+    const fontUrl = "https://fonts.gstatic.com/s/raleway/v14/1Ptrg8zYS_SKggPNwK4vaqI.woff";
+    const config = { color: "white", font: fontUrl, fontSize: "0.7", anchorX: "center", anchorY: "middle" };
+
+    return (
+        <group>
+            {/* <Suspense fallback={false}> */}
+            <Text position={[-4, 0.5, 2]} {...config}>
+                PHOTOGRAPHY
+            </Text>
+            <Text position={[4, 0.5, 2]} {...config}>
+                DEVELOPMENT
+            </Text>
+            {/* </Suspense> */}
+        </group>
+    );
+}
+
 const SpinningMeshes = () => {
     return (
         <group>
-            {/* <OrbitControls /> */}
             <ambientLight intensity={0.3} />
             <directionalLight
                 castShadow
@@ -54,9 +71,9 @@ const SpinningMeshes = () => {
                     <shadowMaterial attach='material' opacity={0.3} />
                 </mesh>
             </group>
-
-            <SpinningMesh position={[-2, 1, -7]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
-            <SpinningMesh position={[7, 1, -2]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
+            <Headlines />
+            <SpinningMesh position={[-5, 1, -4]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
+            <SpinningMesh position={[5, 1, -4]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
         </group>
     );
 }
