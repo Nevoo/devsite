@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { softShadows, Text } from "@react-three/drei";
 import { useSpring, a } from "@react-spring/three";
-import { MathUtils } from "three";
+import { OrbitControls, MeshWobbleMaterial } from "@react-three/drei";
+import { useRouter } from "next/router";
 
 softShadows();
 
@@ -32,7 +33,6 @@ const SpinningMesh = ({ position, args, color, textRef }) => {
 
     const onHover = () => setExpanded(!isExpanded);
 
-
     return (
         <a.mesh onPointerOver={onHover} onPointerOut={onHover} scale={props.scale} castShadow position={position} ref={mesh}>
             <boxBufferGeometry attach='geometry' args={args} />
@@ -48,14 +48,12 @@ const Headlines = ({ photoTextRef, devTextRef }) => {
 
     return (
         <group>
-            {/* <Suspense fallback={false}> */}
             <Text ref={photoTextRef} position={[-3, -0.5, 2]} {...config}>
                 PHOTOGRAPHY
             </Text>
             <Text ref={devTextRef} position={[3.5, -0.5, 2]} {...config}>
                 DEVELOPMENT
             </Text>
-            {/* </Suspense> */}
         </group>
     );
 }
@@ -64,8 +62,11 @@ const SpinningMeshes = () => {
     const photoTextRef = useRef();
     const devTextRef = useRef();
 
+    const cubeColor = "#f5af19";
+
     return (
         <group>
+            {/* <OrbitControls /> */}
             <ambientLight intensity={0.3} />
             <directionalLight
                 castShadow
@@ -90,8 +91,8 @@ const SpinningMeshes = () => {
                 </mesh>
             </group>
             <Headlines photoTextRef={photoTextRef} devTextRef={devTextRef} />
-            <SpinningMesh textRef={photoTextRef} position={[-5, 1, -4]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
-            <SpinningMesh textRef={devTextRef} position={[5, 1, -4]} color='#f5af19' speed={4} factor={0.6} args={[3, 3, 3]} />
+            <SpinningMesh textRef={photoTextRef} position={[-5, 1, -4]} color={cubeColor} speed={4} factor={0.6} args={[3, 3, 3]} />
+            <SpinningMesh textRef={devTextRef} position={[5, 1, -4]} color={cubeColor} speed={4} factor={0.6} args={[3, 3, 3]} />
         </group>
     );
 }

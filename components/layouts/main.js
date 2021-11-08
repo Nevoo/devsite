@@ -1,5 +1,5 @@
-import Head from "next/head"
-import { Box } from "@chakra-ui/react"
+import Head from "next/head";
+import { Box } from "@chakra-ui/react";
 
 const Main = ({ children }) => {
     return (
@@ -15,6 +15,7 @@ const Main = ({ children }) => {
             </Head>
 
             {/* <NavBar path={router.asPath} /> */}
+
 
             {children}
 
