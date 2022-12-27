@@ -20,22 +20,18 @@
   },
   "homepage": "https://github.com/Nevoo/devsite#readme",
   "dependencies": {
-    "@chakra-ui/react": "^1.6.10",
-    "@emotion/react": "^11.5.0",
-    "@emotion/styled": "^11.3.0",
+    "@chakra-ui/react": "^2.2.4",
     "@react-spring/three": "^9.3.0",
-    "@react-three/cannon": "^4.0.1",
-    "@react-three/drei": "^7.17.2",
-    "@react-three/fiber": "^7.0.17",
+    "@react-three/cannon": "^4.9.0",
+    "@react-three/drei": "^8.11.0",
+    "@react-three/fiber": "^7.0.29",
     "framer-motion": "^4.1.17",
-    "next": "^11.1.2",
-    "react": "^17.0.2",
-    "react-dom": "^17.0.2",
+    "next": "^12.2.2",
+    "react": "^18.2.0",
     "sass": "^1.43.4",
-    "three": "^0.133.1"
+    "three": "^0.142.0"
   },
   "devDependencies": {
-    "eslint": "^8.1.0",
     "eslint-config-next": "^11.1.2",
     "prettier": "^2.4.1"
   }

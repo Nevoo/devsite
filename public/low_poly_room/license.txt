@@ -1,0 +1,11 @@
+Model Information:
+* title:	Low Poly Room
+* source:	https://sketchfab.com/3d-models/low-poly-room-a6bf7976f3ac401e96907aa5b8a0c1c1
+* author:	IsaacTheMaverick (https://sketchfab.com/IsaacTheMaverick)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Low Poly Room" (https://sketchfab.com/3d-models/low-poly-room-a6bf7976f3ac401e96907aa5b8a0c1c1) by IsaacTheMaverick (https://sketchfab.com/IsaacTheMaverick) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

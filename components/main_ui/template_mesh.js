@@ -66,7 +66,7 @@ const SpinningMeshes = () => {
 
     return (
         <group>
-            {/* <OrbitControls /> */}
+            <OrbitControls />
             <ambientLight intensity={0.3} />
             <directionalLight
                 castShadow
