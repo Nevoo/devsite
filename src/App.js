@@ -1,23 +1,21 @@
-import logo from './logo.svg';
+import React, {Suspense} from 'react';
 import './App.css';
+import { Canvas } from '@react-three/fiber';
+import Donut from './compontents/donut';
+import { OrbitControls } from '@react-three/drei/core';
 
 function App() {
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <Canvas>
+        <ambientLight intensity={0.3}/>
+        <spotLight  position={[10,10,10]} angle={0.15} penumbar={1}/>
+        <pointLight position={[-10,-10,-10]}/>
+        <Suspense fallback={null}>
+          <Donut />
+          <OrbitControls />
+        </Suspense>
+      </Canvas>
     </div>
   );
 }
