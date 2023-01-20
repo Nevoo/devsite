@@ -38,9 +38,6 @@ function App() {
               metalness={0.5}
             > 
                     <GradientTexture stops={[0, 0.46, 1]} colors={['#12c2e9', '#c471ed', '#f64f59']} size={100} />
-
-                        {/* <MeshWobbleMaterial factor={0.1} speed={1} /> */}
-
             </MeshReflectorMaterial>
           </mesh>
           {/* <Plane receiveShadow={true} position={[0, -0.07, 0]} rotation={[Math.PI * -0.5, 0, 0]}/>
@@ -56,7 +53,7 @@ function App() {
             color="#050505"
             metalness={0.5}
           /> */}
-          <OrbitControls />
+          {/* <OrbitControls /> */}
         </Suspense>
       </Canvas>
     </div>
@@ -64,3 +61,4 @@ function App() {
 }
 
 export default App;
+
