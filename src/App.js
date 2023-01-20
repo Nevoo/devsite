@@ -2,8 +2,8 @@ import React, {Suspense} from 'react';
 import './App.css';
 import { Canvas } from '@react-three/fiber';
 import DonutGLTF from './compontents/donut-gltf';
-import { OrbitControls } from '@react-three/drei/core';
-import { PerspectiveCamera, GradientTexture, MeshReflectorMaterial, MeshWobbleMaterial } from "@react-three/drei";
+import { PerspectiveCamera } from "@react-three/drei";
+
 
 function App() {
   return (
