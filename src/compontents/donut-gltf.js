@@ -14,14 +14,23 @@ export default function DonutGLTF(props) {
   );
   const { actions } = useAnimations(animations, group);
   const [animationState, setAnimation] = useState(false);
-  
+
+  useFrame(({ mouse, viewport }) => {
+    if(!animationState) {
+      const x = (mouse.x * viewport.width) / 2.5
+      const y = (mouse.y * viewport.height) / 2.5
+      group.current.lookAt(x, y, 1)
+    }
+  })
+
   const handleClick = () => {
     if(!animationState) {
       setAnimation(true);
+      actions.DonutAction.setEffectiveTimeScale(1)
       actions.DonutAction.play();
     } else {
       setAnimation(false);
-      actions.DonutAction.stop();
+      actions.DonutAction.setEffectiveTimeScale(0)
     }
   }
 
