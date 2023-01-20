@@ -34,6 +34,7 @@ export default function DonutGLTF(props) {
           scale={scale}
           onPointerOver={() => {
               setAnimation(true);
+              props.onHover(true);
               actions.DonutAction.setEffectiveTimeScale(1)
               actions.DonutAction.play();
               setActive(true)
@@ -41,6 +42,7 @@ export default function DonutGLTF(props) {
           }
           onPointerOut={() =>{
               setAnimation(false);
+              props.onHover(false);
               actions.DonutAction.setEffectiveTimeScale(0)
               setActive(false)
             }
