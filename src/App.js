@@ -1,15 +1,13 @@
 import React, { Suspense, useState, useRef } from "react";
 import "./App.css";
 import { Canvas, useFrame } from "@react-three/fiber";
-import DonutGLTF from "./compontents/donut-gltf";
+import DonutGLTF from "./compontents/blender-models/donut-gltf";
 import {
   PerspectiveCamera,
-  Instances,
-  Instance,
   Environment,
   OrbitControls,
-  Float,
-  MeshTransmissionMaterial,
+  Points,
+  PointMaterial,
   Lightformer,
 } from "@react-three/drei";
 import { useSpring, animated, config } from "@react-spring/web";
@@ -20,36 +18,14 @@ import {
   DepthOfField,
 } from "@react-three/postprocessing";
 import { MathUtils } from "three";
-import useSpline from "@splinetool/r3f-spline";
 import { useControls } from "leva";
-
-const particles = Array.from({ length: 150 }, () => ({
-  factor: MathUtils.randInt(2, 10),
-  speed: MathUtils.randFloat(0.005, 2),
-  xFactor: MathUtils.randFloatSpread(0.08),
-  yFactor: MathUtils.randFloatSpread(0.04),
-  zFactor: MathUtils.randFloatSpread(0.04),
-}));
+import { inSphere } from "maath/random";
 
 function App() {
   const config = useControls({
-    backside: false,
-    samples: { value: 16, min: 1, max: 32, step: 1 },
-    resolution: { value: 256, min: 64, max: 2048, step: 64 },
-    transmission: { value: 0.95, min: 0, max: 1 },
-    roughness: { value: 0.5, min: 0, max: 1, step: 0.01 },
-    clearcoat: { value: 0.1, min: 0, max: 1, step: 0.01 },
-    clearcoatRoughness: { value: 0.1, min: 0, max: 1, step: 0.01 },
-    thickness: { value: 200, min: 0, max: 200, step: 0.01 },
-    backsideThickness: { value: 200, min: 0, max: 200, step: 0.01 },
-    ior: { value: 1.5, min: 1, max: 5, step: 0.01 },
-    chromaticAberration: { value: 1, min: 0, max: 1 },
-    anisotropy: { value: 1, min: 0, max: 10, step: 0.01 },
-    distortion: { value: 0, min: 0, max: 1, step: 0.01 },
-    distortionScale: { value: 0.2, min: 0.01, max: 1, step: 0.01 },
-    temporalDistortion: { value: 0, min: 0, max: 1, step: 0.01 },
-    attenuationDistance: { value: 0.5, min: 0, max: 10, step: 0.01 },
-    attenuationColor: "#ffffff",
+    starRotationSpeedX: { value: 10, min: 1, max: 100, step: 1 },
+    starRotationSpeedY: { value: 15, min: 1, max: 100, step: 1 },
+    starColor: "#ffa0e0",
     color: "#ffffff",
   });
 
@@ -92,6 +68,9 @@ function App() {
 
           <ambientLight />
           <directionalLight castShadow intensity={0.6} position={[0, 0, 10]} />
+
+          <Stars config={config}></Stars>
+
           <Suspense fallback={null}>
             <DonutGLTF onHover={onHover} />
             <Environment resolution={256}>
@@ -126,6 +105,38 @@ function App() {
         </Canvas>
       </animated.div>
     </div>
+  );
+}
+
+function Stars({ config, ...props }) {
+  const ref = useRef();
+  const [sphere] = useState(() =>
+    inSphere(new Float32Array(5000), { radius: 1 })
+  );
+
+  useFrame((state, delta) => {
+    ref.current.rotation.x -= delta / config.starRotationSpeedX;
+    ref.current.rotation.y -= delta / config.starRotationSpeedY;
+  });
+
+  return (
+    <group rotation={[0, 0, Math.PI / 4]}>
+      <Points
+        ref={ref}
+        positions={sphere}
+        stride={3}
+        frustumCulled={false}
+        {...props}
+      >
+        <PointMaterial
+          transparent
+          color={config.starColor}
+          size={0.005}
+          sizeAttenuation={true}
+          depthWrite={false}
+        />
+      </Points>
+    </group>
   );
 }
 
