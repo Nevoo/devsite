@@ -20,13 +20,25 @@ import {
 import { MathUtils } from "three";
 import { useControls } from "leva";
 import { inSphere } from "maath/random";
+import Headline from "./compontents/text/text";
 
 function App() {
   const config = useControls({
     starRotationSpeedX: { value: 10, min: 1, max: 100, step: 1 },
     starRotationSpeedY: { value: 15, min: 1, max: 100, step: 1 },
+    textPositionX: { value: 0.14, min: -1, max: 1, step: 0.01 },
+    textPositionY: { value: 0, min: -1, max: 1, step: 0.01 },
+    textPositionZ: { value: 0.05, min: -1, max: 1, step: 0.01 },
     starColor: "#ffa0e0",
     color: "#ffffff",
+    text: "D  NUT",
+    curveSegments: { value: 32, min: 1, max: 100, step: 1 },
+    bevelEnabled: true,
+    bevelSize: { value: 0.01, min: 0, max: 1, step: 0.001 },
+    bevelThickness: { value: 0.05, min: 0, max: 1, step: 0.001 },
+    height: { value: 0.0, min: 0, max: 10, step: 0.01 },
+    lineHeight: { value: 0.5, min: 0, max: 10, step: 0.01 },
+    letterSpacing: { value: 0.02, min: -1, max: 1, step: 0.01 },
   });
 
   const [isHovering, setIsHovering] = useState(false);
@@ -70,9 +82,10 @@ function App() {
           <directionalLight castShadow intensity={0.6} position={[0, 0, 10]} />
 
           <Stars config={config}></Stars>
-
           <Suspense fallback={null}>
             <DonutGLTF onHover={onHover} />
+            <Headline config={config}>{config.text}</Headline>
+
             <Environment resolution={256}>
               <group rotation={[-Math.PI / 2, 0, 0]}>
                 <Lightformer
@@ -131,7 +144,7 @@ function Stars({ config, ...props }) {
         <PointMaterial
           transparent
           color={config.starColor}
-          size={0.005}
+          size={0.01}
           sizeAttenuation={true}
           depthWrite={false}
         />
