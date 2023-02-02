@@ -11,37 +11,37 @@ import {
   Lightformer,
 } from "@react-three/drei";
 import { useSpring, animated, config } from "@react-spring/web";
-import {
-  EffectComposer,
-  SSAO,
-  Bloom,
-  DepthOfField,
-} from "@react-three/postprocessing";
-import { MathUtils } from "three";
 import { useControls } from "leva";
 import { inSphere } from "maath/random";
 import Headline from "./compontents/text/text";
 
 function App() {
-  const config = useControls({
+  const [isHovering, setIsHovering] = useState(false);
+
+  const debugConfig = useControls({
     starRotationSpeedX: { value: 10, min: 1, max: 100, step: 1 },
     starRotationSpeedY: { value: 15, min: 1, max: 100, step: 1 },
-    textPositionX: { value: 0.14, min: -1, max: 1, step: 0.01 },
-    textPositionY: { value: 0, min: -1, max: 1, step: 0.01 },
-    textPositionZ: { value: 0.05, min: -1, max: 1, step: 0.01 },
+    textPosition: [0.1, 0.02, 0.05],
     starColor: "#ffa0e0",
     color: "#ffffff",
     text: "D  NUT",
     curveSegments: { value: 32, min: 1, max: 100, step: 1 },
+    bevelSegments: { value: 32, min: 1, max: 100, step: 1 },
     bevelEnabled: true,
-    bevelSize: { value: 0.01, min: 0, max: 1, step: 0.001 },
-    bevelThickness: { value: 0.05, min: 0, max: 1, step: 0.001 },
+    bevelSize: { value: 0.005, min: 0, max: 0.01, step: 0.0001 },
+    bevelThickness: { value: 0.03, min: 0, max: 1, step: 0.001 },
+    bevelOffset: { value: 0, min: 0, max: 1, step: 0.001 },
     height: { value: 0.0, min: 0, max: 10, step: 0.01 },
     lineHeight: { value: 0.5, min: 0, max: 10, step: 0.01 },
-    letterSpacing: { value: 0.02, min: -1, max: 1, step: 0.01 },
+    letterSpacing: {
+      value: 0.02,
+      min: -1,
+      max: 1,
+      step: 0.01,
+    },
+    modelPosition: [-0.09, -0.02, -0.2],
   });
 
-  const [isHovering, setIsHovering] = useState(false);
   const [{ background }] = useSpring(
     () => ({
       from: { background: "var(--step0)" },
@@ -65,7 +65,8 @@ function App() {
 
   return (
     <div>
-      <animated.div className="App" style={isHovering ? { background } : null}>
+      {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
+      <animated.div className="App">
         <Canvas>
           <OrbitControls></OrbitControls>
           <PerspectiveCamera
@@ -81,10 +82,14 @@ function App() {
           <ambientLight />
           <directionalLight castShadow intensity={0.6} position={[0, 0, 10]} />
 
-          <Stars config={config}></Stars>
+          <Stars config={debugConfig}></Stars>
           <Suspense fallback={null}>
-            <DonutGLTF onHover={onHover} />
-            <Headline config={config}>{config.text}</Headline>
+            <group position={debugConfig.modelPosition}>
+              <DonutGLTF onHover={onHover} />
+              <Headline config={debugConfig} shouldAnimate={isHovering}>
+                {debugConfig.text}
+              </Headline>
+            </group>
 
             <Environment resolution={256}>
               <group rotation={[-Math.PI / 2, 0, 0]}>

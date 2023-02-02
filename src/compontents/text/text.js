@@ -1,9 +1,18 @@
 import React from "react";
 import { useThree } from "@react-three/fiber";
 import { Text, Center, Text3D } from "@react-three/drei";
+import { useSpring, animated, config } from "@react-spring/three";
 
-export default function Headline({ children, ...props }) {
+export default function Headline({ children, shouldAnimate, ...props }) {
   const { width } = useThree((state) => state.viewport);
+
+  const { scale } = useSpring({
+    scale: shouldAnimate ? 1.2 : 1,
+    config: config.wobbly,
+  });
+
+  const AnimatedText3D = animated(Text3D);
+
   return (
     // <Text
     //   position={props.position}
@@ -18,16 +27,17 @@ export default function Headline({ children, ...props }) {
     // </Text>
     <Center
       rotation={[-0.5, -0.25, 0]}
-      position={[
-        props.config.textPositionX,
-        props.config.textPositionY,
-        props.config.textPositionZ,
-      ]}
+      position={props.config.textPosition}
+      //   scale={scale}
     >
-      <Text3D {...props.config} size={width / 8} font="/Inter_Bold.json">
+      <AnimatedText3D
+        {...props.config}
+        size={width / 8}
+        font="/Inter_Bold.json"
+      >
         {children}
         <meshNormalMaterial />
-      </Text3D>
+      </AnimatedText3D>
     </Center>
   );
 }
