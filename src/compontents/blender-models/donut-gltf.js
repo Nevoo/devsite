@@ -1,8 +1,7 @@
 import React, { useRef, useState } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
-import { useFrame } from '@react-three/fiber'
-import { useSpring, animated, config } from '@react-spring/three'
-
+import { useFrame } from "@react-three/fiber";
+import { useSpring, animated, config } from "@react-spring/three";
 
 export default function DonutGLTF(props) {
   const group = useRef();
@@ -13,41 +12,36 @@ export default function DonutGLTF(props) {
   const [animationState, setAnimation] = useState(false);
   const [active, setActive] = useState(false);
 
-  const {scale} = useSpring({ 
-    scale: active ? 1.5 : 1, 
-    config: config.wobbly, 
-  })
-
+  const { scale } = useSpring({
+    scale: active ? 1.5 : 1,
+    config: config.wobbly,
+  });
 
   useFrame(({ mouse, viewport }) => {
-    if(!animationState) {
-      const x = (mouse.x * viewport.width) / 2.5
-      const y = (mouse.y * viewport.height) / 2.5
-      group.current.lookAt(x, y, 1)
+    if (!animationState) {
+      const x = (mouse.x * viewport.width) / 2.5;
+      const y = (mouse.y * viewport.height) / 2.5;
+      group.current.lookAt(x, y, 1);
     }
-  })
+  });
 
   return (
-    <group ref={group} {...props} dispose={null}>
+    <animated.group scale={scale} ref={group} {...props} dispose={null}>
       <group name="Scene">
-        <animated.mesh
-          scale={scale}
+        <mesh
           onPointerOver={() => {
-              setAnimation(true);
-              props.onHover(true);
-              actions.DonutAction.setEffectiveTimeScale(1)
-              actions.DonutAction.play();
-              setActive(true)
-            }
-          }
-          onPointerOut={() =>{
-              setAnimation(false);
-              props.onHover(false);
-              actions.DonutAction.setEffectiveTimeScale(0)
-              setActive(false)
-            }
-          }
-          // onClick={handleClick}
+            setAnimation(true);
+            props.onHover(true);
+            actions.DonutAction.setEffectiveTimeScale(1);
+            actions.DonutAction.play();
+            setActive(true);
+          }}
+          onPointerOut={() => {
+            setAnimation(false);
+            props.onHover(false);
+            actions.DonutAction.setEffectiveTimeScale(0);
+            setActive(false);
+          }}
           name="Donut"
           castShadow
           receiveShadow
@@ -72,9 +66,9 @@ export default function DonutGLTF(props) {
               material={materials.Sprinkle}
             />
           </group>
-        </animated.mesh>
+        </mesh>
       </group>
-    </group>
+    </animated.group>
   );
 }
 
