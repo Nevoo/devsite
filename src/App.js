@@ -2,7 +2,7 @@ import React from "react";
 import "./App.css";
 import { Canvas } from "@react-three/fiber";
 import { useSpring, animated, config } from "@react-spring/web";
-import DonutSzene from "./szenes/donut_szene";
+import DonutScene from "./scenes/donut_scene";
 
 function App() {
   const [{ background }] = useSpring(
@@ -27,7 +27,7 @@ function App() {
       {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
       <animated.div className="App">
         <Canvas>
-          <DonutSzene></DonutSzene>
+          <DonutScene></DonutScene>
         </Canvas>
       </animated.div>
     </div>

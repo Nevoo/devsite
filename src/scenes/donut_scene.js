@@ -6,7 +6,7 @@ import { useControls } from "leva";
 import Headline from "../components/text/text";
 import Stars from "../components/stars/stars";
 
-const DonutSzene = () => {
+const DonutScene = () => {
   const [isHovering, setIsHovering] = useState(false);
 
   const debugConfig = useControls({
@@ -66,4 +66,4 @@ const DonutSzene = () => {
   );
 };
 
-export default DonutSzene;
+export default DonutScene;
