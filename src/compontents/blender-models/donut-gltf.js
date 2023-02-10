@@ -50,7 +50,7 @@ export default function DonutGLTF(props) {
           position={[0, 0, 0.01]}
           rotation={[1.11, 0.25, -0.46]}
         >
-          <group name="Icing">
+          <animated.group name="Icing">
             <mesh
               name="Torus003"
               castShadow
@@ -65,7 +65,7 @@ export default function DonutGLTF(props) {
               geometry={nodes.Torus003_1.geometry}
               material={materials.Sprinkle}
             />
-          </group>
+          </animated.group>
         </mesh>
       </group>
     </animated.group>
