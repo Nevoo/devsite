@@ -79,6 +79,20 @@ function Frame({
       deltaTime
     );
 
+    image.current.scale[1] = image.current.scale.x = damp(
+      image.current.scale.x,
+      clickedIndex === index ? -1.1 : 0.8,
+      6,
+      deltaTime
+    );
+
+    image.current.scale[0] = image.current.scale.x = damp(
+      image.current.scale.x,
+      clickedIndex === index ? clickedImageScaling : scale[0],
+      6,
+      deltaTime
+    );
+
     textRef.current.position.x = damp(
       textRef.current.position.x,
       clickedIndex === index ? position[1] + clickedImageScaling - 1.3 : 0.55,
