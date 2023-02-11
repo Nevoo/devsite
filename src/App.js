@@ -3,6 +3,7 @@ import "./App.css";
 import { Canvas } from "@react-three/fiber";
 import { useSpring, animated, config } from "@react-spring/web";
 import DonutScene from "./scenes/donut_scene";
+import GalleryScene from "./scenes/gallery_scene";
 
 function App() {
   const [{ background }] = useSpring(
@@ -26,8 +27,9 @@ function App() {
     <div>
       {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
       <animated.div className="App">
-        <Canvas>
-          <DonutScene></DonutScene>
+        <Canvas dpr={[1, 1.5]} camera={{ fov: 70, position: [0, 2, 15] }}>
+          {/* <DonutScene></DonutScene> */}
+          <GalleryScene />
         </Canvas>
       </animated.div>
     </div>
