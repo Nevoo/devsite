@@ -28,8 +28,8 @@ function App() {
       {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
       <animated.div className="App">
         <Canvas dpr={[1, 1.5]} camera={{ fov: 70, position: [0, 2, 15] }}>
-          {/* <DonutScene></DonutScene> */}
-          <GalleryScene />
+          <DonutScene></DonutScene>
+          {/* <GalleryScene /> */}
         </Canvas>
       </animated.div>
     </div>
