@@ -1,7 +1,6 @@
 import React, { Suspense, useState } from "react";
 import "../App.css";
 import DonutGLTF from "../components/blender-models/donut-gltf";
-import { Camera } from "../components/blender-models/camera_glb";
 import { PerspectiveCamera, OrbitControls } from "@react-three/drei";
 import { useControls } from "leva";
 import Headline from "../components/text/text";
@@ -57,7 +56,7 @@ const DonutScene = () => {
       <Stars config={debugConfig}></Stars>
       <Suspense fallback={null}>
         <group position={debugConfig.modelPosition}>
-          <Camera onHover={onHover} />
+          <DonutGLTF onHover={onHover} />
           <Headline config={debugConfig} shouldAnimate={isHovering}>
             {debugConfig.text}
           </Headline>
