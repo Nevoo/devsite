@@ -1,10 +1,19 @@
 import React from "react";
 import "./App.css";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { useSpring, animated, config } from "@react-spring/web";
 import DonutScene from "./scenes/donut_scene";
 import GalleryScene from "./scenes/gallery_scene";
-import LandingPageSzene from "./scenes/landingpage_scene";
+import LandingPageScene from "./scenes/landingpage_scene";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
+import { Views } from "./routing-test/views";
+import { ViewProvider } from "./routing-test/view-context";
+import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 
 function App() {
   const [{ background }] = useSpring(
@@ -28,9 +37,23 @@ function App() {
     <div>
       {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
       <animated.div className="App">
-        <Canvas dpr={[1, 1.5]} camera={{ fov: 70, position: [0, 2, 15] }}>
-          <LandingPageSzene></LandingPageSzene>
-          {/* <GalleryScene /> */}
+        <Canvas>
+          {/* <Canvas dpr={[1, 1.5]} camera={{ fov: 70, position: [0, 2, 15] }}> */}
+
+          <Router>
+            <ViewProvider>
+              <Views />
+            </ViewProvider>
+          </Router>
+          {/* <Router>
+            <Routes>
+              <Route path="/" element={<LandingPageScene></LandingPageScene>} />
+              <Route
+                path="/gallery"
+                element={<LandingPageScene></LandingPageScene>}
+              />
+            </Routes>
+          </Router> */}
         </Canvas>
       </animated.div>
     </div>

@@ -5,8 +5,10 @@ import { PerspectiveCamera, OrbitControls } from "@react-three/drei";
 import Headline from "../components/text/text";
 import { useControls } from "leva";
 import { animated, useSpring, config } from "@react-spring/three";
+import { useNavigate } from "react-router-dom";
 
-const LandingPageSzene = () => {
+const LandingPageScene = () => {
+  const navigate = useNavigate();
   const [isHovering, setIsHovering] = useState(false);
 
   const [active, setActive] = useState(false);
@@ -66,6 +68,9 @@ const LandingPageSzene = () => {
           scale={scale}
           position={debugConfig.modelPosition}
           rotation={debugConfig.modelRotation}
+          onClick={() => {
+            navigate("/gallery");
+          }}
           onPointerOver={() => {
             setActive(true);
           }}
@@ -86,4 +91,4 @@ const LandingPageSzene = () => {
   );
 };
 
-export default LandingPageSzene;
+export default LandingPageScene;
