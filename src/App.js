@@ -38,22 +38,11 @@ function App() {
       {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
       <animated.div className="App">
         <Canvas>
-          {/* <Canvas dpr={[1, 1.5]} camera={{ fov: 70, position: [0, 2, 15] }}> */}
-
           <Router>
             <ViewProvider>
               <Views />
             </ViewProvider>
           </Router>
-          {/* <Router>
-            <Routes>
-              <Route path="/" element={<LandingPageScene></LandingPageScene>} />
-              <Route
-                path="/gallery"
-                element={<LandingPageScene></LandingPageScene>}
-              />
-            </Routes>
-          </Router> */}
         </Canvas>
       </animated.div>
     </div>

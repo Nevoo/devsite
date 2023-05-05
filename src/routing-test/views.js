@@ -3,12 +3,10 @@ import { useThree } from "@react-three/fiber";
 import { a, config, useTransition } from "@react-spring/three";
 import { useNavigate, Route, Routes } from "react-router-dom";
 import { useView, View } from "./view-context";
+import LandingPageScene from "../scenes/landingpage_scene";
 // import { NotFound } from "./NotFound";
 
 const dashboardOptions = [
-  {
-    to: "/404",
-  },
   {
     to: "/",
   },
@@ -16,7 +14,7 @@ const dashboardOptions = [
     to: "/test",
   },
   {
-    to: "/test2",
+    to: "/landing-page",
   },
 ];
 
@@ -75,8 +73,8 @@ export function Views() {
   return (
     <Routes location={path}>
       <Route path="/" element={<TestView />} />
+      <Route path="/landing-page" element={<LandingPageScene />} />
       <Route path="/test" element={<TestView />} />
-      <Route path="/test2" element={<TestView />} />
       {/* <Route path="*" element={<NotFound />} /> */}
     </Routes>
   );
