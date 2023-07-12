@@ -1,0 +1,5 @@
+.background {
+    background-image: url('../../public/noisegradient.png');
+    height: 100vh;
+    width: 100vw;
+}

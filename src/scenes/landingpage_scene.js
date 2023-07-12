@@ -1,6 +1,7 @@
 import React, { Suspense, useState, useEffect } from "react";
 import "../App.css";
 import { Camera } from "../components/blender-models/camera_glb";
+import KeyboardGLTF from "../components/keyboard/keyboard";
 import { PerspectiveCamera, OrbitControls } from "@react-three/drei";
 import Headline from "../components/text/text";
 import { useControls } from "leva";
@@ -126,7 +127,7 @@ const LandingPageScene = () => {
                   setActive(false);
                 }}
               >
-                <Camera position={debugConfig.cameraPosition} />
+                <KeyboardGLTF />
                 {/* <Headline config={debugConfig} shouldAnimate={isHovering}>
                   {debugConfig.text}
                 </Headline> */}
