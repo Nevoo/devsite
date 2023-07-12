@@ -97,7 +97,15 @@ const BackgroundText = (props) => (
   >
     <meshBasicMaterial toneMapped={false} />
     photos
-    <Html style={{ color: "transparent", fontSize: "33.5em" }} transform>
+    <Html
+      style={{
+        color: "transparent",
+        fontSize: "33.5em",
+        cursor: "pointer",
+        userSelect: "none",
+      }}
+      transform
+    >
       photos
     </Html>
   </Text>
