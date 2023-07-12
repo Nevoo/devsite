@@ -2,6 +2,8 @@
   "name": "example",
   "version": "0.1.0",
   "private": true,
+  "author": "Rouven Lührs",
+  "description": "My Personal Portfolio Website",
   "dependencies": {
     "@pmndrs/assets": "^1.6.0",
     "@react-spring/three": "^9.7.3",
