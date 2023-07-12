@@ -1,11 +1,58 @@
+
 .App {
   text-align: center;
   /* background: linear-gradient(90deg, #12c2e9 0%, #c471ed 46%, #f64f59 100%); */
-  background-color: #050505;
+  /* background-color: #000000; */
   height: 100vh;
   width: 100vw;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  background-image: url('/public/noisegradient.png');
+  background-size: cover;
 }
+
+.blur {
+  backdrop-filter: blur(3px);
+  height: 100vh;
+  width: 100vw;
+}
+
+.nav {
+  font-weight: 700;
+  text-align: right;
+  position: absolute;
+  right: 25px;
+  top: 25px;
+  color: white;
+  font-size: 12px;
+}
+
+.nav div:hover {
+  cursor: pointer;
+  color: rgb(206, 146, 226);
+  text-decoration: underline;
+}
+
+.logo {
+  font-weight: 800;
+  position: absolute;
+  left: 25px;
+  top: 25px;
+  color: white;
+  font-size: 18px;
+}
+
+.logo:hover{
+  cursor: pointer;
+}
+
+.footer {
+  font-weight: 800;
+  position: absolute;
+  bottom: 10px;
+  color: white;
+  font-size: 8px;
+}
+

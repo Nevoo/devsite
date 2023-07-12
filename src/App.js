@@ -1,34 +1,49 @@
 import React from "react";
 import "./App.css";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { useSpring, animated, config } from "@react-spring/web";
-import DonutSzene from "./szenes/donut_szene";
+import DonutScene from "./scenes/donut_scene";
+import GalleryScene from "./scenes/gallery_scene";
+import LandingPageScene from "./scenes/landingpage_scene";
+import { CameraLandingPage } from "./landing-page/index";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
+import { Views } from "./routing-test/views";
+import { ViewProvider } from "./routing-test/view-context";
+import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 
 function App() {
-  const [{ background }] = useSpring(
-    () => ({
-      from: { background: "var(--step0)" },
-      to: [
-        { background: "var(--step1)" },
-        { background: "var(--step2)" },
-        { background: "var(--step3)" },
-        { background: "var(--step4)" },
-      ],
-      config: config.molasses,
-      loop: {
-        reverse: true,
-      },
-    }),
-    []
-  );
-
   return (
     <div>
       {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
       <animated.div className="App">
-        <Canvas>
-          <DonutSzene></DonutSzene>
-        </Canvas>
+        <div className={"blur"}>
+          <Canvas
+            eventSource={document.getElementById("root")}
+            eventPrefix="client"
+            shadows
+            camera={{ position: [0, 0, 20], fov: 50 }}
+          >
+            {/* <Router>
+            <ViewProvider>
+              <Views />
+            </ViewProvider>
+          </Router> */}
+            <CameraLandingPage />
+          </Canvas>
+        </div>
+        <div class="nav">
+          <div>about</div>
+          <div>contact</div>
+        </div>
+        <div class="logo">nevo</div>
+        <div class="footer">
+          web developer - mobile developer - photographer
+        </div>
       </animated.div>
     </div>
   );
