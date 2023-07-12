@@ -1,4 +1,4 @@
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 
 import React from "react";
 import "./index.css";
@@ -12,6 +12,7 @@ import {
   ContactShadows,
   Environment,
   MeshTransmissionMaterial,
+  Image,
 } from "@react-three/drei";
 import {
   EffectComposer,
@@ -26,7 +27,10 @@ import { Camera } from "../components/blender-models/camera_glb";
 
 const inter = import("@pmndrs/assets/fonts/inter_extra_bold.woff");
 
-export const CameraLandingPage = () => (
+const pexel = (id) =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260`;
+
+export const CameraLandingPage = (props) => (
   <>
     {/* <color
       attach="background-image"
@@ -37,10 +41,16 @@ export const CameraLandingPage = () => (
     <BackgroundText position={[0, -2, -3]} />
     <Float floatIntensity={1}>
       <Camera scale={150} rotation={[0, -2, 0]} position={[1, 4, 0]}></Camera>
+      <Torus scale={0.5} position={[0, -5, -15]} />
+      <Torus scale={0.6} position={[10, 5, -15]} />
+      <Torus scale={0.6} position={[-20, 10, -15]} />
+      <ImageItem position={[0, -5, -20]} url={pexel(310452)} {...props} />
+      <ImageItem position={[-18, 8, -20]} url={pexel(358574)} {...props} />
+      <ImageItem position={[20, 10, -20]} url={pexel(1738986)} {...props} />
     </Float>
     <ContactShadows
-      scale={100}
-      position={[0, -7.5, 0]}
+      scale={200}
+      position={[0, -10, 0]}
       blur={1}
       far={100}
       opacity={0.85}
@@ -94,8 +104,17 @@ const BackgroundText = (props) => (
 );
 
 const Torus = (props) => (
-  <mesh receiveShadow castShadow {...props}>
+  <mesh receiveShadow {...props}>
     <torusGeometry args={[4, 1.2, 128, 64]} />
     <MeshTransmissionMaterial backside backsideThickness={5} thickness={2} />
   </mesh>
 );
+
+const ImageItem = ({ m = 0.4, url, ...props }) => {
+  const { width } = useThree((state) => state.viewport);
+  const w = width < 10 ? 1.5 / 3 : 1 / 3;
+
+  console.log(props);
+
+  return <Image {...props} scale={[width * w - m * 2, 5, 1]} url={url} />;
+};

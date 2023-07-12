@@ -36,12 +36,12 @@ function App() {
             <CameraLandingPage />
           </Canvas>
         </div>
-        <div class="nav">
+        <div className={"nav"}>
           <div>about</div>
           <div>contact</div>
         </div>
-        <div class="logo">nevo</div>
-        <div class="footer">
+        <div className={"logo"}>nevo</div>
+        <div className={"footer"}>
           web developer - mobile developer - photographer
         </div>
       </animated.div>
