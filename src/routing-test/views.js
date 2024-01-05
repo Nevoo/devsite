@@ -1,15 +1,9 @@
 import React, { Suspense, useEffect } from "react";
-import { useThree } from "@react-three/fiber";
 import { a, animated, config, useTransition } from "@react-spring/three";
-import { PerspectiveCamera, OrbitControls } from "@react-three/drei";
 import { useControls } from "leva";
 
 import { useNavigate, Route, Routes } from "react-router-dom";
 import { useView, View } from "./view-context";
-import LandingPageScene from "../scenes/landingpage_scene";
-// import { NotFound } from "./NotFound";
-import { Camera } from "../components/blender-models/camera_glb";
-import KeyboardGLTF from "../components/keyboard/keyboard";
 
 const dashboardOptions = [
     {
@@ -78,36 +72,8 @@ export function TestView() {
         [view.active]
     );
 
-    const [cameraTransition, cameraTransApi] = useTransition(
-        view.active ? items : [],
-        () => ({
-            from: { scale: 0, rotation: [0, 0, 0], position: [0, 0, 0] },
-            enter: {
-                scale: 1,
-                rotation: debugConfig.cameraRotation,
-                position: debugConfig.cameraPosition,
-                config: config.stiff,
-            },
-            leave: {
-                config: config.stiff,
-                scale: 0,
-                rotation: [0, 0, 0],
-                position: [0, 0, 0],
-                onRest: (_, __, c) => {
-                    // Switch route when the last item has finished
-                    // IDK if theres a better way to do this
-                    if (items.indexOf(c) === items.length - 1) {
-                        view.updateRoute();
-                    }
-                },
-            },
-        }),
-        [view.active]
-    );
-
     useEffect(() => {
         transApi.start();
-        cameraTransApi.start();
     }, [view.active]);
 
     return (
@@ -125,36 +91,6 @@ export function TestView() {
                         <boxGeometry />
                         <meshNormalMaterial />
                     </a.mesh>
-                );
-            })}
-
-            {cameraTransition((props, option, _, i) => {
-                return (
-                    <group key={i}>
-                        <ambientLight
-                            intensity={debugConfig.ambienLightIntensity}
-                        />
-                        <directionalLight
-                            castShadow
-                            intensity={3}
-                            position={[0, 0, 10]}
-                        />
-
-                        <Suspense fallback={null}>
-                            <animated.group
-                                scale={props.scale}
-                                onClick={() => {
-                                    navigate(option.to);
-                                }}
-                                onPointerOver={() => {
-                                    // setActive(true);
-                                }}
-                                onPointerOut={() => {
-                                    // setActive(false);
-                                }}
-                            ></animated.group>
-                        </Suspense>
-                    </group>
                 );
             })}
         </View>
