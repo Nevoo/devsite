@@ -8,17 +8,30 @@ import { useSpring, animated, config } from "@react-spring/three";
 
 import React from "react";
 
-export const CurvedPlane = ({ imageData, position, rotation, hovered }) => {
+export const CurvedPlane = ({
+    imageData,
+    position,
+    rotation,
+    hovered,
+    transitionScale,
+    index,
+    ...props
+}) => {
     const { mouse, width } = useThree((state) => state);
     const texture = useLoader(TextureLoader, imageData.image);
 
     const { scale } = useSpring({
-        scale: hovered ? 5.5 : 5,
-        config: config.wobbly,
+        scale: hovered ? 5.5 : transitionScale,
+        config: config.stiff,
     });
 
     return (
-        <animated.mesh position={position} scale={scale} rotation={rotation}>
+        <animated.mesh
+            position={position}
+            scale={scale}
+            rotation={rotation}
+            {...props}
+        >
             <planeGeometry args={[1, 1, 32, 32]} />
             <shaderMaterial
                 vertexShader={vertexShader}

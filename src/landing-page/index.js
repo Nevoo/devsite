@@ -1,6 +1,4 @@
-import { useFrame } from "@react-three/fiber";
-
-import React from "react";
+import React, { Suspense } from "react";
 import "./index.css";
 import {
     Float,
@@ -8,17 +6,19 @@ import {
     ContactShadows,
     Environment,
 } from "@react-three/drei";
-import { EffectComposer, N8AO } from "@react-three/postprocessing";
+import { useFrame } from "@react-three/fiber";
 import { easing } from "maath";
-
 import { Camera } from "../components/blender-models/camera_glb";
 import { OrbitImages } from "./components/orbit-images";
 import { useLenis } from "@studio-freight/react-lenis";
+import { a, animated, config, useTransition } from "@react-spring/three";
+import useImageState from "./state/image-state";
+import { useShallow } from "zustand/react/shallow";
 
 export const CameraLandingPage = (props) => {
-    useLenis(({ scroll }) => {
-        console.log("scrolling", scroll);
-    });
+    const images = useImageState((state) => state.images);
+    const cameraTapped = useImageState((state) => state.cameraTapped);
+    const tapCamera = useImageState((state) => state.tapCamera);
 
     return (
         <group>
@@ -33,8 +33,12 @@ export const CameraLandingPage = (props) => {
                     scale={150}
                     rotation={[0, -2, 0]}
                     position={[1, 4, 0]}
-                ></Camera>
-                <OrbitImages radius={10} />
+                    onPointerDown={(e) => {
+                        e.stopPropagation();
+                        tapCamera(true);
+                    }}
+                />
+                <OrbitImages radius={10} images={images} />
             </Float>
             <ContactShadows
                 scale={200}
@@ -51,11 +55,6 @@ export const CameraLandingPage = (props) => {
                     onUpdate={(self) => self.lookAt(0, 0, 0)}
                 />
             </Environment>
-
-            <EffectComposer disableNormalPass>
-                <N8AO aoRadius={1} intensity={2} />
-                {/* <TiltShift2 blur={0.2} /> */}
-            </EffectComposer>
             <Rig />
         </group>
     );

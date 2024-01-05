@@ -161,6 +161,7 @@ void main() {
   float pct = smoothstep(.99, 10., n + shape);
   float finalMask = smoothstep(.0, .1, sqr - c);
   vec4 finalImage = mix(image, image, pct);
+  
   gl_FragColor = vec4(finalImage.rgb, uAlpha * finalMask);
 }
 
