@@ -4,6 +4,7 @@ import { Text } from "@react-three/drei";
 import { suspend } from "suspend-react";
 import { CurvedPlane } from "./curved-plane/curved-plane";
 import { easing } from "maath";
+import { config, animated, useSpring } from "@react-spring/three";
 
 const inter = import("@pmndrs/assets/fonts/inter_extra_bold.woff");
 
@@ -66,22 +67,37 @@ export const OrbitImages = ({ radius }) => {
                             imageData={imageData}
                             hovered={hovered === index}
                         />
-                        <Text
-                            fontSize={0.6}
-                            font={suspend(inter).default}
-                            color="white"
-                            position={[
-                                position[0],
-                                position[1] - 3,
-                                position[2] + 0.3,
-                            ]}
+                        <CategoryTitle
+                            position={position}
                             rotation={rotation}
-                        >
-                            {imageData.title}
-                        </Text>
+                            title={imageData.title}
+                            hovered={hovered === index}
+                        />
                     </group>
                 );
             })}
         </mesh>
+    );
+};
+
+const CategoryTitle = ({ hovered, title, position, rotation }) => {
+    const { fontSize, color } = useSpring({
+        fontSize: hovered ? 0.7 : 0.6,
+        color: hovered ? "black" : "white",
+        config: config.wobbly,
+    });
+
+    const AnimatedText = animated(Text);
+
+    return (
+        <AnimatedText
+            fontSize={fontSize}
+            font={suspend(inter).default}
+            color={color}
+            position={[position[0], position[1] - 3, position[2] + 0.3]}
+            rotation={rotation}
+        >
+            {title}
+        </AnimatedText>
     );
 };
