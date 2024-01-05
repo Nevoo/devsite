@@ -13,46 +13,53 @@ import { easing } from "maath";
 
 import { Camera } from "../components/blender-models/camera_glb";
 import { OrbitImages } from "./components/orbit-images";
+import { useLenis } from "@studio-freight/react-lenis";
 
-export const CameraLandingPage = (props) => (
-    <>
-        <spotLight
-            position={[20, 20, 10]}
-            penumbra={1}
-            castShadow
-            angle={0.2}
-        />
-        <Float floatIntensity={1}>
-            <Camera
-                scale={150}
-                rotation={[0, -2, 0]}
-                position={[1, 4, 0]}
-            ></Camera>
-            <OrbitImages radius={10} />
-        </Float>
-        <ContactShadows
-            scale={200}
-            position={[0, -10, 0]}
-            blur={1}
-            far={100}
-            opacity={0.85}
-        />
-        <Environment preset="city">
-            <Lightformer
-                intensity={8}
-                position={[10, 5, 0]}
-                scale={[10, 50, 1]}
-                onUpdate={(self) => self.lookAt(0, 0, 0)}
+export const CameraLandingPage = (props) => {
+    useLenis(({ scroll }) => {
+        console.log("scrolling", scroll);
+    });
+
+    return (
+        <group>
+            <spotLight
+                position={[20, 20, 10]}
+                penumbra={1}
+                castShadow
+                angle={0.2}
             />
-        </Environment>
+            <Float floatIntensity={1}>
+                <Camera
+                    scale={150}
+                    rotation={[0, -2, 0]}
+                    position={[1, 4, 0]}
+                ></Camera>
+                <OrbitImages radius={10} />
+            </Float>
+            <ContactShadows
+                scale={200}
+                position={[0, -10, 0]}
+                blur={1}
+                far={100}
+                opacity={0.85}
+            />
+            <Environment preset="city">
+                <Lightformer
+                    intensity={8}
+                    position={[10, 5, 0]}
+                    scale={[10, 50, 1]}
+                    onUpdate={(self) => self.lookAt(0, 0, 0)}
+                />
+            </Environment>
 
-        <EffectComposer disableNormalPass>
-            <N8AO aoRadius={1} intensity={2} />
-            {/* <TiltShift2 blur={0.2} /> */}
-        </EffectComposer>
-        <Rig />
-    </>
-);
+            <EffectComposer disableNormalPass>
+                <N8AO aoRadius={1} intensity={2} />
+                {/* <TiltShift2 blur={0.2} /> */}
+            </EffectComposer>
+            <Rig />
+        </group>
+    );
+};
 
 function Rig() {
     useFrame((state, delta) => {

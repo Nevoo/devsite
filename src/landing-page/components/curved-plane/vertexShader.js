@@ -21,7 +21,7 @@
 //     vec3 pos = position;
 
 //     if (roundMedia == 1.0) {
-//     pos.z += sin(PI * vUv.x) * 0.1;
+//          pos.z += sin(PI * vUv.x) * 0.1;
 //     }
 
 //     vec4 defaultState = modelMatrix * vec4(pos, 1.0);

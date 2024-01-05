@@ -155,7 +155,7 @@ void main() {
   correctUV *= 1. - uProgressHover * 0.1;
   correctUV += vec2(0.5);
   vec2 cpos = st + mouse;
-  // float c = circle(cpos, .02 * uProgressHover + progress * 0.8, 2.);
+  
   float c = circle(cpos, .04 * progressHover + progress * 0.8, 2.) * 10.;
   vec4 image = texture2D(uTexture, correctUV);
   float pct = smoothstep(.99, 10., n + shape);

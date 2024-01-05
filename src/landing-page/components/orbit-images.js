@@ -1,8 +1,9 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import React, { useState } from "react";
 import { Text } from "@react-three/drei";
 import { suspend } from "suspend-react";
 import { CurvedPlane } from "./curved-plane/curved-plane";
+import { easing } from "maath";
 
 const inter = import("@pmndrs/assets/fonts/inter_extra_bold.woff");
 
@@ -10,12 +11,12 @@ const pexel = (id) =>
     `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260`;
 
 export const OrbitImages = ({ radius }) => {
-    // Define the radius of the orbit
     const [angle, setAngle] = useState(0); // Define a state for the rotation angle
+    const [hovered, setHovered] = useState(null);
 
     useFrame((state, delta) => {
         // Increment the rotation angle based on the delta time
-        setAngle((prevAngle) => prevAngle + delta * 0.2);
+        setAngle((prevAngle) => prevAngle + delta * 0.1);
     });
 
     const images = [
@@ -32,30 +33,38 @@ export const OrbitImages = ({ radius }) => {
         { image: pexel(1738986), title: "category 11" },
     ];
 
+    const calculatePosition = (index) => {
+        return angle + (index * 2 * Math.PI) / images.length;
+    };
+
     return (
-        <>
+        <mesh>
             {images.map((imageData, index) => {
                 let position = [
-                    radius *
-                        Math.sin(angle + (index * 2 * Math.PI) / images.length),
+                    radius * Math.sin(calculatePosition(index)),
                     0,
-                    radius *
-                        Math.cos(angle + (index * 2 * Math.PI) / images.length),
+                    radius * Math.cos(calculatePosition(index)),
                 ];
 
-                let rotation = [
-                    0,
-                    angle + (index * 2 * Math.PI) / images.length,
-                    0,
-                ];
+                let rotation = [0, calculatePosition(index), 0];
 
                 return (
-                    <>
+                    <group
+                        key={index}
+                        onPointerOver={(e) => {
+                            e.stopPropagation();
+                            setHovered(index);
+                        }}
+                        onPointerOut={(e) => {
+                            e.stopPropagation();
+                            setHovered(null);
+                        }}
+                    >
                         <CurvedPlane
-                            key={index}
                             position={position}
                             rotation={rotation}
                             imageData={imageData}
+                            hovered={hovered === index}
                         />
                         <Text
                             fontSize={0.6}
@@ -64,15 +73,15 @@ export const OrbitImages = ({ radius }) => {
                             position={[
                                 position[0],
                                 position[1] - 3,
-                                position[2],
+                                position[2] + 0.3,
                             ]}
                             rotation={rotation}
                         >
                             {imageData.title}
                         </Text>
-                    </>
+                    </group>
                 );
             })}
-        </>
+        </mesh>
     );
 };

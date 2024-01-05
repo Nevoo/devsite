@@ -4,15 +4,21 @@ import fragmentShader from "./fragmentShader";
 import { useThree, useLoader } from "@react-three/fiber";
 
 import { TextureLoader, Vector2, Vector4 } from "three";
+import { useSpring, animated, config } from "@react-spring/three";
 
 import React from "react";
 
-export const CurvedPlane = ({ imageData, position, rotation }) => {
+export const CurvedPlane = ({ imageData, position, rotation, hovered }) => {
     const { mouse, width } = useThree((state) => state);
     const texture = useLoader(TextureLoader, imageData.image);
 
+    const { scale } = useSpring({
+        scale: hovered ? 5.5 : 5,
+        config: config.wobbly,
+    });
+
     return (
-        <mesh position={position} scale={[5, 5, 0]} rotation={rotation}>
+        <animated.mesh position={position} scale={scale} rotation={rotation}>
             <planeGeometry args={[1, 1, 32, 32]} />
             <shaderMaterial
                 vertexShader={vertexShader}
@@ -44,6 +50,6 @@ export const CurvedPlane = ({ imageData, position, rotation }) => {
                     },
                 ]}
             />
-        </mesh>
+        </animated.mesh>
     );
 };
