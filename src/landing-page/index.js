@@ -6,14 +6,14 @@ import {
     ContactShadows,
     Environment,
 } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import { easing } from "maath";
 import { Camera } from "../components/blender-models/camera_glb";
 import { OrbitImages } from "./components/orbit-images";
 import { useLenis } from "@studio-freight/react-lenis";
 import { a, animated, config, useTransition } from "@react-spring/three";
 import useImageState from "./state/image-state";
 import { useShallow } from "zustand/react/shallow";
+import { View } from "../routing-test/view-context";
+import { Rig } from "../components/rig";
 
 export const CameraLandingPage = (props) => {
     const images = useImageState((state) => state.images);
@@ -21,7 +21,7 @@ export const CameraLandingPage = (props) => {
     const tapCamera = useImageState((state) => state.tapCamera);
 
     return (
-        <group>
+        <View>
             <spotLight
                 position={[20, 20, 10]}
                 penumbra={1}
@@ -56,22 +56,6 @@ export const CameraLandingPage = (props) => {
                 />
             </Environment>
             <Rig />
-        </group>
+        </View>
     );
 };
-
-function Rig() {
-    useFrame((state, delta) => {
-        easing.damp3(
-            state.camera.position,
-            [
-                Math.sin(-state.pointer.x) * 5,
-                state.pointer.y * 3.5,
-                15 + Math.cos(state.pointer.x) * 10,
-            ],
-            0.2,
-            delta
-        );
-        state.camera.lookAt(0, 0, 0);
-    });
-}

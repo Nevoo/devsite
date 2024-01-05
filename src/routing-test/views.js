@@ -4,13 +4,15 @@ import { useControls } from "leva";
 
 import { useNavigate, Route, Routes } from "react-router-dom";
 import { useView, View } from "./view-context";
+import { CameraLandingPage } from "../landing-page";
+import { AboutPage } from "../pages/about/about-page";
 
 const dashboardOptions = [
     {
         to: "/",
     },
     {
-        to: "/test",
+        to: "/about",
     },
     {
         to: "/landing-page",
@@ -101,10 +103,11 @@ export function Views() {
     const { path } = useView();
     return (
         <Routes location={path}>
-            <Route path="/" element={<TestView />} />
-            <Route path="/landing-page" element={<TestView />} />
+            <Route path="/" element={<CameraLandingPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            {/* <Route path="/landing-page" element={<TestView />} /> */}
             {/* <Route path="" element={<LandingPageScene />} /> */}
-            <Route path="/test" element={<TestView />} />
+            {/* <Route path="/test" element={<TestView />} /> */}
             {/* <Route path="*" element={<NotFound />} /> */}
         </Routes>
     );
