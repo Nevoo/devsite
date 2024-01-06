@@ -9,8 +9,11 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-image: url('/public/noisegradient.png');
+  /* background-image: url('/public/noisegradient.png'); */
+  background-color: #0f0e17;
   background-size: cover;
+  color: #fffffe;
+  overflow: hidden;
 }
 
 .blur {
@@ -23,10 +26,11 @@
   font-weight: 700;
   text-align: right;
   position: absolute;
-  right: 25px;
-  top: 25px;
+  right: 0;
+  top: 0;
+  margin: 2em 3.4em 0em 0em;
   color: white;
-  font-size: 12px;
+  font-size: 1.5em;
 }
 
 .nav div:hover {
@@ -38,10 +42,11 @@
 .logo {
   font-weight: 800;
   position: absolute;
-  left: 25px;
-  top: 25px;
+  left: 0;
+  top: 0;
+  margin: 2em 0 0 3.4em;
   color: white;
-  font-size: 18px;
+  font-size: 1.5em;
 }
 
 .logo:hover{
@@ -51,8 +56,13 @@
 .footer {
   font-weight: 800;
   position: absolute;
-  bottom: 10px;
+  bottom: 20px;
   color: white;
-  font-size: 8px;
+  font-size: 1em;
+}
+
+.body {
+  padding: 5em 5em 5em 5em;
+  /* margin: 5em 0 0 5em; */
 }
 

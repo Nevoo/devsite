@@ -1,29 +1,25 @@
 import React, { useRef, useState } from "react";
 import { useGLTF } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { animated } from "@react-spring/three";
 
 export function Camera(props) {
-  const { nodes, materials } = useGLTF("/cam.glb");
+    const { nodes, materials } = useGLTF("/cam.glb");
 
-  return (
-    <group {...props} dispose={null}>
-      <group position={[-0.02, -0.01, 0.02]}>
-        <mesh
-          castShadow
-          receiveShadow
-          geometry={nodes.Cube_1.geometry}
-          material={materials.Material}
-        />
+    return (
+        <animated.group dispose={null} {...props}>
+            <mesh
+                castShadow
+                receiveShadow
+                geometry={nodes.Cube_1.geometry}
+                material={materials.Material}
+            />
 
-        <mesh
-          castShadow
-          receiveShadow
-          geometry={nodes.Cube_2.geometry}
-          material={materials["Material.001"]}
-        />
-      </group>
-    </group>
-  );
+            <mesh
+                castShadow
+                receiveShadow
+                geometry={nodes.Cube_2.geometry}
+                material={materials["Material.001"]}
+            />
+        </animated.group>
+    );
 }
-
-useGLTF.preload("/cam.glb");

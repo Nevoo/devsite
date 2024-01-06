@@ -1,52 +1,93 @@
-import React from "react";
+import React, { Suspense, useRef, useEffect } from "react";
 import "./App.css";
 import { Canvas, useThree } from "@react-three/fiber";
-import { useSpring, animated, config } from "@react-spring/web";
-import DonutScene from "./scenes/donut_scene";
-import GalleryScene from "./scenes/gallery_scene";
-import LandingPageScene from "./scenes/landingpage_scene";
-import { CameraLandingPage } from "./landing-page/index";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  useLocation,
-} from "react-router-dom";
-import { Views } from "./routing-test/views";
+import { animated } from "@react-spring/web";
+
+import { BrowserRouter as Router, useNavigate } from "react-router-dom";
 import { ViewProvider } from "./routing-test/view-context";
-import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
+import { Views } from "./routing-test/views";
+import useRigState from "./global-state/rig-state";
+import useCameraTransitionState from "./global-state/model-state";
+import useImageState from "./landing-page/state/image-state";
+import { useControls } from "leva";
 
 function App() {
-  return (
-    <div>
-      {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
-      <animated.div className="App">
-        <div className={"blur"}>
-          <Canvas
-            eventSource={document.getElementById("root")}
-            eventPrefix="client"
-            shadows
-            camera={{ position: [0, 0, 20], fov: 50 }}
-          >
-            {/* <Router>
-            <ViewProvider>
-              <Views />
-            </ViewProvider>
-          </Router> */}
-            <CameraLandingPage />
-          </Canvas>
+    return (
+        // <ReactLenis>
+        <div>
+            {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
+            <animated.div className="App">
+                <Router>
+                    <div className={"blur"}>
+                        <Canvas shadows camera={{ fov: 50 }}>
+                            <ViewProvider>
+                                <Views />
+                            </ViewProvider>
+                        </Canvas>
+                    </div>
+                    <Header />
+                </Router>
+            </animated.div>
         </div>
-        <div class="nav">
-          <div>about</div>
-          <div>contact</div>
-        </div>
-        <div class="logo">nevo</div>
-        <div class="footer">
-          web developer - mobile developer - photographer
-        </div>
-      </animated.div>
-    </div>
-  );
+        // </ReactLenis>
+    );
 }
+
+const Header = () => {
+    const navigate = useNavigate();
+    const setRig = useRigState((state) => state.setRig);
+
+    const setPosition = useCameraTransitionState((state) => state.setPosition);
+    const setScale = useCameraTransitionState((state) => state.setScale);
+    const setRotation = useCameraTransitionState((state) => state.setRotation);
+    const tapCamera = useImageState((state) => state.tapCamera);
+
+    return (
+        <>
+            <div className={"nav"}>
+                <div
+                    onClick={() => {
+                        // navigate("/about");
+                        // setRig(false);
+                        // setActiveRoute(routes[0].to);
+                        setPosition([19, 8, 0]);
+                        setScale(20);
+                        navigate("/camera2");
+                    }}
+                >
+                    about
+                </div>
+                <div
+                    onClick={() => {
+                        // navigate("/");
+                        // setRig(true);
+                        // setActiveRoute(routes[1].to);
+                        // [-0.02, -0.01, 0.02]
+                        setPosition([19, 8, 0]);
+                        setScale(20);
+                        navigate("/camera3");
+                    }}
+                >
+                    contact
+                </div>
+            </div>
+            <div
+                className={"logo"}
+                onClick={() => {
+                    // navigate("/");
+                    // setRig(true);
+                    setPosition([-0.02, -0.01, 0.02]);
+                    setScale(150);
+                    navigate("/camera4");
+                }}
+            >
+                nevo
+            </div>
+            <div className={"footer"}>
+                web developer - mobile developer - photographer
+            </div>
+        </>
+    );
+};
 
 export default App;

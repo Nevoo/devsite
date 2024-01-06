@@ -11,10 +11,10 @@
     "@react-three/drei": "^9.78.1",
     "@react-three/fiber": "^8.13.0",
     "@react-three/postprocessing": "^2.14.13",
+    "@studio-freight/react-lenis": "^0.0.40",
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
-    "add": "^2.0.6",
     "lamina": "^1.1.23",
     "leva": "^0.9.34",
     "maath": "^0.5.2",
@@ -24,8 +24,8 @@
     "react-scripts": "5.0.1",
     "three": "^0.154.0",
     "uuid-by-string": "^4.0.0",
-    "web-vitals": "^2.1.4",
-    "wouter": "^2.10.0"
+    "wouter": "^2.10.0",
+    "zustand": "^4.4.7"
   },
   "scripts": {
     "start": "react-scripts start",
