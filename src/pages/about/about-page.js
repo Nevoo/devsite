@@ -8,7 +8,6 @@ export const AboutPage = () => {
     // const view = useView();
     const { width } = useThree((state) => state.size);
 
-    console.log(width);
     return (
         <MobileScrollWrapper width={width}>
             <Image
@@ -75,7 +74,7 @@ export const AboutPage = () => {
 
 const MobileScrollWrapper = ({ children, width }) => {
     return width > 1000 ? (
-        <>{children} </>
+        <>{children}</>
     ) : (
         <ScrollControls pages="2">
             <Scroll>

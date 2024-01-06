@@ -13,6 +13,7 @@
   background-color: #0f0e17;
   background-size: cover;
   color: #fffffe;
+  overflow: hidden;
 }
 
 .blur {

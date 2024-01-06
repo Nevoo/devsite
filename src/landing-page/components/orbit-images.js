@@ -1,6 +1,6 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import React, { useEffect, useMemo, useState } from "react";
-import { Text } from "@react-three/drei";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Scroll, ScrollControls, Text, useScroll } from "@react-three/drei";
 import { suspend } from "suspend-react";
 import { CurvedPlane } from "./curved-plane/curved-plane";
 import { easing } from "maath";
@@ -18,7 +18,6 @@ import { useShallow } from "zustand/react/shallow";
 const inter = import("@pmndrs/assets/fonts/inter_extra_bold.woff");
 
 export const OrbitImages = ({ radius, images }) => {
-    const [angle, setAngle] = useState(0); // Define a state for the rotation angle
     const [hovered, setHovered] = useState(null);
 
     const { cameraTapped, tapCamera } = useImageState(
@@ -28,21 +27,8 @@ export const OrbitImages = ({ radius, images }) => {
         }))
     );
 
-    useFrame((state, delta) => {
-        // Increment the rotation angle based on the delta time
-        if (cameraTapped) {
-            setAngle((prevAngle) => prevAngle + delta * 0.1);
-        }
-    });
-
-    useEffect(() => {
-        // if (cameraTapped) {
-        //     transApi.start();
-        // }
-    }, [cameraTapped]);
-
     const calculatePosition = (index) => {
-        return angle + (index * 2 * Math.PI) / images.length;
+        return 0 + (index * 2 * Math.PI) / images.length;
     };
 
     const trail = useTrail(images.length, {
@@ -64,7 +50,11 @@ export const OrbitImages = ({ radius, images }) => {
     });
 
     return (
-        <>
+        <ScrollControls
+            horizontal
+            pages={images.length}
+            style={{ overflow: "hidden" }}
+        >
             {trail.map(({ ...style }, index) => {
                 const imageData = images[index];
                 let position = [
@@ -76,7 +66,7 @@ export const OrbitImages = ({ radius, images }) => {
                 let rotation = [0, calculatePosition(index), 0];
 
                 return (
-                    <group
+                    <CategoryElement
                         key={index}
                         onPointerOver={(e) => {
                             e.stopPropagation();
@@ -86,45 +76,78 @@ export const OrbitImages = ({ radius, images }) => {
                             e.stopPropagation();
                             setHovered(null);
                         }}
-                    >
-                        <CurvedPlane
-                            position={style.positionOffset.to((offset) => [
-                                position[0],
-                                position[1] + offset,
-                                position[2] + offset,
-                            ])}
-                            hovered={hovered === index}
-                            transitionScale={style.scale.to((x) => x)}
-                            rotation={style.rotationOffset.to((offset) => [
-                                rotation[0] + offset,
-                                rotation[1],
-                                rotation[2] + offset,
-                            ])}
-                            imageData={imageData}
-                            index={index}
-                            onPointerDown={(e) => {
-                                e.stopPropagation();
-                                tapCamera(false);
-                            }}
-                        />
-                        <CategoryTitle
-                            scale={style.fontScale.to((x) => x)}
-                            position={position}
-                            rotation={rotation}
-                            title={imageData.title}
-                            hovered={hovered === index}
-                        />
-                    </group>
+                        onImageClick={(e) => {
+                            e.stopPropagation();
+                            tapCamera(false);
+                        }}
+                        imageData={imageData}
+                        position={position}
+                        rotation={rotation}
+                        style={style}
+                        index={index}
+                        hovered={hovered}
+                    />
                 );
             })}
-        </>
+        </ScrollControls>
+    );
+};
+
+const CategoryElement = ({
+    imageData,
+    position,
+    hovered,
+    rotation,
+    style,
+    index,
+    onImageClick,
+    scrollRotation,
+    ...props
+}) => {
+    const categoryRef = useRef();
+
+    const scroll = useScroll();
+
+    useFrame((state, delta) => {
+        const offset = scroll.offset;
+
+        categoryRef.current.rotation.y = offset * 50;
+    });
+
+    return (
+        <group {...props} ref={categoryRef}>
+            <CurvedPlane
+                position={style.positionOffset.to((offset) => [
+                    position[0],
+                    position[1] + offset,
+                    position[2] + offset,
+                ])}
+                hovered={hovered === index}
+                transitionScale={style.scale.to((x) => x)}
+                rotation={style.rotationOffset.to((offset) => [
+                    rotation[0] + offset,
+                    rotation[1],
+                    rotation[2] + offset,
+                ])}
+                imageData={imageData}
+                index={index}
+                onPointerDown={onImageClick}
+            />
+            <CategoryTitle
+                scale={style.fontScale.to((x) => x)}
+                position={position}
+                rotation={rotation}
+                title={imageData.title}
+                hovered={hovered === index}
+            />
+        </group>
     );
 };
 
 const CategoryTitle = ({ hovered, title, position, rotation, scale }) => {
     const { fontSize, color } = useSpring({
         fontSize: hovered ? 0.7 : 0.6,
-        color: hovered ? "black" : "white",
+        color: hovered ? "#ff8906" : "#fffffe",
         config: config.wobbly,
     });
 
@@ -136,7 +159,7 @@ const CategoryTitle = ({ hovered, title, position, rotation, scale }) => {
             fontSize={fontSize}
             font={suspend(inter).default}
             color={color}
-            position={[position[0], position[1] - 3, position[2] + 0.3]}
+            position={[position[0], position[1] - 3, position[2]]}
             rotation={rotation}
         >
             {title}
