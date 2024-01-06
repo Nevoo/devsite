@@ -3,10 +3,21 @@ import { create } from "zustand";
 const useCameraTransitionState = create((set, get) => ({
     position: [-0.02, -0.01, 0.02],
     previousPosition: [0, 0, 0],
-    setRig: (isActive) => set({ isRigActive: isActive }),
     setPosition: (position) => {
         set({ previousPosition: get().position });
         set({ position: position });
+    },
+    rotation: -0.2,
+    previousRotation: -0.2,
+    setRotation: (rotation) => {
+        set({ previousRotation: get().rotation });
+        set({ rotation: rotation });
+    },
+    scale: 50,
+    previousScale: 50,
+    setScale: (scale) => {
+        set({ previousScale: get().scale });
+        set({ scale: scale });
     },
 }));
 

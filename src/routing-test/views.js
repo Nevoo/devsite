@@ -12,109 +12,26 @@ import { Environment, Lightformer } from "@react-three/drei";
 import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
 import { Rig } from "../components/rig";
+import { useFrame } from "@react-three/fiber";
 
-const dashboardOptions = [
-    {
-        to: "/",
-    },
-    {
-        to: "/about",
-    },
-    {
-        to: "/landing-page",
-    },
-];
+const items = [{ to: "/camera2" }, { to: "/camera3" }, { to: "/camera4" }];
 
-const items = [{ to: "/camera2" }, { to: "/camera3" }];
-
-export function TestView() {
-    const debugConfig = useControls({
-        textPosition: [0.03, 0.02, 0.05],
-        text: "PICS",
-        curveSegments: { value: 32, min: 1, max: 100, step: 1 },
-        bevelSegments: { value: 32, min: 1, max: 100, step: 1 },
-        bevelEnabled: true,
-        bevelSize: { value: 0.002, min: 0, max: 0.01, step: 0.0001 },
-        bevelThickness: { value: 0.01, min: 0, max: 1, step: 0.001 },
-        bevelOffset: { value: 0, min: 0, max: 1, step: 0.001 },
-        height: { value: 0.0, min: 0, max: 10, step: 0.01 },
-        lineHeight: { value: 0.5, min: 0, max: 10, step: 0.01 },
-        letterSpacing: {
-            value: 0.008,
-            min: -1,
-            max: 1,
-            step: 0.001,
-        },
-        modelPosition: [0, 0.04, -0.2],
-        modelRotation: [0.15, 0, 0],
-        cameraPosition: [1, 1.5, 0.3],
-        cameraRotation: [0.02, -1.09, 0.0],
-        cameraScale: { value: 50, min: 0, max: 100, step: 0.01 },
-        ambienLightIntensity: { value: 0.3, min: 0, max: 1, step: 0.001 },
-    });
-
-    const view = useView();
-    const navigate = useNavigate();
-    const [transition, transApi] = useTransition(
-        view.active ? dashboardOptions : [],
-        () => ({
-            trail: Math.max(10, 250 / dashboardOptions.length),
-            from: { scale: 0, rotation: 0 },
-            enter: { scale: 1, rotation: 4, config: config.stiff },
-            leave: {
-                config: config.stiff,
-                scale: 0,
-                rotation: 0,
-                onRest: (_, __, c) => {
-                    // Switch route when the last item has finished
-                    // IDK if theres a better way to do this
-                    if (
-                        dashboardOptions.indexOf(c) ===
-                        dashboardOptions.length - 1
-                    ) {
-                        view.updateRoute();
-                    }
-                },
-            },
-        }),
-        [view.active]
-    );
-
-    useEffect(() => {
-        transApi.start();
-    }, [view.active]);
-
-    return (
-        <View delayedTransition>
-            {transition((props, option, _, i) => {
-                const x = i;
-                return (
-                    <a.mesh
-                        key={i}
-                        position={[x * 1.2 - 1.4, 0, 0]}
-                        rotation={props.rotation.to((r) => [r, 0, 0])}
-                        onClick={() => navigate(option.to)}
-                        scale={props.scale.to((x) => [x, x, x])}
-                    >
-                        <boxGeometry />
-                        <meshNormalMaterial />
-                    </a.mesh>
-                );
-            })}
-        </View>
-    );
-}
-
-export const CameraView = ({
-    children,
-    fromPosition,
-    enterPosition,
-    leavePosition,
-}) => {
-    const { previousPosition, position } = useCameraTransitionState(
+export const CameraView = ({ children }) => {
+    const {
+        previousPosition,
+        position,
+        previousScale,
+        scale,
+        previousRotation,
+        rotation,
+    } = useCameraTransitionState(
         useShallow((state) => ({
             previousPosition: state.previousPosition,
             position: state.position,
+            previousScale: state.previousScale,
+            scale: state.scale,
+            previousRotation: state.previousRotation,
+            rotation: state.rotation,
         }))
     );
 
@@ -125,29 +42,20 @@ export const CameraView = ({
         () => ({
             // trail: Math.max(10, 250 / dashboardOptions.length),
             from: {
-                scale: 50,
-                rotation: 0,
+                scale: previousScale,
                 position: previousPosition,
-                x: previousPosition[0],
-                y: previousPosition[1],
-                z: previousPosition[2],
+                rotation: 0,
             },
             enter: {
-                scale: 150,
-                rotation: 4,
                 config: config.stiff,
+                scale: scale,
                 position: position,
-                x: position[0],
-                y: position[1],
-                z: position[2],
+                rotation: 4,
             },
             leave: {
-                position: previousPosition,
-                x: position[0],
-                y: position[1],
-                z: position[2],
                 config: config.stiff,
-                scale: 50,
+                scale: previousScale,
+                position: previousPosition,
                 rotation: 0,
                 onRest: (_, __, c) => {
                     // Switch route when the last item has finished
@@ -168,10 +76,9 @@ export const CameraView = ({
     const AnimatedCamera = animated(Camera);
 
     return (
-        <View delayedTransition>
+        <View>
             {transition((props, option, _, i) => {
-                // console.log(props);
-                props.position.to((position) => console.log(position));
+                // props.rotation.to(console.log);
                 return (
                     <>
                         <Environment preset="city">
@@ -183,7 +90,7 @@ export const CameraView = ({
                             />
                         </Environment>
                         <AnimatedCamera
-                            scale={150}
+                            scale={props.scale}
                             rotation={[0, -2, 0]}
                             position={props.position}
                             // onClick={(e) => {
@@ -193,7 +100,7 @@ export const CameraView = ({
                             // }}
                         />
                         {children}
-                        <Rig />
+                        {/* <Rig /> */}
                     </>
                 );
             })}

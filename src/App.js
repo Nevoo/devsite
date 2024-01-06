@@ -39,6 +39,8 @@ const Header = () => {
     const setRig = useRigState((state) => state.setRig);
 
     const setPosition = useCameraTransitionState((state) => state.setPosition);
+    const setScale = useCameraTransitionState((state) => state.setScale);
+    const setRotation = useCameraTransitionState((state) => state.setRotation);
 
     return (
         <>
@@ -48,7 +50,8 @@ const Header = () => {
                         // navigate("/about");
                         // setRig(false);
                         // setActiveRoute(routes[0].to);
-                        setPosition([-0.02, 2, 0.02]);
+                        setPosition([13.5, 8.3, 0]);
+                        setScale(20);
                         navigate("/camera2");
                     }}
                 >
@@ -60,7 +63,8 @@ const Header = () => {
                         // setRig(true);
                         // setActiveRoute(routes[1].to);
                         // [-0.02, -0.01, 0.02]
-                        setPosition([-0.02, -0.01, 0.02]);
+                        setPosition([13.5, 7.5, 0]);
+                        setScale(20);
                         navigate("/camera3");
                     }}
                 >
@@ -72,7 +76,8 @@ const Header = () => {
                 onClick={() => {
                     // navigate("/");
                     // setRig(true);
-                    setPosition([-4, -0.01, 0.02]);
+                    setPosition([-0.02, -0.01, 0.02]);
+                    setScale(150);
                     navigate("/camera4");
                 }}
             >
