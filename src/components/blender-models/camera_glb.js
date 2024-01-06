@@ -1,11 +1,12 @@
 import React, { useRef, useState } from "react";
 import { useGLTF } from "@react-three/drei";
+import { animated } from "@react-spring/three";
 
 export function Camera(props) {
     const { nodes, materials } = useGLTF("/cam.glb");
 
     return (
-        <group dispose={null} {...props} position={[-0.02, -0.01, 0.02]}>
+        <animated.group dispose={null} {...props}>
             <mesh
                 castShadow
                 receiveShadow
@@ -19,6 +20,6 @@ export function Camera(props) {
                 geometry={nodes.Cube_2.geometry}
                 material={materials["Material.001"]}
             />
-        </group>
+        </animated.group>
     );
 }

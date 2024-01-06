@@ -7,6 +7,7 @@ import { BrowserRouter as Router, useNavigate } from "react-router-dom";
 import { ViewProvider } from "./routing-test/view-context";
 import { Views } from "./routing-test/views";
 import useRigState from "./global-state/rig-state";
+import useCameraTransitionState from "./global-state/model-state";
 
 function App() {
     return (
@@ -37,24 +38,42 @@ const Header = () => {
     const navigate = useNavigate();
     const setRig = useRigState((state) => state.setRig);
 
+    const setPosition = useCameraTransitionState((state) => state.setPosition);
+
     return (
         <>
             <div className={"nav"}>
                 <div
                     onClick={() => {
-                        navigate("/about");
-                        setRig(false);
+                        // navigate("/about");
+                        // setRig(false);
+                        // setActiveRoute(routes[0].to);
+                        setPosition([-0.02, 2, 0.02]);
+                        navigate("/camera2");
                     }}
                 >
                     about
                 </div>
-                <div>contact</div>
+                <div
+                    onClick={() => {
+                        // navigate("/");
+                        // setRig(true);
+                        // setActiveRoute(routes[1].to);
+                        // [-0.02, -0.01, 0.02]
+                        setPosition([-0.02, -0.01, 0.02]);
+                        navigate("/camera3");
+                    }}
+                >
+                    contact
+                </div>
             </div>
             <div
                 className={"logo"}
                 onClick={() => {
-                    navigate("/");
-                    setRig(true);
+                    // navigate("/");
+                    // setRig(true);
+                    setPosition([-4, -0.01, 0.02]);
+                    navigate("/camera4");
                 }}
             >
                 nevo

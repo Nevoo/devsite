@@ -21,7 +21,6 @@ export const Rig = () => {
             state.camera.lookAt(0, 0, 0);
         } else {
             state.camera.position.set(0, 0, 20);
-            state.camera.lookAt(0, 0, 0);
         }
     });
 };

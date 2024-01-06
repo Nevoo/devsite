@@ -32,7 +32,8 @@ export const CameraLandingPage = (props) => {
                 <Camera
                     scale={150}
                     rotation={[0, -2, 0]}
-                    position={[1, 4, 0]}
+                    position={[-0.02, -0.01, 0.02]}
+                    // position={[1, 4, 0]}
                     onPointerDown={(e) => {
                         e.stopPropagation();
                         tapCamera(true);
