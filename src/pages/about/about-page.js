@@ -1,40 +1,25 @@
-import {
-    Html,
-    Text,
-    Image,
-    Scroll,
-    ScrollControls,
-    useTrail,
-    Environment,
-    Lightformer,
-} from "@react-three/drei";
+import { Html, Scroll, ScrollControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import { Rig } from "../../components/rig";
-import { useEffect } from "react";
-import useRigState from "../../global-state/rig-state";
-import { Camera } from "../../components/blender-models/camera_glb";
+import { animated, config, useSpring } from "@react-spring/web";
 
 export const AboutPage = () => {
-    // const view = useView();
     const { width } = useThree((state) => state.size);
+
+    const { opacity } = useSpring({
+        config: config.stiff,
+        from: { opacity: 0 },
+        to: { opacity: 1 },
+    });
 
     return (
         <group>
-            <Environment preset="city">
-                <Lightformer
-                    intensity={8}
-                    position={[10, 5, 0]}
-                    scale={[10, 50, 1]}
-                    onUpdate={(self) => self.lookAt(0, 0, 0)}
-                />
-            </Environment>
-            <Camera scale={50} rotation={[0, -1.3, 0]} position={[1, 4, 0]} />
             <MobileScrollWrapper width={width}>
                 <Html fullscreen position={[0, -2.2, 0]}>
-                    <div
+                    <animated.div
                         className="body"
                         style={{
                             display: "flex",
+                            opacity,
                             flexDirection: width > 1000 ? "row" : "column",
                             justifyContent: "space-between",
                             textAlign: "left",
@@ -51,7 +36,7 @@ export const AboutPage = () => {
                             <h1
                                 style={{
                                     fontFamily: "Gilroy",
-                                    fontSize: "7em",
+                                    fontSize: width > 1000 ? "7em" : "4em",
                                     fontWeight: "bold",
                                 }}
                             >
@@ -90,10 +75,13 @@ export const AboutPage = () => {
                         >
                             <img
                                 src="KPK07115.jpg"
-                                style={{ maxWidth: "100%", maxHeight: "100%" }}
+                                style={{
+                                    maxWidth: "100%",
+                                    maxHeight: "100%",
+                                }}
                             />
                         </div>
-                    </div>
+                    </animated.div>
                 </Html>
             </MobileScrollWrapper>
         </group>

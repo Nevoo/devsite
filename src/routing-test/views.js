@@ -8,15 +8,17 @@ import { CameraLandingPage } from "../landing-page";
 import { AboutPage } from "../pages/about/about-page";
 import { Camera } from "../components/blender-models/camera_glb";
 import { navigate } from "wouter";
-import { Environment, Lightformer } from "@react-three/drei";
+import { Environment, Float, Lightformer } from "@react-three/drei";
 import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
 import { Rig } from "../components/rig";
 import { useFrame } from "@react-three/fiber";
+import { OrbitImages } from "../landing-page/components/orbit-images";
+import useImageState from "../landing-page/state/image-state";
 
 const items = [{ to: "/camera2" }, { to: "/camera3" }, { to: "/camera4" }];
 
-export const CameraView = ({ children }) => {
+export const CameraView = ({ children, displayRig, onCameraTap }) => {
     const {
         previousPosition,
         position,
@@ -38,7 +40,7 @@ export const CameraView = ({ children }) => {
     const view = useView();
 
     const [transition, transApi] = useTransition(
-        view.active ? items : [],
+        view.active ? [1] : [],
         () => ({
             // trail: Math.max(10, 250 / dashboardOptions.length),
             from: {
@@ -89,18 +91,22 @@ export const CameraView = ({ children }) => {
                                 onUpdate={(self) => self.lookAt(0, 0, 0)}
                             />
                         </Environment>
+                        {/* <Float floatIntensity={1}> */}
+                        {children}
                         <AnimatedCamera
                             scale={props.scale}
                             rotation={[0, -2, 0]}
                             position={props.position}
+                            onPointerDown={onCameraTap}
                             // onClick={(e) => {
                             //     console.log(option.to);
                             //     navigate(option.to);
                             // e.stopPropagation();
                             // }}
                         />
-                        {children}
-                        {/* <Rig /> */}
+                        {/* </Float> */}
+
+                        {displayRig && <Rig />}
                     </>
                 );
             })}
@@ -113,7 +119,7 @@ export function Views() {
     return (
         <Routes location={path}>
             <Route path="/" element={<CameraLandingPage />} />
-            <Route path="/about" element={<AboutPage />} />
+            {/* <Route path="/about" element={} /> */}
             <Route path="/camera2" element={<TestView2 />} />
             <Route path="/camera3" element={<TestView3 />} />
             <Route path="/camera4" element={<TestView4 />} />
@@ -127,7 +133,11 @@ export function Views() {
 
 const TestView2 = () => {
     // position={[-0.02, -0.01, 0.02]}
-    return <CameraView />;
+    return (
+        <CameraView>
+            <AboutPage />
+        </CameraView>
+    );
 };
 
 const TestView3 = () => {
@@ -135,5 +145,18 @@ const TestView3 = () => {
 };
 
 const TestView4 = () => {
-    return <CameraView />;
+    const images = useImageState((state) => state.images);
+    const tapCamera = useImageState((state) => state.tapCamera);
+
+    return (
+        <CameraView
+            displayRig
+            onCameraTap={(e) => {
+                e.stopPropagation();
+                tapCamera(true);
+            }}
+        >
+            <OrbitImages radius={10} images={images} />
+        </CameraView>
+    );
 };

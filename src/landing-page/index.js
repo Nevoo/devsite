@@ -8,10 +8,7 @@ import {
 } from "@react-three/drei";
 import { Camera } from "../components/blender-models/camera_glb";
 import { OrbitImages } from "./components/orbit-images";
-import { useLenis } from "@studio-freight/react-lenis";
-import { a, animated, config, useTransition } from "@react-spring/three";
 import useImageState from "./state/image-state";
-import { useShallow } from "zustand/react/shallow";
 import { View } from "../routing-test/view-context";
 import { Rig } from "../components/rig";
 

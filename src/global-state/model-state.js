@@ -13,7 +13,7 @@ const useCameraTransitionState = create((set, get) => ({
         set({ previousRotation: get().rotation });
         set({ rotation: rotation });
     },
-    scale: 50,
+    scale: 150,
     previousScale: 50,
     setScale: (scale) => {
         set({ previousScale: get().scale });
