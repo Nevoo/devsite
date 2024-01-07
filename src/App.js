@@ -33,14 +33,16 @@ function App() {
     );
 }
 
+// TODO: listen to navigation changes to adjust position there -> fixes bug when manually navigating to /camera2
+// TODO: implement gallery for images
+// TODO: fix scrolling categories on mobile
+// TODO: use smaller image of me to improve about page performance
+
 const Header = () => {
     const navigate = useNavigate();
-    const setRig = useRigState((state) => state.setRig);
 
     const setPosition = useCameraTransitionState((state) => state.setPosition);
     const setScale = useCameraTransitionState((state) => state.setScale);
-    const setRotation = useCameraTransitionState((state) => state.setRotation);
-    const tapCamera = useImageState((state) => state.tapCamera);
 
     return (
         <>
