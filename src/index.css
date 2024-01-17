@@ -1,6 +1,8 @@
+@import url("https://rsms.me/inter/inter.css");
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -10,4 +12,24 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+:root {
+  --step0: #050505;
+  --step1: #bad5ea;
+  --step2: #fd8769;
+  --step3: #ffdcb3;
+  --step4: #ff615d;
+}
+
+@font-face {
+  font-family: "GilroyExtraBold";
+  src: local("GilroyExtraBold"), url("./fonts/Gilroy/Gilroy-ExtraBold.otf") format("opentype");
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: "GilroyLight";
+  src: local("GilroyLight"), url("./fonts/Gilroy/Gilroy-Light.otf") format("opentype");
+  font-weight: light;
 }

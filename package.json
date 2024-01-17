@@ -1,18 +1,31 @@
 {
-  "name": "devsite",
+  "name": "example",
   "version": "0.1.0",
   "private": true,
   "author": "Rouven Lührs",
-  "license": "MIT",
   "description": "My Personal Portfolio Website",
   "dependencies": {
-    "@testing-library/jest-dom": "^5.14.1",
-    "@testing-library/react": "^11.2.7",
-    "@testing-library/user-event": "^12.8.3",
-    "react": "^17.0.2",
-    "react-dom": "^17.0.2",
-    "react-scripts": "4.0.3",
-    "web-vitals": "^1.1.2"
+    "@pmndrs/assets": "^1.6.0",
+    "@react-spring/three": "^9.7.3",
+    "@react-spring/web": "^9.7.3",
+    "@react-three/drei": "^9.78.1",
+    "@react-three/fiber": "^8.13.0",
+    "@react-three/postprocessing": "^2.14.13",
+    "@studio-freight/react-lenis": "^0.0.40",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "lamina": "^1.1.23",
+    "leva": "^0.9.34",
+    "maath": "^0.5.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.11.0",
+    "react-scripts": "5.0.1",
+    "three": "^0.154.0",
+    "uuid-by-string": "^4.0.0",
+    "wouter": "^2.10.0",
+    "zustand": "^4.4.7"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -37,5 +50,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/three": "^0.147.1"
   }
 }

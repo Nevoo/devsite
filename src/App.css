@@ -1,38 +1,68 @@
+
 .App {
   text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+  /* background: linear-gradient(90deg, #12c2e9 0%, #c471ed 46%, #f64f59 100%); */
+  /* background-color: #000000; */
+  height: 100vh;
+  width: 100vw;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
+  /* background-image: url('/public/noisegradient.png'); */
+  background-color: #0f0e17;
+  background-size: cover;
+  color: #fffffe;
+  overflow: hidden;
+}
+
+.blur {
+  backdrop-filter: blur(3px);
+  height: 100vh;
+  width: 100vw;
+}
+
+.nav {
+  font-weight: 700;
+  text-align: right;
+  position: absolute;
+  right: 0;
+  top: 0;
+  margin: 2em 3.4em 0em 0em;
   color: white;
+  font-size: 1.5em;
 }
 
-.App-link {
-  color: #61dafb;
+.nav div:hover {
+  cursor: pointer;
+  color: rgb(206, 146, 226);
+  text-decoration: underline;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.logo {
+  font-weight: 800;
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 2em 0 0 3.4em;
+  color: white;
+  font-size: 1.5em;
 }
+
+.logo:hover{
+  cursor: pointer;
+}
+
+.footer {
+  font-weight: 800;
+  position: absolute;
+  bottom: 20px;
+  color: white;
+  font-size: 1em;
+}
+
+.body {
+  padding: 5em 5em 5em 5em;
+  /* margin: 5em 0 0 5em; */
+}
+
