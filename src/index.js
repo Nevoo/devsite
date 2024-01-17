@@ -3,14 +3,8 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import { Leva } from "leva";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
-
-// const router = createBrowserRouter([
-//   {
-//     path: "/",
-//     element: <div>Hello world!</div>,
-//   },
-// ]);
+import "./fonts/Gilroy/Gilroy-ExtraBold.otf";
+import "./fonts/Gilroy/Gilroy-Light.otf";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

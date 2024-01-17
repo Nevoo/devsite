@@ -22,3 +22,14 @@ code {
   --step4: #ff615d;
 }
 
+@font-face {
+  font-family: "GilroyExtraBold";
+  src: local("GilroyExtraBold"), url("./fonts/Gilroy/Gilroy-ExtraBold.otf") format("opentype");
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: "GilroyLight";
+  src: local("GilroyLight"), url("./fonts/Gilroy/Gilroy-Light.otf") format("opentype");
+  font-weight: light;
+}
