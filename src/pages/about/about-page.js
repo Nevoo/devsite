@@ -67,12 +67,14 @@ export const AboutPage = () => {
                     <div
                         style={{
                             paddingTop: "5em",
-                            width: "40%",
-                            height: "40%",
+                            height:
+                                width > 1000 && height > 1000
+                                    ? "800px"
+                                    : "100%",
                         }}
                     >
                         <img
-                            src="KPK07115.jpg"
+                            src="portrait.jpeg"
                             style={{
                                 maxWidth: "100%",
                                 maxHeight: "100%",
