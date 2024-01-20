@@ -54,7 +54,7 @@ const Header = () => {
                         // setActiveRoute(routes[0].to);
                         setPosition([19, 8, 0]);
                         setScale(20);
-                        navigate("/camera2");
+                        navigate("/about");
                     }}
                 >
                     about
