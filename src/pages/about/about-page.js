@@ -30,12 +30,19 @@ export const AboutPage = () => {
                             flexDirection: "column",
                             justifyContent: "center",
                             width: width > 1000 ? "50%" : "100%",
+                            marginRight:
+                                width > 1000 && height > 1000 ? "0px" : "100px",
                         }}
                     >
                         <h1
                             style={{
                                 fontFamily: "Gilroy",
-                                fontSize: width > 1000 ? "7em" : "4em",
+                                fontSize:
+                                    width > 1000
+                                        ? "7em"
+                                        : width < 400
+                                        ? "2em"
+                                        : "4em",
                                 fontWeight: "bold",
                             }}
                         >
