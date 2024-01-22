@@ -3,7 +3,7 @@ import { animated, config, useTransition } from "@react-spring/three";
 
 import { useView, View } from "./view-context";
 import { Camera } from "../components/blender-models/camera_glb";
-import { Environment, Lightformer } from "@react-three/drei";
+import { Environment, Float, Lightformer } from "@react-three/drei";
 import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
 import { Rig } from "../components/rig";
@@ -90,18 +90,19 @@ export const CameraView = ({ children, displayRig, onCameraTap }) => {
                         </Environment>
                         {/* <Float floatIntensity={1}> */}
                         {children}
-                        <AnimatedCamera
-                            scale={props.scale}
-                            rotation={[0, -2, 0]}
-                            position={props.position}
-                            onPointerDown={onCameraTap}
-                            // onClick={(e) => {
-                            //     console.log(option.to);
-                            //     navigate(option.to);
-                            // e.stopPropagation();
-                            // }}
-                        />
-                        {/* </Float> */}
+                        <Float floatIntensity={1}>
+                            <AnimatedCamera
+                                scale={props.scale}
+                                rotation={[0, -2, 0]}
+                                position={props.position}
+                                onPointerDown={onCameraTap}
+                                // onClick={(e) => {
+                                //     console.log(option.to);
+                                //     navigate(option.to);
+                                // e.stopPropagation();
+                                // }}
+                            />
+                        </Float>
 
                         {displayRig && <Rig />}
                     </>

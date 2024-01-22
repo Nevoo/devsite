@@ -1,17 +1,8 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { routes } from "../routing/routes";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useView } from "../routing/view-context";
 import useCameraTransitionState from "../global-state/model-state";
-
-export const useCustomNavigate = () => {
-    const navigate = useNavigate();
-    useMoveCamera();
-
-    return (to, option) => {
-        navigate(to, option);
-    };
-};
 
 export const useMoveCamera = () => {
     const { pathname } = useLocation();

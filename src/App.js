@@ -6,9 +6,7 @@ import { animated } from "@react-spring/web";
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
 import { ViewProvider, useView } from "./routing/view-context";
 import { Views } from "./routing/views";
-import useCameraTransitionState from "./global-state/model-state";
 import { routes } from "./routing/routes";
-import { useCustomNavigate } from "./hooks/useCustomNavigate";
 
 function App() {
     return (
