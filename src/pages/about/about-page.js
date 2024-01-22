@@ -1,9 +1,18 @@
 import { Html, Scroll, ScrollControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
-import { CameraView } from "../../routing-test/camera-view";
+import { CameraView } from "../../routing/camera-view";
+import useCameraTransitionState from "../../global-state/model-state";
+import { useEffect } from "react";
 
 export const AboutPage = () => {
+    const setPosition = useCameraTransitionState((state) => state.setPosition);
+    const setScale = useCameraTransitionState((state) => state.setScale);
+
+    useEffect(() => {
+        console.log("calling effect");
+    }, []);
+
     const { width, height } = useThree((state) => state.size);
 
     const { opacity } = useSpring({

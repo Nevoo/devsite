@@ -7,8 +7,7 @@ import { Environment, Lightformer } from "@react-three/drei";
 import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
 import { Rig } from "../components/rig";
-
-const items = [{ to: "/about" }, { to: "/camera3" }, { to: "/camera4" }];
+import { transitionObjects } from "./routes";
 
 export const CameraView = ({ children, displayRig, onCameraTap }) => {
     const {
@@ -28,6 +27,8 @@ export const CameraView = ({ children, displayRig, onCameraTap }) => {
             rotation: state.rotation,
         }))
     );
+
+    // console.log({ scale, previousScale });
 
     const view = useView();
 
@@ -54,7 +55,10 @@ export const CameraView = ({ children, displayRig, onCameraTap }) => {
                 onRest: (_, __, c) => {
                     // Switch route when the last item has finished
                     // IDK if theres a better way to do this
-                    if (items.indexOf(c) === items.length - 1) {
+                    if (
+                        transitionObjects.indexOf(c) ===
+                        transitionObjects.length - 1
+                    ) {
                         view.updateRoute();
                     }
                 },
@@ -72,7 +76,6 @@ export const CameraView = ({ children, displayRig, onCameraTap }) => {
     return (
         <View>
             {transition((props, option, _, i) => {
-                // props.rotation.to(console.log);
                 return (
                     <>
                         <Environment preset="city">

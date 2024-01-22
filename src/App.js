@@ -1,15 +1,13 @@
-import React, { Suspense, useRef, useEffect } from "react";
+import React from "react";
 import "./App.css";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { animated } from "@react-spring/web";
 
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
-import { ViewProvider } from "./routing-test/view-context";
-import { Views } from "./routing-test/views";
-import useRigState from "./global-state/rig-state";
+import { ViewProvider } from "./routing/view-context";
+import { Views } from "./routing/views";
 import useCameraTransitionState from "./global-state/model-state";
-import useImageState from "./landing-page/state/image-state";
-import { useControls } from "leva";
+import { routes } from "./routing/routes";
 
 function App() {
     return (
@@ -54,7 +52,7 @@ const Header = () => {
                         // setActiveRoute(routes[0].to);
                         setPosition([19, 8, 0]);
                         setScale(20);
-                        navigate("/about");
+                        navigate(routes.about);
                     }}
                 >
                     about
@@ -67,7 +65,7 @@ const Header = () => {
                         // [-0.02, -0.01, 0.02]
                         setPosition([19, 8, 0]);
                         setScale(20);
-                        navigate("/camera3");
+                        navigate(routes.contact);
                     }}
                 >
                     contact
@@ -80,7 +78,7 @@ const Header = () => {
                     // setRig(true);
                     setPosition([-0.02, -0.01, 0.02]);
                     setScale(150);
-                    navigate("/camera4");
+                    navigate("/");
                 }}
             >
                 nevo
