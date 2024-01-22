@@ -1,13 +1,14 @@
-import React from "react";
+import React, { useEffect } from "react";
 import "./App.css";
 import { Canvas } from "@react-three/fiber";
 import { animated } from "@react-spring/web";
 
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
-import { ViewProvider } from "./routing/view-context";
+import { ViewProvider, useView } from "./routing/view-context";
 import { Views } from "./routing/views";
 import useCameraTransitionState from "./global-state/model-state";
 import { routes } from "./routing/routes";
+import { useCustomNavigate } from "./hooks/useCustomNavigate";
 
 function App() {
     return (
@@ -39,19 +40,11 @@ function App() {
 const Header = () => {
     const navigate = useNavigate();
 
-    const setPosition = useCameraTransitionState((state) => state.setPosition);
-    const setScale = useCameraTransitionState((state) => state.setScale);
-
     return (
         <>
             <div className={"nav"}>
                 <div
                     onClick={() => {
-                        // navigate("/about");
-                        // setRig(false);
-                        // setActiveRoute(routes[0].to);
-                        setPosition([19, 8, 0]);
-                        setScale(20);
                         navigate(routes.about);
                     }}
                 >
@@ -59,12 +52,6 @@ const Header = () => {
                 </div>
                 <div
                     onClick={() => {
-                        // navigate("/");
-                        // setRig(true);
-                        // setActiveRoute(routes[1].to);
-                        // [-0.02, -0.01, 0.02]
-                        setPosition([19, 8, 0]);
-                        setScale(20);
                         navigate(routes.contact);
                     }}
                 >
@@ -74,11 +61,7 @@ const Header = () => {
             <div
                 className={"logo"}
                 onClick={() => {
-                    // navigate("/");
-                    // setRig(true);
-                    setPosition([-0.02, -0.01, 0.02]);
-                    setScale(150);
-                    navigate("/");
+                    navigate(routes.home);
                 }}
             >
                 nevo

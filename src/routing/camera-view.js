@@ -28,14 +28,16 @@ export const CameraView = ({ children, displayRig, onCameraTap }) => {
         }))
     );
 
-    // console.log({ scale, previousScale });
-
     const view = useView();
+
+    useEffect(() => {
+        console.log({ position, scale });
+        console.log({ previousPosition, previousScale });
+    }, [position, scale, previousPosition, previousScale]);
 
     const [transition, transApi] = useTransition(
         view.active ? [1] : [],
         () => ({
-            // trail: Math.max(10, 250 / dashboardOptions.length),
             from: {
                 scale: previousScale,
                 position: previousPosition,

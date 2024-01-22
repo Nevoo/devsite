@@ -8,13 +8,12 @@ import { OrbitImages } from "../landing-page/components/orbit-images";
 import useImageState from "../landing-page/state/image-state";
 import { CameraView } from "./camera-view";
 import { routes } from "./routes";
+import { useMoveCamera } from "../hooks/useCustomNavigate";
 
 export function Views() {
     const { path } = useView();
 
-    useEffect(() => {
-        console.log({ path });
-    }, [path]);
+    useMoveCamera();
 
     return (
         <Routes location={path}>
