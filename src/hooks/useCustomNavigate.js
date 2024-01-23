@@ -24,12 +24,12 @@ export const useMoveCamera = () => {
                 document.title = "rouvens.work";
                 break;
             case routes.about:
-                setPosition([19, 8, 0]);
+                setPosition([6.5, 6, 0]);
                 setScale(20);
                 document.title = "About";
                 break;
             case routes.contact:
-                setPosition([19, 8, 0]);
+                setPosition([6.5, 6, 0]);
                 setScale(20);
                 document.title = "Contact";
                 break;
@@ -44,7 +44,7 @@ export const useMoveCamera = () => {
                 );
 
                 if (match) {
-                    setPosition([-10, 8, 0]);
+                    setPosition([-7.2, 6.2, 0]);
                     setScale(10);
                     document.title = "Gallery";
                     break;
