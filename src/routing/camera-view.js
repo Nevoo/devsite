@@ -9,7 +9,14 @@ import { useShallow } from "zustand/react/shallow";
 import { Rig } from "../components/rig";
 import { transitionObjects } from "./routes";
 
-export const CameraView = ({ children, displayRig, onCameraTap }) => {
+export const CameraView = ({
+    children,
+    displayRig,
+    isRigStatic,
+    isFloating,
+    onCameraTap,
+    floatingRange,
+}) => {
     const {
         previousPosition,
         position,
@@ -89,22 +96,21 @@ export const CameraView = ({ children, displayRig, onCameraTap }) => {
                             />
                         </Environment>
                         {/* <Float floatIntensity={1}> */}
-                        {children}
-                        <Float floatIntensity={1}>
+                        <Float
+                            enabled={isFloating}
+                            floatIntensity={isFloating ? 1 : 0}
+                            floatingRange={floatingRange ?? [1, 2]}
+                        >
+                            {children}
                             <AnimatedCamera
                                 scale={props.scale}
                                 rotation={[0, -2, 0]}
                                 position={props.position}
                                 onPointerDown={onCameraTap}
-                                // onClick={(e) => {
-                                //     console.log(option.to);
-                                //     navigate(option.to);
-                                // e.stopPropagation();
-                                // }}
                             />
                         </Float>
 
-                        {displayRig && <Rig />}
+                        {displayRig && <Rig isStatic={isRigStatic} />}
                     </>
                 );
             })}

@@ -9,6 +9,7 @@ import useImageState from "../landing-page/state/image-state";
 import { CameraView } from "./camera-view";
 import { routes } from "./routes";
 import { useMoveCamera } from "../hooks/useCustomNavigate";
+import useCameraTransitionState from "../global-state/model-state";
 
 export function Views() {
     const { path } = useView();
@@ -30,7 +31,17 @@ export function Views() {
 }
 
 const TestView3 = () => {
-    return <CameraView />;
+    const setPosition = useCameraTransitionState((state) => state.setPosition);
+    const setScale = useCameraTransitionState((state) => state.setScale);
+
+    return (
+        <CameraView
+            displayRig
+            isRigStatic
+            isFloating
+            floatingRange={[0.1, 0.2]}
+        />
+    );
 };
 
 const LandingPage = () => {
@@ -40,6 +51,7 @@ const LandingPage = () => {
     return (
         <CameraView
             displayRig
+            isFloating
             onCameraTap={(e) => {
                 e.stopPropagation();
                 tapCamera(true);

@@ -13,7 +13,7 @@ export const AboutPage = () => {
     });
 
     return (
-        <CameraView>
+        <CameraView displayRig isRigStatic>
             <MobileScrollWrapper width={width} height={height}>
                 <Html fullscreen position={[0, -2.2, 0]}>
                     <animated.div
