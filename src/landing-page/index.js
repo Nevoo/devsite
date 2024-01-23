@@ -9,7 +9,7 @@ import {
 import { Camera } from "../components/blender-models/camera_glb";
 import { OrbitImages } from "./components/orbit-images";
 import useImageState from "./state/image-state";
-import { View } from "../routing-test/view-context";
+import { View } from "../routing/view-context";
 import { Rig } from "../components/rig";
 
 export const CameraLandingPage = (props) => {

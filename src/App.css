@@ -28,7 +28,7 @@
   position: absolute;
   right: 0;
   top: 0;
-  margin: 2em 3.4em 0em 0em;
+  margin: 16px 25px 0px 0px;
   color: white;
   font-size: 1.5em;
 }
@@ -44,7 +44,7 @@
   position: absolute;
   left: 0;
   top: 0;
-  margin: 2em 0 0 3.4em;
+  margin: 16px 0 0 25px;
   color: white;
   font-size: 1.5em;
 }
@@ -62,7 +62,21 @@
 }
 
 .body {
-  padding: 5em 5em 5em 5em;
+  padding: 20px 30px 20px 30px;
   /* margin: 5em 0 0 5em; */
+}
+
+@media (min-width: 480px) {
+  .nav {
+    margin: 40px 50px 0px 0px;
+  }
+
+  .logo {
+    margin: 40px 0 0 50px;
+  }
+
+  .body {
+    padding: 0px 50px 40px 50px;
+  }
 }
 

@@ -14,11 +14,15 @@ import {
 } from "@react-spring/three";
 import useImageState from "../state/image-state";
 import { useShallow } from "zustand/react/shallow";
+import { useNavigate } from "react-router-dom";
+import { routes } from "../../routing/routes";
 
 const inter = import("@pmndrs/assets/fonts/inter_extra_bold.woff");
 
 export const OrbitImages = ({ radius, images }) => {
+    const navigate = useNavigate();
     const [hovered, setHovered] = useState(null);
+    const [tappedImage, setTappedImage] = useState(null);
 
     const { cameraTapped, tapCamera } = useImageState(
         useShallow((state) => ({
@@ -46,6 +50,11 @@ export const OrbitImages = ({ radius, images }) => {
             rotationOffset: 15,
             scale: 0,
             fontScale: 0,
+        },
+        onRest: (value, _, __) => {
+            if (value.finished && tappedImage !== null) {
+                navigate(routes.gallery.replace(":id", tappedImage));
+            }
         },
     });
 
@@ -79,6 +88,7 @@ export const OrbitImages = ({ radius, images }) => {
                         onImageClick={(e) => {
                             e.stopPropagation();
                             tapCamera(false);
+                            setTappedImage(index);
                         }}
                         imageData={imageData}
                         position={position}
