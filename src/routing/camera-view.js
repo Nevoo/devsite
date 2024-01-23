@@ -1,5 +1,10 @@
-import React, { useEffect } from "react";
-import { animated, config, useTransition } from "@react-spring/three";
+import React, { useEffect, useState } from "react";
+import {
+    animated,
+    config,
+    useSpring,
+    useTransition,
+} from "@react-spring/three";
 
 import { useView, View } from "./view-context";
 import { Camera } from "../components/blender-models/camera_glb";
@@ -43,6 +48,13 @@ export const CameraView = ({
         console.log({ previousPosition, previousScale });
     }, [position, scale, previousPosition, previousScale]);
 
+    const [hovered, setHovered] = useState(false);
+    const { hoveredScale, springPos } = useSpring({
+        hoveredScale: hovered ? scale * 1.3 : scale,
+        springPos: position,
+        config: config.stiff,
+    });
+
     const [transition, transApi] = useTransition(
         view.active ? [1] : [],
         () => ({
@@ -53,8 +65,8 @@ export const CameraView = ({
             },
             enter: {
                 config: config.stiff,
-                scale: scale,
-                position: position,
+                scale: hoveredScale,
+                position: springPos,
                 rotation: 4,
             },
             leave: {
@@ -104,6 +116,8 @@ export const CameraView = ({
                         >
                             {children}
                             <AnimatedCamera
+                                onPointerEnter={() => setHovered(true)}
+                                onPointerLeave={() => setHovered(false)}
                                 scale={props.scale}
                                 rotation={[0, -2, 0]}
                                 position={props.position}
