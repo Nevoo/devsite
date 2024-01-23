@@ -1,26 +1,26 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { routes } from "../routing/routes";
-import { useLocation, useNavigate } from "react-router-dom";
+import {
+    matchPath,
+    useLocation,
+    useNavigate,
+    useParams,
+} from "react-router-dom";
 import { useView } from "../routing/view-context";
 import useCameraTransitionState from "../global-state/model-state";
 
 export const useMoveCamera = () => {
     const { pathname } = useLocation();
-    const [count, setCount] = useState(0);
-    // location.pathname
 
     const setPosition = useCameraTransitionState((state) => state.setPosition);
     const setScale = useCameraTransitionState((state) => state.setScale);
 
     useEffect(() => {
-        console.log(pathname);
-
         switch (pathname) {
             case routes.home:
-                if (count !== 0) {
-                    setPosition([-0.02, -0.01, 0.02]);
-                    setScale(150);
-                }
+                setPosition([-0.02, -0.01, 0.02]);
+                setScale(150);
+
                 document.title = "rouvens.work";
                 break;
             case routes.about:
@@ -34,10 +34,27 @@ export const useMoveCamera = () => {
                 document.title = "Contact";
                 break;
             default:
+                const match = matchPath(
+                    {
+                        path: routes.gallery,
+                        exact: true,
+                        strict: false,
+                    },
+                    pathname
+                );
+
+                if (match) {
+                    setPosition([-10, 8, 0]);
+                    setScale(10);
+                    document.title = "Gallery";
+                    break;
+                }
+
                 setPosition([-0.02, -0.01, 0.02]);
                 setScale(150);
                 document.title = "rouvens.work";
+                break;
         }
-        setCount((count) => count + 1);
+        // setCount((count) => count + 1);
     }, [pathname]);
 };

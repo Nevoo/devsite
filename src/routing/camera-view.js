@@ -16,6 +16,7 @@ export const CameraView = ({
     isFloating,
     onCameraTap,
     floatingRange,
+    delayedTransition,
 }) => {
     const {
         previousPosition,
@@ -83,7 +84,7 @@ export const CameraView = ({
     const AnimatedCamera = animated(Camera);
 
     return (
-        <View>
+        <View delayedTransition={delayedTransition}>
             {transition((props, option, _, i) => {
                 return (
                     <>

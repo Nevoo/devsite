@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useParams } from "react-router-dom";
 import { useView } from "./view-context";
 import { AboutPage } from "../pages/about/about-page";
 
@@ -21,6 +21,7 @@ export function Views() {
             <Route path={routes.home} element={<LandingPage />} />
             <Route path={routes.about} element={<AboutPage />} />
             <Route path={routes.contact} element={<TestView3 />} />
+            <Route path={routes.gallery} element={<GalleryView />} />
             {/* <Route path="/camera4" element={<LandingPage />} /> */}
             {/* <Route path="/landing-page" element={<TestView />} /> */}
             {/* <Route path="" element={<LandingPageScene />} /> */}
@@ -30,6 +31,20 @@ export function Views() {
     );
 }
 
+const GalleryView = () => {
+    const { id } = useParams();
+
+    useEffect(() => {
+        // console.log(id);
+    }, []);
+
+    return (
+        <CameraView displayRig isFloating>
+            {/* <OrbitImages radius={10} images={images} /> */}
+        </CameraView>
+    );
+};
+
 const TestView3 = () => {
     const setPosition = useCameraTransitionState((state) => state.setPosition);
     const setScale = useCameraTransitionState((state) => state.setScale);
@@ -38,7 +53,7 @@ const TestView3 = () => {
         <CameraView
             displayRig
             isRigStatic
-            isFloating
+            isFloating={false}
             floatingRange={[0.1, 0.2]}
         />
     );
@@ -51,7 +66,7 @@ const LandingPage = () => {
     return (
         <CameraView
             displayRig
-            isFloating
+            isFloating={false}
             onCameraTap={(e) => {
                 e.stopPropagation();
                 tapCamera(true);
