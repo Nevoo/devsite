@@ -52,7 +52,7 @@ export const OrbitImages = ({ radius, images }) => {
             fontScale: 0,
         },
         onRest: (value, _, __) => {
-            if (value.finished && tappedImage) {
+            if (value.finished && tappedImage !== null) {
                 navigate(routes.gallery.replace(":id", tappedImage));
             }
         },

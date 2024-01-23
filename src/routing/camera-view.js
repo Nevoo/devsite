@@ -96,7 +96,7 @@ export const CameraView = ({
 
     useEffect(() => {
         transApi.start();
-        console.log({ position, previousPosition });
+        // console.log({ position, previousPosition });
     }, [view.active, position, previousPosition]);
 
     const AnimatedCamera = animated(Camera);
