@@ -13,6 +13,8 @@ import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
 import { Rig } from "../components/rig";
 import { transitionObjects } from "./routes";
+import { useFrame, useThree } from "@react-three/fiber";
+import { easing } from "maath";
 
 export const CameraView = ({
     children,
@@ -41,12 +43,15 @@ export const CameraView = ({
         }))
     );
 
-    const view = useView();
+    useFrame((state, delta) => {
+        if (!displayRig) {
+            // fixes issue where camera would be positioned weird on a reload
+            easing.damp3(state.camera.position, [0, 0, 15], 0.2, delta);
+            state.camera.lookAt(0, 0, 0);
+        }
+    });
 
-    useEffect(() => {
-        console.log({ position, scale });
-        console.log({ previousPosition, previousScale });
-    }, [position, scale, previousPosition, previousScale]);
+    const view = useView();
 
     const [hovered, setHovered] = useState(false);
     const { hoveredScale, springPos } = useSpring({
@@ -91,7 +96,8 @@ export const CameraView = ({
 
     useEffect(() => {
         transApi.start();
-    }, [view.active]);
+        console.log({ position, previousPosition });
+    }, [view.active, position, previousPosition]);
 
     const AnimatedCamera = animated(Camera);
 
@@ -108,7 +114,6 @@ export const CameraView = ({
                                 onUpdate={(self) => self.lookAt(0, 0, 0)}
                             />
                         </Environment>
-                        {/* <Float floatIntensity={1}> */}
                         <Float
                             enabled={isFloating}
                             floatIntensity={isFloating ? 1 : 0}
