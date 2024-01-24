@@ -48,8 +48,8 @@ export const CameraView = ({
     useFrame((state, delta) => {
         if (!displayRig) {
             // fixes issue where camera would be positioned weird on a reload
-            // easing.damp3(state.camera.position, [0, 0, 15], 0.2, delta);
-            // state.camera.lookAt(0, 0, 0);
+            easing.damp3(state.camera.position, [0, 0, 15], 0.2, delta);
+            state.camera.lookAt(0, 0, 0);
         }
     });
 
