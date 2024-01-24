@@ -6,6 +6,8 @@ import {
     ScrollControls,
     useScroll,
     useTexture,
+    Bounds,
+    Scroll,
 } from "@react-three/drei";
 import { useTrail, animated, config } from "@react-spring/three";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -88,7 +90,7 @@ function Carousel({ radius = 2 }) {
 
         return (
             <Card
-                onPointerDown={(e) => {
+                onPointerUp={(e) => {
                     e.stopPropagation();
                     setTappedImage(index);
                     tapCamera(false);
