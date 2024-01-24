@@ -3,6 +3,8 @@ import { useThree } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
 import { CameraView } from "../../routing/camera-view";
 
+// probably can be improved
+
 export const AboutPage = () => {
     const { width, height } = useThree((state) => state.size);
 

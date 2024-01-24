@@ -17,17 +17,21 @@ import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
 import { CategoryTitle } from "./orbit-images";
 
-export const OptimzedOrbitImages = () => (
-    <group>
-        <fog attach="fog" args={["#a79", 8.5, 12]} />
-        <ScrollControls pages={4} infinite>
-            <Rig rotation={[0, 0, 0.05]}>
-                <Carousel />
-            </Rig>
-        </ScrollControls>
-        {/* <Environment preset="city" background blur={0.5} /> */}
-    </group>
-);
+export const OptimzedOrbitImages = () => {
+    const cameraTapped = useImageState((state) => state.cameraTapped);
+
+    return (
+        <group>
+            <fog attach="fog" args={["#a79", 8.5, 12]} />
+            <ScrollControls enabled={cameraTapped} pages={4} infinite>
+                <Rig rotation={[0, 0, 0.05]}>
+                    <Carousel />
+                </Rig>
+            </ScrollControls>
+            {/* <Environment preset="city" background blur={0.5} /> */}
+        </group>
+    );
+};
 
 function Rig(props) {
     const ref = useRef();
@@ -86,8 +90,8 @@ function Carousel({ radius = 2 }) {
             <Card
                 onPointerDown={(e) => {
                     e.stopPropagation();
-                    tapCamera(false);
                     setTappedImage(index);
+                    tapCamera(false);
                 }}
                 key={index}
                 url={imageData.image}
