@@ -43,6 +43,8 @@ export const CameraView = ({
         }))
     );
 
+    const { width, height } = useThree((state) => state.viewport);
+
     useFrame((state, delta) => {
         if (!displayRig) {
             // fixes issue where camera would be positioned weird on a reload
@@ -57,7 +59,6 @@ export const CameraView = ({
     const { hoveredScale, springPos } = useSpring({
         hoveredScale: hovered ? scale * 1.3 : scale,
         springPos: position,
-        config: config.stiff,
     });
 
     const [transition, transApi] = useTransition(
@@ -130,7 +131,7 @@ export const CameraView = ({
                             />
                         </Float>
 
-                        {displayRig && <Rig isStatic={isRigStatic} />}
+                        {/* {displayRig && <Rig isStatic={isRigStatic} />} */}
                     </>
                 );
             })}

@@ -32,7 +32,7 @@ export const OrbitImages = ({ radius, images }) => {
     );
 
     const calculatePosition = (index) => {
-        return 0 + (index * 2 * Math.PI) / images.length;
+        return (index * 2 * Math.PI) / images.length;
     };
 
     const trail = useTrail(images.length, {
@@ -154,7 +154,14 @@ const CategoryElement = ({
     );
 };
 
-const CategoryTitle = ({ hovered, title, position, rotation, scale }) => {
+export const CategoryTitle = ({
+    hovered,
+    title,
+    position,
+    rotation,
+    scale,
+    offset,
+}) => {
     const { fontSize, color } = useSpring({
         fontSize: hovered ? 0.7 : 0.6,
         color: hovered ? "#ff8906" : "#fffffe",
@@ -169,7 +176,7 @@ const CategoryTitle = ({ hovered, title, position, rotation, scale }) => {
             fontSize={fontSize}
             font={suspend(inter).default}
             color={color}
-            position={[position[0], position[1] - 3, position[2]]}
+            position={[position[0], position[1] - offset ?? 3, position[2]]}
             rotation={rotation}
         >
             {title}

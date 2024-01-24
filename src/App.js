@@ -4,19 +4,18 @@ import { Canvas } from "@react-three/fiber";
 import { animated } from "@react-spring/web";
 
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
-import { ViewProvider, useView } from "./routing/view-context";
+import { ViewProvider } from "./routing/view-context";
 import { Views } from "./routing/views";
 import { routes } from "./routing/routes";
 
 function App() {
     return (
-        // <ReactLenis>
         <div>
             {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
             <animated.div className="App">
                 <Router>
                     <div className={"blur"}>
-                        <Canvas shadows camera={{ fov: 50 }}>
+                        <Canvas camera={{ position: [0, 0, 15], fov: 15 }}>
                             <ViewProvider>
                                 <Views />
                             </ViewProvider>
@@ -26,7 +25,6 @@ function App() {
                 </Router>
             </animated.div>
         </div>
-        // </ReactLenis>
     );
 }
 

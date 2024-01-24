@@ -8,29 +8,32 @@ import {
 } from "react-router-dom";
 import { useView } from "../routing/view-context";
 import useCameraTransitionState from "../global-state/model-state";
+import { useThree } from "@react-three/fiber";
 
 export const useMoveCamera = () => {
     const { pathname } = useLocation();
+    const { width, height } = useThree((state) => state.viewport);
 
     const setPosition = useCameraTransitionState((state) => state.setPosition);
     const setScale = useCameraTransitionState((state) => state.setScale);
 
     useEffect(() => {
+        const aspectRatio = width / height;
+
         switch (pathname) {
             case routes.home:
                 setPosition([-0.02, -0.01, 0.02]);
-                setScale(150);
-
+                setScale(aspectRatio * 10);
                 document.title = "rouvens.work";
                 break;
             case routes.about:
-                setPosition([6.5, 6, 0]);
-                setScale(20);
+                setPosition([1.8, 1.7, 0]);
+                setScale(aspectRatio * 5);
                 document.title = "About";
                 break;
             case routes.contact:
-                setPosition([6.5, 6, 0]);
-                setScale(20);
+                setPosition([1.8, 1.7, 0]);
+                setScale(aspectRatio * 5);
                 document.title = "Contact";
                 break;
             default:
@@ -44,17 +47,17 @@ export const useMoveCamera = () => {
                 );
 
                 if (match) {
-                    setPosition([-7.2, 6.2, 0]);
-                    setScale(10);
+                    // setPosition([-2.7, 1.75, 0]);
+                    setPosition([1, 0, 0]);
+                    setScale(aspectRatio * 2);
                     document.title = "Gallery";
                     break;
                 }
 
                 setPosition([-0.02, -0.01, 0.02]);
-                setScale(150);
+                setScale(aspectRatio * 10);
                 document.title = "rouvens.work";
                 break;
         }
-        // setCount((count) => count + 1);
-    }, [pathname]);
+    }, [pathname, width, height]);
 };

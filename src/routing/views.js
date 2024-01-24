@@ -9,6 +9,7 @@ import useImageState from "../landing-page/state/image-state";
 import { CameraView } from "./camera-view";
 import { routes } from "./routes";
 import { useMoveCamera } from "../hooks/useCustomNavigate";
+import { OptimzedOrbitImages } from "../landing-page/components/optimized";
 
 export function Views() {
     const { path } = useView();
@@ -36,6 +37,8 @@ const GalleryView = () => {
 };
 
 const TestView3 = () => {
+    const tapCamera = useImageState((state) => state.tapCamera);
+
     return <CameraView isFloating={false} />;
 };
 
@@ -45,14 +48,22 @@ const LandingPage = () => {
 
     return (
         <CameraView
-            displayRig
             isFloating={false}
             onCameraTap={(e) => {
                 e.stopPropagation();
                 tapCamera(true);
             }}
         >
-            <OrbitImages radius={10} images={images} />
+            <OptimzedOrbitImages />
         </CameraView>
+        // <CameraView
+        //     isFloating={false}
+        //     onCameraTap={(e) => {
+        //         e.stopPropagation();
+        //         tapCamera(true);
+        //     }}
+        // >
+        //     <OrbitImages radius={10} images={images} />
+        // </CameraView>
     );
 };
