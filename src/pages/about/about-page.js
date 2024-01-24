@@ -15,7 +15,7 @@ export const AboutPage = () => {
     return (
         <CameraView isFloating={false}>
             <MobileScrollWrapper width={width} height={height}>
-                <Html fullscreen position={[0, -2.2, 0]}>
+                <Html fullscreen position={[0, -0.2, 0]}>
                     <animated.div
                         className="body"
                         style={{
