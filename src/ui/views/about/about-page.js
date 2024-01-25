@@ -17,97 +17,93 @@ export const AboutPage = () => {
     return (
         <CameraView isFloating={false}>
             <MobileScrollWrapper width={width} height={height}>
-                <Html fullscreen position={[0, -0.2, 0]}>
-                    <animated.div
-                        className="body"
+                <animated.div
+                    className="body"
+                    style={{
+                        display: "flex",
+                        opacity,
+                        flexDirection: width > 1000 ? "row" : "column",
+                        justifyContent: "space-between",
+                        textAlign: "left",
+                    }}
+                >
+                    <div
                         style={{
                             display: "flex",
-                            opacity,
-                            flexDirection: width > 1000 ? "row" : "column",
-                            justifyContent: "space-between",
-                            textAlign: "left",
+                            flexDirection: "column",
+                            justifyContent: "center",
+                            width: width > 1000 ? "50%" : "100%",
+                            marginRight:
+                                width > 1000 && height > 1000 ? "0px" : "100px",
                         }}
                     >
-                        <div
+                        <h1
                             style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                justifyContent: "center",
-                                width: width > 1000 ? "50%" : "100%",
-                                marginRight:
-                                    width > 1000 && height > 1000
-                                        ? "0px"
-                                        : "100px",
+                                fontFamily: "GilroyExtraBold",
+                                fontSize:
+                                    width > 1000
+                                        ? "7em"
+                                        : width < 400
+                                        ? "2em"
+                                        : "4em",
+                                fontWeight: "bold",
                             }}
                         >
-                            <h1
-                                style={{
-                                    fontFamily: "GilroyExtraBold",
-                                    fontSize:
-                                        width > 1000
-                                            ? "7em"
-                                            : width < 400
-                                            ? "2em"
-                                            : "4em",
-                                    fontWeight: "bold",
-                                }}
-                            >
-                                ABOUT ME
-                            </h1>
+                            ABOUT ME
+                        </h1>
 
-                            <div
-                                style={{
-                                    fontFamily: "GilroyExtraBold",
-                                    fontSize: "1.8em",
-                                    fontWeight: "bold",
-                                }}
-                            >
-                                <p>
-                                    I'm a creative developer working on apps and
-                                    web projects all the time. I started this
-                                    journey when I was 16 years old and have
-                                    been working full time as a developer since
-                                    2018.
-                                </p>
-                                <p>
-                                    Besides that, for almost the same amount of
-                                    time, I've been a photographer. Starting
-                                    with just my phone in 2019 I worked my way
-                                    up to a professional camera and now even
-                                    doing paid work for clients sometimes.
-                                </p>
-                            </div>
-                        </div>
                         <div
                             style={{
-                                paddingTop: "5em",
-                                height:
-                                    width > 1000 && height > 1000
-                                        ? "800px"
-                                        : "100%",
+                                fontFamily: "GilroyExtraBold",
+                                fontSize: "1.8em",
+                                fontWeight: "bold",
                             }}
                         >
-                            <img
-                                src="portrait.jpeg"
-                                style={{
-                                    maxWidth: "100%",
-                                    maxHeight: "100%",
-                                }}
-                            />
+                            <p>
+                                I'm a creative developer working on apps and web
+                                projects all the time. I started this journey
+                                when I was 16 years old and have been working
+                                full time as a developer since 2018.
+                            </p>
+                            <p>
+                                Besides that, for almost the same amount of
+                                time, I've been a photographer. Starting with
+                                just my phone in 2019 I worked my way up to a
+                                professional camera and now even doing paid work
+                                for clients sometimes.
+                            </p>
                         </div>
-                    </animated.div>
-                </Html>
+                    </div>
+                    <div
+                        style={{
+                            paddingTop: "150px",
+                            height:
+                                width > 1000 && height > 1000
+                                    ? "800px"
+                                    : "700px",
+                        }}
+                    >
+                        <img
+                            src="portrait.jpeg"
+                            style={{
+                                maxWidth: "100%",
+                                maxHeight: "100%",
+                            }}
+                        />
+                    </div>
+                </animated.div>
             </MobileScrollWrapper>
         </CameraView>
     );
 };
 
 const MobileScrollWrapper = ({ children, width, height }) => {
-    return width > 1000 && height > 1000 ? (
-        <>{children}</>
-    ) : (
+    // return width > 1000 && height > 1000 ? (
+    //     <>{children}</>
+    // ) :
+    return (
         <ScrollControls pages="2">
-            <Scroll>
+            <Scroll html>
                 <>{children}</>
             </Scroll>
         </ScrollControls>
