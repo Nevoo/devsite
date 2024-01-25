@@ -26,8 +26,8 @@ export const GalleryView = () => {
     return (
         <CameraView isFloating={false}>
             <ScrollControls
-                damping={0.5}
-                pages={width > 1000 && height > 1000 ? 4 : 6}
+                damping={0.2}
+                pages={width > 1200 && height > 800 ? 6 : 8}
                 distance={0.5}
             >
                 {/* <Lens> */}
@@ -45,24 +45,10 @@ export const GalleryView = () => {
 const Images = () => {
     const group = useRef();
     const data = useScroll();
-    const { size, viewport } = useThree((state) => state);
-    const { width, height } = size;
-    const { width: vw, height: vh } = viewport;
+    const { width, height } = useThree((state) => state.size);
 
     const { id } = useParams();
     const categoryImages = useImageState((state) => state.images[id] ?? []);
-
-    // useFrame(() => {
-    //     group.current.children.forEach((image, index) => {
-    //         if (index === 0 || index === 1) {
-    //             image.material.zoom = 1 + data.range(0, 1 / 3) / 3;
-    //         } else if (index >= 2 && index <= 5) {
-    //             image.material.zoom = 1 + data.range(1 / 3, 1 / 2) / 2;
-    //         } else {
-    //             image.material.zoom = 1 + (1 - data.range(2 / 3, 1 / 3)) / 3;
-    //         }
-    //     });
-    // });
 
     const calculatePosition = (index) => {
         if (width > 1200 && height > 800) {
@@ -72,7 +58,7 @@ const Images = () => {
                 0,
             ];
         } else {
-            return [0, -(index * 2.5) - index * 0.2, -15];
+            return [0, -(index * 2.5) - index * 0.6, -15];
         }
     };
 
