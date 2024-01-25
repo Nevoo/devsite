@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { routes } from "../../../../routing/routes";
 
 const inter = import("@pmndrs/assets/fonts/inter_extra_bold.woff");
+const gilroy = import("../../../../fonts/Gilroy/Gilroy-ExtraBold.otf");
 
 export const OrbitImages = ({ radius, images }) => {
     const navigate = useNavigate();
@@ -174,7 +175,7 @@ export const CategoryTitle = ({
         <AnimatedText
             scale={scale}
             fontSize={fontSize}
-            font={suspend(inter).default}
+            font={suspend(gilroy).default}
             color={color}
             position={[position[0], position[1] - offset ?? 3, position[2]]}
             rotation={rotation}

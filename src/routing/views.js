@@ -9,6 +9,7 @@ import { routes } from "./routes";
 import { useMoveCamera } from "../hooks/useCustomNavigate";
 import { OptimzedOrbitImages } from "../ui/views/landing-view/components/optimized";
 import { AboutPage } from "../ui/views/about/about-page";
+import { GalleryView } from "../ui/views/gallery-view/gallery-view";
 
 export function Views() {
     const { path } = useView();
@@ -25,16 +26,16 @@ export function Views() {
     );
 }
 
-const GalleryView = () => {
-    const { id } = useParams();
-    const categoryImages = useImageState((state) => state.images[id]);
+// const GalleryView = () => {
+//     const { id } = useParams();
+//     const categoryImages = useImageState((state) => state.images[id]);
 
-    useEffect(() => {
-        console.log(categoryImages);
-    }, [categoryImages]);
+//     useEffect(() => {
+//         console.log(categoryImages);
+//     }, [categoryImages]);
 
-    return <CameraView isFloating={false} />;
-};
+//     return <CameraView isFloating={false} />;
+// };
 
 const TestView3 = () => {
     const tapCamera = useImageState((state) => state.tapCamera);
