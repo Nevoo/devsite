@@ -2,14 +2,13 @@ import React, { useEffect } from "react";
 
 import { Route, Routes, useParams } from "react-router-dom";
 import { useView } from "./view-context";
-import { AboutPage } from "../pages/about/about-page";
 
-import { OrbitImages } from "../ui/views/landing-view/components/orbit-images";
 import useImageState from "../ui/views/landing-view/state/image-state";
 import { CameraView } from "./camera-view";
 import { routes } from "./routes";
 import { useMoveCamera } from "../hooks/useCustomNavigate";
 import { OptimzedOrbitImages } from "../ui/views/landing-view/components/optimized";
+import { AboutPage } from "../ui/views/about/about-page";
 
 export function Views() {
     const { path } = useView();

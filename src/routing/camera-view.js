@@ -7,11 +7,11 @@ import {
 } from "@react-spring/three";
 
 import { useView, View } from "./view-context";
-import { Camera } from "../components/blender-models/camera_glb";
+import { Camera } from "../ui/shared/components/blender-models/camera_glb";
 import { Environment, Float, Lightformer } from "@react-three/drei";
 import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
-import { Rig } from "../components/rig";
+import { Rig } from "../ui/shared/components/rig";
 import { transitionObjects } from "./routes";
 import { useFrame, useThree } from "@react-three/fiber";
 import { easing } from "maath";

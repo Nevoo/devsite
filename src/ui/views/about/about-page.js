@@ -1,7 +1,7 @@
 import { Html, Scroll, ScrollControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
-import { CameraView } from "../../routing/camera-view";
+import { CameraView } from "../../../routing/camera-view";
 
 // probably can be improved
 
@@ -42,7 +42,7 @@ export const AboutPage = () => {
                         >
                             <h1
                                 style={{
-                                    fontFamily: "Gilroy",
+                                    fontFamily: "GilroyExtraBold",
                                     fontSize:
                                         width > 1000
                                             ? "7em"
@@ -57,7 +57,7 @@ export const AboutPage = () => {
 
                             <div
                                 style={{
-                                    fontFamily: "Gilroy",
+                                    fontFamily: "GilroyExtraBold",
                                     fontSize: "1.8em",
                                     fontWeight: "bold",
                                 }}
