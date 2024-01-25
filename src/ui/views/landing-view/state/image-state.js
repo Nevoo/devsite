@@ -15,18 +15,22 @@ const useImageState = create((set) => ({
     // index is the id of the category
     images: [
         [
-            "https://i.imgur.com/clGfTlK.jpg",
-            "https://i.imgur.com/i0Nz97X.jpg",
-            "https://i.imgur.com/FuT4pPb.jpg",
-            "https://i.imgur.com/56cuB60.jpg",
-            "https://i.imgur.com/aY9gpoZ.jpg",
-            "https://i.imgur.com/lReS4Xq.jpg",
-            "https://i.imgur.com/sjjc715.jpg",
-            "https://i.imgur.com/MsVHVCH.jpg",
-            "https://i.imgur.com/JcZD3cF.jpg",
-            "https://i.imgur.com/VAnBLZN.jpg",
+            { url: "https://i.imgur.com/clGfTlK.jpg", scale: [2, 3, 0] },
+            { url: "https://i.imgur.com/i0Nz97X.jpg", scale: [3, 2, 0] },
+            { url: "https://i.imgur.com/FuT4pPb.jpg", scale: [3, 2, 0] },
+            { url: "https://i.imgur.com/56cuB60.jpg", scale: [2, 3, 0] },
+            { url: "https://i.imgur.com/aY9gpoZ.jpg", scale: [3, 2, 0] },
+            { url: "https://i.imgur.com/lReS4Xq.jpg", scale: [2, 3, 0] },
+            { url: "https://i.imgur.com/sjjc715.jpg", scale: [2, 3, 0] },
+            { url: "https://i.imgur.com/MsVHVCH.jpg", scale: [2, 3, 0] },
+            { url: "https://i.imgur.com/JcZD3cF.jpg", scale: [2, 3, 0] },
+            { url: "https://i.imgur.com/VAnBLZN.jpg", scale: [3, 2, 0] },
         ],
-        [pexel(327482), pexel(325185), pexel(310452)],
+        [
+            { url: pexel(327482), scale: [3, 2, 0] },
+            { url: pexel(325185), scale: [3, 2, 0] },
+            { url: pexel(310452), scale: [3, 2, 0] },
+        ],
     ],
 
     cameraTapped: false,

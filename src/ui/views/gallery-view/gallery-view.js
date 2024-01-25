@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 import {
     Image,
     Preload,
@@ -5,6 +7,7 @@ import {
     ScrollControls,
     Sphere,
     Text,
+    useIntersect,
     useScroll,
 } from "@react-three/drei";
 import { CameraView } from "../../../routing/camera-view";
@@ -23,8 +26,8 @@ export const GalleryView = () => {
     return (
         <CameraView isFloating={false}>
             <ScrollControls
-                damping={0.2}
-                pages={width > 1000 && height > 1000 ? 4 : 8}
+                damping={0.5}
+                pages={width > 1000 && height > 1000 ? 4 : 6}
                 distance={0.5}
             >
                 {/* <Lens> */}
@@ -42,28 +45,30 @@ export const GalleryView = () => {
 const Images = () => {
     const group = useRef();
     const data = useScroll();
-    const { width, height } = useThree((state) => state.size);
+    const { size, viewport } = useThree((state) => state);
+    const { width, height } = size;
+    const { width: vw, height: vh } = viewport;
 
     const { id } = useParams();
-    const categoryImages = useImageState((state) => state.images[id]);
+    const categoryImages = useImageState((state) => state.images[id] ?? []);
 
-    useFrame(() => {
-        group.current.children.forEach((image, index) => {
-            if (index === 0 || index === 1) {
-                image.material.zoom = 1 + data.range(0, 1 / 3) / 3;
-            } else if (index >= 2 && index <= 5) {
-                image.material.zoom = 1 + data.range(1 / 3, 1 / 2) / 2;
-            } else {
-                image.material.zoom = 1 + (1 - data.range(2 / 3, 1 / 3)) / 3;
-            }
-        });
-    });
+    // useFrame(() => {
+    //     group.current.children.forEach((image, index) => {
+    //         if (index === 0 || index === 1) {
+    //             image.material.zoom = 1 + data.range(0, 1 / 3) / 3;
+    //         } else if (index >= 2 && index <= 5) {
+    //             image.material.zoom = 1 + data.range(1 / 3, 1 / 2) / 2;
+    //         } else {
+    //             image.material.zoom = 1 + (1 - data.range(2 / 3, 1 / 3)) / 3;
+    //         }
+    //     });
+    // });
 
     const calculatePosition = (index) => {
-        if (width > 1000 && height > 1000) {
+        if (width > 1200 && height > 800) {
             return [
                 index % 2 === 0 ? -1.6 : 1.6,
-                -Math.floor(index / 2) * 2.5,
+                -Math.floor(index / 2) * 5,
                 0,
             ];
         } else {
@@ -74,17 +79,46 @@ const Images = () => {
     return (
         <group ref={group}>
             {categoryImages.map((image, index) => {
+                const position = calculatePosition(index);
                 return (
-                    <Image
-                        position={calculatePosition(index)}
-                        scale={[3, 2, 0]}
-                        url={image}
+                    <ImageItem
+                        key={index}
+                        position={position}
+                        scale={image.scale}
+                        url={image.url}
                     />
                 );
             })}
         </group>
     );
 };
+
+function ImageItem({ scale, url, index, ...props }) {
+    const visible = useRef(false);
+    const ref = useIntersect((isVisible) => (visible.current = isVisible));
+    const { height } = useThree((state) => state.viewport);
+
+    useFrame((state, delta) => {
+        ref.current.position.y = THREE.MathUtils.damp(
+            ref.current.position.y,
+            visible.current ? 0 : -height / 1.5 + 1,
+            4,
+            delta
+        );
+
+        ref.current.material.zoom = THREE.MathUtils.damp(
+            ref.current.material.zoom,
+            visible.current ? 1 : 1.5,
+            4,
+            delta
+        );
+    });
+    return (
+        <group {...props}>
+            <Image ref={ref} scale={scale} url={url} />
+        </group>
+    );
+}
 
 function Typography() {
     const state = useThree();
