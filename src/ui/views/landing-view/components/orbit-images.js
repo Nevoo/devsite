@@ -15,7 +15,7 @@ import {
 import useImageState from "../state/image-state";
 import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
-import { routes } from "../../routing/routes";
+import { routes } from "../../../../routing/routes";
 
 const inter = import("@pmndrs/assets/fonts/inter_extra_bold.woff");
 

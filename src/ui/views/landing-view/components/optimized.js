@@ -14,7 +14,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { easing } from "maath";
 import useImageState from "../state/image-state";
 import "./bent-plane-geometry";
-import { routes } from "../../routing/routes";
+import { routes } from "../../../../routing/routes";
 import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
 import { CategoryTitle } from "./orbit-images";
@@ -54,8 +54,8 @@ function Rig(props) {
 
 function Carousel({ radius = 2 }) {
     const navigate = useNavigate();
-    const images = useImageState((state) => state.images);
-    const count = images.length;
+    const categories = useImageState((state) => state.categories);
+    const count = categories.length;
 
     const [tappedImage, setTappedImage] = useState(null);
 
@@ -66,7 +66,7 @@ function Carousel({ radius = 2 }) {
         }))
     );
 
-    const trail = useTrail(images.length, {
+    const trail = useTrail(categories.length, {
         config: config.stiff,
         positionOffset: cameraTapped ? 0 : 10,
         rotationOffset: cameraTapped ? 0 : 15,
@@ -86,7 +86,7 @@ function Carousel({ radius = 2 }) {
     });
 
     return trail.map(({ ...style }, index) => {
-        const imageData = images[index];
+        const imageData = categories[index];
 
         return (
             <Card

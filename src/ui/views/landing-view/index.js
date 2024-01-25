@@ -13,7 +13,7 @@ import { View } from "../routing/view-context";
 import { Rig } from "../components/rig";
 
 export const CameraLandingPage = (props) => {
-    const images = useImageState((state) => state.images);
+    const categories = useImageState((state) => state.categories);
     const cameraTapped = useImageState((state) => state.cameraTapped);
     const tapCamera = useImageState((state) => state.tapCamera);
 
@@ -36,7 +36,7 @@ export const CameraLandingPage = (props) => {
                         tapCamera(true);
                     }}
                 />
-                <OrbitImages radius={10} images={images} />
+                <OrbitImages radius={10} images={categories} />
             </Float>
             <ContactShadows
                 scale={200}

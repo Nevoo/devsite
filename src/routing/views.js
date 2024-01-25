@@ -4,12 +4,12 @@ import { Route, Routes, useParams } from "react-router-dom";
 import { useView } from "./view-context";
 import { AboutPage } from "../pages/about/about-page";
 
-import { OrbitImages } from "../landing-page/components/orbit-images";
-import useImageState from "../landing-page/state/image-state";
+import { OrbitImages } from "../ui/views/landing-view/components/orbit-images";
+import useImageState from "../ui/views/landing-view/state/image-state";
 import { CameraView } from "./camera-view";
 import { routes } from "./routes";
 import { useMoveCamera } from "../hooks/useCustomNavigate";
-import { OptimzedOrbitImages } from "../landing-page/components/optimized";
+import { OptimzedOrbitImages } from "../ui/views/landing-view/components/optimized";
 
 export function Views() {
     const { path } = useView();
@@ -28,10 +28,11 @@ export function Views() {
 
 const GalleryView = () => {
     const { id } = useParams();
+    const categoryImages = useImageState((state) => state.images[id]);
 
     useEffect(() => {
-        // console.log(id);
-    }, []);
+        console.log(categoryImages);
+    }, [categoryImages]);
 
     return <CameraView isFloating={false} />;
 };
@@ -43,7 +44,7 @@ const TestView3 = () => {
 };
 
 const LandingPage = () => {
-    const images = useImageState((state) => state.images);
+    const categories = useImageState((state) => state.categories);
     const tapCamera = useImageState((state) => state.tapCamera);
 
     return (
