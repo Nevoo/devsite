@@ -39,9 +39,12 @@ function App() {
     );
 }
 
-// TODO: implement gallery for images
 // TODO: fix scrolling categories on mobile
-// TODO: use smaller images for gallery instead of 30 mb iamges
+// TODO: use smaller images for gallery instead of 30 mb iamges and add rest of images
+// TODO: still adjust model materials a little and subdivide to make it look smoother
+// TODO: implement portal on camera display for gallery instead
+// TODO: implement full screen view of images
+// TODO: maybe implement small camera shake on camera tap
 
 const Header = () => {
     const navigate = useNavigate();
