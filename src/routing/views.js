@@ -49,6 +49,7 @@ const LandingPage = () => {
 
     return (
         <CameraView
+            displayRig
             isFloating={false}
             onCameraTap={(e) => {
                 e.stopPropagation();

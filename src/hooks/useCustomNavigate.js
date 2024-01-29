@@ -48,7 +48,6 @@ export const useMoveCamera = () => {
 
                 if (match) {
                     setPosition([-2.5, 1.45, 3]);
-                    // setPosition([1, 0, 0]);
                     setScale(aspectRatio * 0.02);
                     document.title = "Gallery";
                     break;

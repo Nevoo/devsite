@@ -132,7 +132,7 @@ export const CameraView = ({
                             />
                         </Float>
 
-                        {/* {displayRig && <Rig isStatic={isRigStatic} />} */}
+                        {displayRig && <Rig isStatic={isRigStatic} />}
                     </>
                 );
             })}
