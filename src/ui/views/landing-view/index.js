@@ -11,6 +11,7 @@ import { OrbitImages } from "./components/orbit-images";
 import useImageState from "./state/image-state";
 import { View } from "../routing/view-context";
 import { Rig } from "../components/rig";
+import { CameraNew } from "../../shared/components/blender-models/Model";
 
 export const CameraLandingPage = (props) => {
     const categories = useImageState((state) => state.categories);
@@ -26,7 +27,7 @@ export const CameraLandingPage = (props) => {
                 angle={0.2}
             />
             <Float floatIntensity={1}>
-                <Camera
+                <CameraNew
                     scale={150}
                     rotation={[0, -2, 0]}
                     position={[-0.02, -0.01, 0.02]}

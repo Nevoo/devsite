@@ -15,6 +15,7 @@ import { Rig } from "../ui/shared/components/rig";
 import { transitionObjects } from "./routes";
 import { useFrame, useThree } from "@react-three/fiber";
 import { easing } from "maath";
+import { CameraNew } from "../ui/shared/components/blender-models/Model";
 
 export const CameraView = ({
     children,
@@ -100,7 +101,7 @@ export const CameraView = ({
         // console.log({ position, previousPosition });
     }, [view.active, position, previousPosition]);
 
-    const AnimatedCamera = animated(Camera);
+    const AnimatedCamera = animated(CameraNew);
 
     return (
         <View delayedTransition={delayedTransition}>

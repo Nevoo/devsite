@@ -23,17 +23,17 @@ export const useMoveCamera = () => {
         switch (pathname) {
             case routes.home:
                 setPosition([-0.02, -0.01, 0.02]);
-                setScale(aspectRatio * 10);
+                setScale(aspectRatio * 0.3);
                 document.title = "rouvens.work";
                 break;
             case routes.about:
-                setPosition([1.8, 1.7, 0]);
-                setScale(aspectRatio * 5);
+                setPosition([3.3, 1.9, -1]);
+                setScale(aspectRatio * 0.03);
                 document.title = "About";
                 break;
             case routes.contact:
-                setPosition([1.8, 1.7, 0]);
-                setScale(aspectRatio * 5);
+                setPosition([3.3, 1.9, -1]);
+                setScale(aspectRatio * 0.03);
                 document.title = "Contact";
                 break;
             default:
@@ -47,15 +47,15 @@ export const useMoveCamera = () => {
                 );
 
                 if (match) {
-                    setPosition([-2.7, 1.75, 0]);
+                    setPosition([-2.5, 1.45, 3]);
                     // setPosition([1, 0, 0]);
-                    setScale(aspectRatio * 2);
+                    setScale(aspectRatio * 0.02);
                     document.title = "Gallery";
                     break;
                 }
 
                 setPosition([-0.02, -0.01, 0.02]);
-                setScale(aspectRatio * 10);
+                setScale(aspectRatio * 0.03);
                 document.title = "rouvens.work";
                 break;
         }
