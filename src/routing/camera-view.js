@@ -131,7 +131,6 @@ export const CameraView = ({
                                 onPointerDown={onCameraTap}
                             />
                         </Float>
-
                         {displayRig && <Rig isStatic={isRigStatic} />}
                     </>
                 );

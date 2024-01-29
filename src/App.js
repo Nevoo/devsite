@@ -1,7 +1,8 @@
-import React, { useEffect } from "react";
+import React, { Suspense, useEffect } from "react";
 import "./App.css";
 import { Canvas } from "@react-three/fiber";
 import { animated } from "@react-spring/web";
+import { Html } from "@react-three/drei";
 
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
 import { ViewProvider } from "./routing/view-context";
@@ -16,9 +17,19 @@ function App() {
                 <Router>
                     <div className={"blur"}>
                         <Canvas camera={{ position: [0, 0, 15], fov: 15 }}>
-                            <ViewProvider>
-                                <Views />
-                            </ViewProvider>
+                            <Suspense
+                                fallback={
+                                    <Html
+                                        center
+                                        className="loading"
+                                        children="Loading..."
+                                    />
+                                }
+                            >
+                                <ViewProvider>
+                                    <Views />
+                                </ViewProvider>
+                            </Suspense>
                         </Canvas>
                     </div>
                     <Header />
@@ -28,10 +39,9 @@ function App() {
     );
 }
 
-// TODO: listen to navigation changes to adjust position there -> fixes bug when manually navigating to /camera2
 // TODO: implement gallery for images
 // TODO: fix scrolling categories on mobile
-// TODO: use smaller image of me to improve about page performance
+// TODO: use smaller images for gallery instead of 30 mb iamges
 
 const Header = () => {
     const navigate = useNavigate();

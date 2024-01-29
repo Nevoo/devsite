@@ -10,6 +10,15 @@ import { useMoveCamera } from "../hooks/useCustomNavigate";
 import { OptimzedOrbitImages } from "../ui/views/landing-view/components/optimized";
 import { AboutPage } from "../ui/views/about/about-page";
 import { GalleryView } from "../ui/views/gallery-view/gallery-view";
+import {
+    Bloom,
+    DepthOfField,
+    EffectComposer,
+    Glitch,
+    N8AO,
+    SSAO,
+    TiltShift2,
+} from "@react-three/postprocessing";
 
 export function Views() {
     const { path } = useView();
@@ -57,15 +66,17 @@ const LandingPage = () => {
             }}
         >
             <OptimzedOrbitImages />
+            <planeGeometry args={[50, 50]} />
+            <EffectComposer>
+                <Bloom
+                    luminanceThreshold={0.2}
+                    mipmapBlur
+                    luminanceSmoothing={0.0}
+                    intensity={2}
+                />
+                {/* <N8AO aoRadius={0.1} intensity={1} /> */}
+                <TiltShift2 blur={0.1} />
+            </EffectComposer>
         </CameraView>
-        // <CameraView
-        //     isFloating={false}
-        //     onCameraTap={(e) => {
-        //         e.stopPropagation();
-        //         tapCamera(true);
-        //     }}
-        // >
-        //     <OrbitImages radius={10} images={images} />
-        // </CameraView>
     );
 };
