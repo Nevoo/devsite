@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useRef } from "react";
 
-import { Route, Routes, useParams } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { useView } from "./view-context";
 
 import useImageState from "../ui/views/landing-view/state/image-state";
@@ -14,9 +14,7 @@ import {
     Bloom,
     DepthOfField,
     EffectComposer,
-    Glitch,
     N8AO,
-    SSAO,
     TiltShift2,
 } from "@react-three/postprocessing";
 
@@ -34,17 +32,6 @@ export function Views() {
         </Routes>
     );
 }
-
-// const GalleryView = () => {
-//     const { id } = useParams();
-//     const categoryImages = useImageState((state) => state.images[id]);
-
-//     useEffect(() => {
-//         console.log(categoryImages);
-//     }, [categoryImages]);
-
-//     return <CameraView isFloating={false} />;
-// };
 
 const TestView3 = () => {
     const tapCamera = useImageState((state) => state.tapCamera);
@@ -69,12 +56,19 @@ const LandingPage = () => {
             <planeGeometry args={[50, 50]} />
             <EffectComposer>
                 <Bloom
-                    luminanceThreshold={0.2}
+                    luminanceThreshold={0}
                     mipmapBlur
                     luminanceSmoothing={0.0}
                     intensity={2}
                 />
-                {/* <N8AO aoRadius={0.1} intensity={1} /> */}
+                <DepthOfField
+                    target={[0, 0, 13]}
+                    focalLength={15}
+                    bokehScale={15}
+                    height={700}
+                />
+
+                <N8AO aoRadius={0.1} intensity={1} />
                 <TiltShift2 blur={0.1} />
             </EffectComposer>
         </CameraView>
