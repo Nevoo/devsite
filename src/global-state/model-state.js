@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 const useCameraTransitionState = create((set, get) => ({
-    position: [-0.02, -0.01, 0.02],
+    position: [0, 0, 0],
     previousPosition: [0, 0, 0],
     setPosition: (position) => {
         set({ previousPosition: get().position });

@@ -12,28 +12,46 @@ import { useThree } from "@react-three/fiber";
 
 export const useMoveCamera = () => {
     const { pathname } = useLocation();
-    const { width, height } = useThree((state) => state.viewport);
+    const { viewport, size } = useThree((state) => state);
 
     const setPosition = useCameraTransitionState((state) => state.setPosition);
     const setScale = useCameraTransitionState((state) => state.setScale);
 
     useEffect(() => {
-        const aspectRatio = width / height;
-
+        let scale = 0;
         switch (pathname) {
             case routes.home:
-                setPosition([-0.02, -0.01, 0.02]);
-                setScale(aspectRatio * 0.3);
+                scale = 0.5;
+                setPosition([0, 0, 0]);
+                setScale(scale);
                 document.title = "rouvens.work";
                 break;
             case routes.about:
-                setPosition([3.3, 1.9, -1]);
-                setScale(aspectRatio * 0.03);
+                scale = 0.06;
+                if (size.width > 1000 && size.height > 700) {
+                    setPosition([
+                        viewport.width / 2 - 0.5,
+                        viewport.height / 2 - scale * 1.5,
+                        -1,
+                    ]);
+                } else {
+                    setPosition([0, viewport.height / 2 - scale * 1, -1]);
+                }
+                setScale(scale);
                 document.title = "About";
                 break;
             case routes.contact:
-                setPosition([3.3, 1.9, -1]);
-                setScale(aspectRatio * 0.03);
+                scale = 0.06;
+                if (size.width > 1000 && size.height > 700) {
+                    setPosition([
+                        viewport.width / 2 - 0.5,
+                        viewport.height / 2 - scale * 1.5,
+                        -1,
+                    ]);
+                } else {
+                    setPosition([0, viewport.height / 2 - scale * 1, -1]);
+                }
+                setScale(scale);
                 document.title = "Contact";
                 break;
             default:
@@ -47,16 +65,26 @@ export const useMoveCamera = () => {
                 );
 
                 if (match) {
-                    setPosition([-2.5, 1.45, 3]);
-                    setScale(aspectRatio * 0.02);
+                    scale = 0.05;
+                    if (size.width > 1000 && size.height > 700) {
+                        setPosition([
+                            -viewport.width / 2 + 1,
+                            viewport.height / 2 - scale * 8,
+                            1,
+                        ]);
+                    } else {
+                        setPosition([0, viewport.height / 2 - scale * 6, 1]);
+                    }
+                    setScale(scale);
                     document.title = "Gallery";
                     break;
                 }
 
-                setPosition([-0.02, -0.01, 0.02]);
-                setScale(aspectRatio * 0.03);
+                scale = 0.5;
+                setPosition([0, 0, 0]);
+                setScale(0.5);
                 document.title = "rouvens.work";
                 break;
         }
-    }, [pathname, width, height]);
+    }, [pathname, viewport, size]);
 };
