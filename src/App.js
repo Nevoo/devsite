@@ -114,7 +114,6 @@ export const Headlines = () => {
         <>
             <animated.div className="headline top-left" style={left}>
                 <h1>rouvens</h1>
-                {/* <h1 style={{ color: "#232323" }}>work</h1> */}
             </animated.div>
             <animated.div className="headline bottom-right" style={right}>
                 <h1>work</h1>
