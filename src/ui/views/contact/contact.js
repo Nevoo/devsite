@@ -43,8 +43,8 @@ export function ContactPage() {
                                     width > 1200
                                         ? "10em"
                                         : width < 700
-                                        ? "2em"
-                                        : "4em",
+                                        ? "4em"
+                                        : "6em",
                                 fontWeight: "bold",
                                 lineHeight: "0.9",
                                 letterSpacing:
@@ -75,6 +75,7 @@ export function ContactPage() {
                                     style={{
                                         color: "#232323",
                                         fontFamily: "GilroyLight",
+                                        fontSize: "1.5em",
                                     }}
                                 >
                                     Write me a message, I'd love to hear from
@@ -85,10 +86,10 @@ export function ContactPage() {
                                 style={{
                                     fontSize:
                                         width > 1200
-                                            ? "2em"
+                                            ? "4em"
                                             : width < 700
-                                            ? "1em"
-                                            : "1.5em",
+                                            ? "1.8em"
+                                            : "2.2em",
                                     letterSpacing:
                                         width > 1200
                                             ? "-5px"
@@ -99,7 +100,16 @@ export function ContactPage() {
                             >
                                 follow my socials:
                             </h2>
-                            <ul>
+                            <ul
+                                style={{
+                                    fontSize:
+                                        width > 1200
+                                            ? "4em"
+                                            : width < 700
+                                            ? "1.8em"
+                                            : "2.2em",
+                                }}
+                            >
                                 <li>
                                     <a
                                         target="_blank"

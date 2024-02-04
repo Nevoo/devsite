@@ -17,10 +17,8 @@
   background-image: url("/public/DSC03855-2.png");
 }
 
-.blur {
-  backdrop-filter: blur(3px);
-  height: 100vh;
-  width: 100vw;
+.header {
+
 }
 
 .top-left {
@@ -46,9 +44,9 @@
 }
 
 .nav {
+  position: absolute;
   font-weight: 700;
   text-align: right;
-  position: absolute;
   right: 0;
   top: 0;
   margin: 16px 25px 0px 0px;
