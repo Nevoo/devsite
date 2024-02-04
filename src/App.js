@@ -1,8 +1,8 @@
-import React, { Suspense, useEffect } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import "./App.css";
 import { Canvas, useThree } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
-import { Html } from "@react-three/drei";
+import { Html, useProgress } from "@react-three/drei";
 
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
 import { ViewProvider } from "./routing/view-context";
@@ -10,29 +10,29 @@ import { Views } from "./routing/views";
 import { routes } from "./routing/routes";
 import useCameraTransitionState from "./global-state/model-state";
 import useImageState from "./ui/views/landing-view/state/image-state";
+import { SmartSuspense } from "./ui/shared/fake-loader";
 
 function App() {
+    const { progress } = useProgress();
+    const [showOverlay, setShowOverlay] = useState(false);
+
     return (
         <div>
             {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
             <animated.div className="App">
                 <Router>
                     <Canvas camera={{ position: [0, 0, 15], fov: 15 }}>
-                        <Suspense
-                            fallback={
-                                <Html
-                                    center
-                                    className="loading"
-                                    children="Loading..."
-                                />
-                            }
+                        <SmartSuspense
+                            fallback={<Html>Loading...</Html>}
+                            fallbackMinDurationMs={1000}
+                            onLoaded={() => setShowOverlay(true)}
                         >
                             <ViewProvider>
                                 <Views />
                             </ViewProvider>
-                        </Suspense>
+                        </SmartSuspense>
                     </Canvas>
-                    <Overlay />
+                    {showOverlay && <Overlay />}
                 </Router>
             </animated.div>
         </div>
@@ -88,31 +88,28 @@ const Overlay = () => {
 };
 
 export const Headlines = () => {
-    const cameraTapped = useImageState((state) => state.cameraTapped);
+    const galleryOpened = useImageState((state) => state.galleryOpened);
 
     const { innerWidth: width, innerHeight: height } = window;
 
     const isDesktop = width > 1000 && height > 1000;
 
-    // TODO fix mobile issues on my device
     const left = useSpring({
-        from: { left: "-1000px" },
+        from: { left: "-1400px" },
         to: {
             left: isDesktop ? "100px" : "20px",
-            // top: cameraTapped ? "-1000px" : "100px",
         },
-        leave: { left: "-1000px" },
         config: config.gentle,
+        reverse: galleryOpened,
     });
 
     const right = useSpring({
         from: { right: "-1000px" },
         to: {
             right: isDesktop ? "200px" : "20px",
-            // bottom: cameraTapped ? "-1000px" : "200px",
         },
-        leave: { right: "-1000px" },
         config: config.gentle,
+        reverse: galleryOpened,
     });
 
     return (

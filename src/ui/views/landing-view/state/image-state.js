@@ -38,6 +38,8 @@ const useImageState = create((set) => ({
 
     cameraTapped: false,
     tapCamera: (isTapped) => set({ cameraTapped: isTapped }),
+    galleryOpened: false,
+    setGalleryOpen: (isTapped) => set({ galleryOpened: isTapped }),
 }));
 
 export default useImageState;

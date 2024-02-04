@@ -61,6 +61,7 @@ function Rig(props) {
 function Carousel({ radius = 2 }) {
     const navigate = useNavigate();
     const categories = useImageState((state) => state.categories);
+    const setGalleryOpen = useImageState((state) => state.setGalleryOpen);
     const count = categories.length;
 
     const [tappedImage, setTappedImage] = useState(null);
@@ -100,6 +101,7 @@ function Carousel({ radius = 2 }) {
                     e.stopPropagation();
                     setTappedImage(index);
                     tapCamera(false);
+                    setGalleryOpen(true);
                 }}
                 key={index}
                 url={imageData.image}
