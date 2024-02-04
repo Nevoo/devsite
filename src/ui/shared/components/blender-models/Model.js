@@ -1,11 +1,10 @@
 import React, { useRef } from "react";
 import { useGLTF } from "@react-three/drei";
-import { animated } from "@react-spring/three";
 
 export function CameraNew(props) {
-    const { nodes, materials } = useGLTF("/cam-final4.glb");
+    const { nodes, materials } = useGLTF("/cam-final-smooth1.glb");
     return (
-        <animated.group {...props} dispose={null}>
+        <group {...props} dispose={null}>
             <mesh
                 name="Cam"
                 castShadow
@@ -88,7 +87,7 @@ export function CameraNew(props) {
                 castShadow
                 receiveShadow
                 geometry={nodes.Sensor.geometry}
-                material={materials["Black Plastic"]}
+                material={materials["Sensor Mat"]}
             />
             <mesh
                 name="Display"
@@ -146,8 +145,8 @@ export function CameraNew(props) {
                 geometry={nodes.Viewfinder.geometry}
                 material={materials["Car plastic dark"]}
             />
-        </animated.group>
+        </group>
     );
 }
 
-useGLTF.preload("/cam-final4.glb");
+useGLTF.preload("/cam-final-smooth1.glb");

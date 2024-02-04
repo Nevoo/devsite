@@ -89,6 +89,34 @@
   /* margin: 5em 0 0 5em; */
 }
 
+/* basically deskptop adjustments */
+@media (min-width: 480px) {
+  .nav {
+    margin: 40px 50px 0px 0px;
+  }
+
+  .logo {
+    margin: 40px 0 0 50px;
+  }
+
+  .body {
+    padding: 0px 200px 40px  200px;
+  }
+
+  .headline h1 {
+    letter-spacing: -25px;
+    font-size: 25em;
+  }
+
+  .bottom-right {
+    bottom: 200px;
+  }
+
+  .top-left {
+    top: 100px;
+  }
+}
+
 @media (max-width: 1400px) {
   .headline h1 {
     letter-spacing: -15px;
@@ -109,32 +137,8 @@
     letter-spacing: -10px;
     font-size: 7em;
   }
-}
-
-/* basically deskptop adjustments */
-@media (min-width: 480px) {
-  .nav {
-    margin: 40px 50px 0px 0px;
-  }
-
-  .logo {
-    margin: 40px 0 0 50px;
-  }
-
-  .body {
-    padding: 0px 200px 40px  200px;
-  }
-
-  .headline h1 {
-    letter-spacing: -25px;
-    font-size: 20em;
-  }
 
   .bottom-right {
-    bottom: 200px;
-  }
-
-  .top-left {
-    top: 150px;
+    bottom: 100px;
   }
 }

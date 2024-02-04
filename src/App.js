@@ -9,6 +9,7 @@ import { ViewProvider } from "./routing/view-context";
 import { Views } from "./routing/views";
 import { routes } from "./routing/routes";
 import useCameraTransitionState from "./global-state/model-state";
+import useImageState from "./ui/views/landing-view/state/image-state";
 
 function App() {
     return (
@@ -86,7 +87,9 @@ const Overlay = () => {
     );
 };
 
-const Headlines = () => {
+export const Headlines = () => {
+    const cameraTapped = useImageState((state) => state.cameraTapped);
+
     const { innerWidth: width, innerHeight: height } = window;
 
     const isDesktop = width > 1000 && height > 1000;
@@ -94,14 +97,20 @@ const Headlines = () => {
     // TODO fix mobile issues on my device
     const left = useSpring({
         from: { left: "-1000px" },
-        to: { left: isDesktop ? "200px" : "20px" },
+        to: {
+            left: isDesktop ? "100px" : "20px",
+            // top: cameraTapped ? "-1000px" : "100px",
+        },
         leave: { left: "-1000px" },
         config: config.gentle,
     });
 
     const right = useSpring({
         from: { right: "-1000px" },
-        to: { right: isDesktop ? "400px" : "20px" },
+        to: {
+            right: isDesktop ? "200px" : "20px",
+            // bottom: cameraTapped ? "-1000px" : "200px",
+        },
         leave: { right: "-1000px" },
         config: config.gentle,
     });
@@ -110,6 +119,7 @@ const Headlines = () => {
         <>
             <animated.div className="headline top-left" style={left}>
                 <h1>rouvens</h1>
+                {/* <h1 style={{ color: "#232323" }}>work</h1> */}
             </animated.div>
             <animated.div className="headline bottom-right" style={right}>
                 <h1>work</h1>

@@ -15,10 +15,13 @@ import {
     DepthOfField,
     EffectComposer,
     N8AO,
+    SSR,
     TiltShift2,
 } from "@react-three/postprocessing";
 import { Html, Text } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
+import { Headlines } from "../App";
+import { useControls } from "leva";
 
 export function Views() {
     const { path } = useView();
@@ -47,10 +50,9 @@ const LandingPage = () => {
 
     return (
         <group>
-            {/* <Name position={[0, 0, 0]} /> */}
             <CameraView
                 displayRig
-                isFloating={false}
+                isFloating={true}
                 onCameraTap={(e) => {
                     e.stopPropagation();
                     tapCamera(true);
@@ -58,12 +60,13 @@ const LandingPage = () => {
             >
                 <OptimzedOrbitImages />
                 <EffectComposer disableNormalPass>
-                    <Bloom
-                        luminanceThreshold={0}
+                    {/* <Bloom
+                        luminanceThreshold={0.2}
                         mipmapBlur
-                        luminanceSmoothing={0.0}
-                        intensity={2}
-                    />
+                        luminanceSmoothing={0}
+                        intensity={1.75}
+                    /> */}
+
                     {/* <DepthOfField
                         target={[0, 0, 13]}
                         focalLength={15}
@@ -75,22 +78,5 @@ const LandingPage = () => {
                 </EffectComposer>
             </CameraView>
         </group>
-    );
-};
-
-const Name = (props) => {
-    const { width, height } = useThree((state) => state.viewport);
-    return (
-        <Html {...props} fullscreen>
-            <div
-                style={{
-                    position: "absolute",
-                    bottom: "50px",
-                    fontFamily: "GilroyExtraBold",
-                }}
-            >
-                <h1 style={{ fontSize: "35em", margin: 0 }}>rouven</h1>
-            </div>
-        </Html>
     );
 };

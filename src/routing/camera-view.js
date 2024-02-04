@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     animated,
     config,
@@ -7,8 +7,12 @@ import {
 } from "@react-spring/three";
 
 import { useView, View } from "./view-context";
-import { Camera } from "../ui/shared/components/blender-models/camera_glb";
-import { Environment, Float, Lightformer } from "@react-three/drei";
+import {
+    ContactShadows,
+    Environment,
+    Float,
+    Lightformer,
+} from "@react-three/drei";
 import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
 import { Rig } from "../ui/shared/components/rig";
@@ -23,7 +27,6 @@ export const CameraView = ({
     isRigStatic,
     isFloating,
     onCameraTap,
-    floatingRange,
     delayedTransition,
 }) => {
     const {
@@ -106,18 +109,19 @@ export const CameraView = ({
             {transition((props, option, _, i) => {
                 return (
                     <>
-                        <Environment preset="city">
+                        <Environment preset="warehouse">
                             <Lightformer
                                 intensity={8}
-                                position={[10, 5, 0]}
+                                position={[10, 5, 5]}
                                 scale={[10, 50, 1]}
-                                onUpdate={(self) => self.lookAt(0, 0, 0)}
                             />
                         </Environment>
+
                         <Float
                             enabled={isFloating}
-                            floatIntensity={isFloating ? 1 : 0}
-                            floatingRange={floatingRange ?? [1, 2]}
+                            speed={2}
+                            rotationIntensity={0.5}
+                            floatIntensity={0.5}
                         >
                             {children}
                             <AnimatedCamera
@@ -129,6 +133,11 @@ export const CameraView = ({
                                 onPointerDown={onCameraTap}
                             />
                         </Float>
+                        <ContactShadows
+                            opacity={0.25}
+                            far={10}
+                            position={[0, -1.5, 0]}
+                        />
                         {displayRig && <Rig isStatic={isRigStatic} />}
                     </>
                 );

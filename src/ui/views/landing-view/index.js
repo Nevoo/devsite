@@ -6,7 +6,6 @@ import {
     ContactShadows,
     Environment,
 } from "@react-three/drei";
-import { Camera } from "../components/blender-models/camera_glb";
 import { OrbitImages } from "./components/orbit-images";
 import useImageState from "./state/image-state";
 import { View } from "../routing/view-context";
@@ -15,7 +14,6 @@ import { CameraNew } from "../../shared/components/blender-models/Model";
 
 export const CameraLandingPage = (props) => {
     const categories = useImageState((state) => state.categories);
-    const cameraTapped = useImageState((state) => state.cameraTapped);
     const tapCamera = useImageState((state) => state.tapCamera);
 
     return (
