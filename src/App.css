@@ -30,6 +30,7 @@
 }
 
 .bottom-right {
+  color: #f8f5f2;
   position: absolute;
   bottom: 100px;
 }
@@ -80,13 +81,35 @@
   font-weight: 800;
   position: absolute;
   bottom: 20px;
-  color: white;
+  color: #f8f5f2;
   font-size: 1em;
 }
 
 .body {
   padding: 20px 30px 20px 30px;
   /* margin: 5em 0 0 5em; */
+}
+
+@media (max-width: 1400px) {
+  .headline h1 {
+    letter-spacing: -15px;
+    font-size: 15em;
+  }
+}
+
+
+@media (max-width: 1200px) {
+  .headline h1 {
+    letter-spacing: -15px;
+    font-size: 10em;
+  }
+}
+
+@media (max-width: 600px) {
+  .headline h1 {
+    letter-spacing: -10px;
+    font-size: 7em;
+  }
 }
 
 /* basically deskptop adjustments */
@@ -109,25 +132,10 @@
   }
 
   .bottom-right {
-    bottom: 250px;
+    bottom: 200px;
   }
 
   .top-left {
     top: 150px;
-  }
-}
-
-@media (max-width: 1400px) {
-  .headline h1 {
-    letter-spacing: -15px;
-    font-size: 15em;
-  }
-}
-
-
-@media (max-width: 1200px) {
-  .headline h1 {
-    letter-spacing: -15px;
-    font-size: 10em;
   }
 }

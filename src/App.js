@@ -91,6 +91,7 @@ const Headlines = () => {
 
     const isDesktop = width > 1000 && height > 1000;
 
+    // TODO fix mobile issues on my device
     const left = useSpring({
         from: { left: "-1000px" },
         to: { left: isDesktop ? "200px" : "20px" },
@@ -100,7 +101,7 @@ const Headlines = () => {
 
     const right = useSpring({
         from: { right: "-1000px" },
-        to: { right: isDesktop ? "200px" : "20px" },
+        to: { right: isDesktop ? "400px" : "20px" },
         leave: { right: "-1000px" },
         config: config.gentle,
     });
