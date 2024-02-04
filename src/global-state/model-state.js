@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 const useCameraTransitionState = create((set, get) => ({
-    position: [-0.02, -0.01, 0.02],
+    position: [0, 0, 0],
     previousPosition: [0, 0, 0],
     setPosition: (position) => {
         set({ previousPosition: get().position });
@@ -13,11 +13,15 @@ const useCameraTransitionState = create((set, get) => ({
         set({ previousRotation: get().rotation });
         set({ rotation: rotation });
     },
-    scale: 150,
-    previousScale: 150,
+    scale: 1,
+    previousScale: 1,
     setScale: (scale) => {
         set({ previousScale: get().scale });
         set({ scale: scale });
+    },
+    displayHeadlines: true,
+    setDisplayHeadlines: (displayHeadlines) => {
+        set({ displayHeadlines: displayHeadlines });
     },
 }));
 

@@ -12,6 +12,6 @@ root.render(
     <React.StrictMode>
         <App />
         {/* <Leva collapsed /> */}
-        {/* <Analytics /> */}
+        <Analytics />
     </React.StrictMode>
 );

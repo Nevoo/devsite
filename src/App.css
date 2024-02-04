@@ -10,16 +10,39 @@
   align-items: center;
   justify-content: center;
   /* background-image: url('/public/noisegradient.png'); */
-  background-color: #0f0e17;
+  /* background-color: #0f0e17; */
+  background-color: #f8f5f2;
   background-size: cover;
-  color: #fffffe;
-  overflow: hidden;
+  color: #232323;
+  background-image: url("/public/DSC03855-2.png");
 }
 
 .blur {
   backdrop-filter: blur(3px);
   height: 100vh;
   width: 100vw;
+}
+
+.top-left {
+  position: absolute;
+  top: 125px;
+  color: #f45d48;
+}
+
+.bottom-right {
+  position: absolute;
+  bottom: 100px;
+}
+
+.headline h1 {
+  text-align: left;
+  line-height: 0.8;
+  font-weight: 800;
+  font-size: 7em;
+  letter-spacing: -8px;
+  margin: 0;
+  padding: 0;
+  font-family: 'GilroyExtraBold';
 }
 
 .nav {
@@ -29,35 +52,35 @@
   right: 0;
   top: 0;
   margin: 16px 25px 0px 0px;
-  color: white;
   font-size: 1.5em;
 }
 
 .nav div:hover {
   cursor: pointer;
-  color: rgb(206, 146, 226);
+  color: #078080;
   text-decoration: underline;
 }
 
 .logo {
+  z-index: 1;
   font-weight: 800;
   position: absolute;
   left: 0;
   top: 0;
   margin: 16px 0 0 25px;
-  color: white;
   font-size: 1.5em;
 }
 
 .logo:hover{
   cursor: pointer;
+  color: #078080;
 }
 
 .footer {
   font-weight: 800;
   position: absolute;
   bottom: 20px;
-  color: white;
+  color: #f8f5f2;
   font-size: 1em;
 }
 
@@ -66,6 +89,7 @@
   /* margin: 5em 0 0 5em; */
 }
 
+/* basically deskptop adjustments */
 @media (min-width: 480px) {
   .nav {
     margin: 40px 50px 0px 0px;
@@ -76,7 +100,53 @@
   }
 
   .body {
-    padding: 0px 50px 40px 50px;
+    padding: 0px 200px 40px  200px;
+  }
+
+  .headline h1 {
+    letter-spacing: -25px;
+    font-size: 25em;
+  }
+
+  .bottom-right {
+    bottom: 200px;
+  }
+
+  .top-left {
+    top: 100px;
   }
 }
 
+@media (max-width: 1400px) {
+  .headline h1 {
+    letter-spacing: -15px;
+    font-size: 15em;
+  }
+
+  .body {
+    padding: 20px 30px 20px 30px;
+  }
+}
+
+
+@media (max-width: 1200px) {
+  .headline h1 {
+    letter-spacing: -15px;
+    font-size: 10em;
+  }
+
+  .body {
+    padding: 20px 30px 20px 30px;
+  }
+}
+
+@media (max-width: 600px) {
+  .headline h1 {
+    letter-spacing: -10px;
+    font-size: 7em;
+  }
+
+  .bottom-right {
+    bottom: 100px;
+  }
+}

@@ -7,41 +7,36 @@ import {
 } from "@react-spring/three";
 
 import { useView, View } from "./view-context";
-import { Camera } from "../components/blender-models/camera_glb";
-import { Environment, Float, Lightformer } from "@react-three/drei";
+import {
+    ContactShadows,
+    Environment,
+    Float,
+    Lightformer,
+} from "@react-three/drei";
 import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
-import { Rig } from "../components/rig";
+import { Rig } from "../ui/shared/components/rig";
 import { transitionObjects } from "./routes";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { easing } from "maath";
+import { CameraNew } from "../ui/shared/components/blender-models/Model";
 
 export const CameraView = ({
     children,
     displayRig,
-    isRigStatic,
     isFloating,
     onCameraTap,
-    floatingRange,
     delayedTransition,
 }) => {
-    const {
-        previousPosition,
-        position,
-        previousScale,
-        scale,
-        previousRotation,
-        rotation,
-    } = useCameraTransitionState(
-        useShallow((state) => ({
-            previousPosition: state.previousPosition,
-            position: state.position,
-            previousScale: state.previousScale,
-            scale: state.scale,
-            previousRotation: state.previousRotation,
-            rotation: state.rotation,
-        }))
-    );
+    const { previousPosition, position, previousScale, scale } =
+        useCameraTransitionState(
+            useShallow((state) => ({
+                previousPosition: state.previousPosition,
+                position: state.position,
+                previousScale: state.previousScale,
+                scale: state.scale,
+            }))
+        );
 
     useFrame((state, delta) => {
         if (!displayRig) {
@@ -57,7 +52,6 @@ export const CameraView = ({
     const { hoveredScale, springPos } = useSpring({
         hoveredScale: hovered ? scale * 1.3 : scale,
         springPos: position,
-        config: config.stiff,
     });
 
     const [transition, transApi] = useTransition(
@@ -99,25 +93,26 @@ export const CameraView = ({
         // console.log({ position, previousPosition });
     }, [view.active, position, previousPosition]);
 
-    const AnimatedCamera = animated(Camera);
+    const AnimatedCamera = animated(CameraNew);
 
     return (
         <View delayedTransition={delayedTransition}>
             {transition((props, option, _, i) => {
                 return (
                     <>
-                        <Environment preset="city">
+                        <Environment preset="warehouse">
                             <Lightformer
                                 intensity={8}
-                                position={[10, 5, 0]}
+                                position={[10, 5, 5]}
                                 scale={[10, 50, 1]}
-                                onUpdate={(self) => self.lookAt(0, 0, 0)}
                             />
                         </Environment>
+
                         <Float
                             enabled={isFloating}
-                            floatIntensity={isFloating ? 1 : 0}
-                            floatingRange={floatingRange ?? [1, 2]}
+                            speed={2}
+                            rotationIntensity={0.5}
+                            floatIntensity={0.5}
                         >
                             {children}
                             <AnimatedCamera
@@ -129,8 +124,12 @@ export const CameraView = ({
                                 onPointerDown={onCameraTap}
                             />
                         </Float>
-
-                        {displayRig && <Rig isStatic={isRigStatic} />}
+                        <ContactShadows
+                            opacity={0.25}
+                            far={10}
+                            position={[0, -1.5, 0]}
+                        />
+                        {displayRig && <Rig />}
                     </>
                 );
             })}
