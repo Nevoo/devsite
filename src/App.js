@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect } from "react";
 import "./App.css";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
 import { Html } from "@react-three/drei";
 
@@ -87,16 +87,20 @@ const Overlay = () => {
 };
 
 const Headlines = () => {
+    const { innerWidth: width, innerHeight: height } = window;
+
+    const isDesktop = width > 1000 && height > 1000;
+
     const left = useSpring({
         from: { left: "-1000px" },
-        to: { left: "200px" },
+        to: { left: isDesktop ? "200px" : "20px" },
         leave: { left: "-1000px" },
         config: config.gentle,
     });
 
     const right = useSpring({
         from: { right: "-1000px" },
-        to: { right: "200px" },
+        to: { right: isDesktop ? "200px" : "20px" },
         leave: { right: "-1000px" },
         config: config.gentle,
     });

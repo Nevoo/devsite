@@ -28,9 +28,9 @@ export const OptimzedOrbitImages = () => {
             <fog attach="fog" args={["#a79", 8.5, 12]} />
             <ScrollControls
                 enabled={cameraTapped}
-                pages={4}
+                pages={cameraTapped ? 4 : 0}
                 infinite
-                horizontal={width > 1000 && height > 700 ? false : true}
+                horizontal={width > 1000 && height > 1000 ? false : true}
             >
                 <Rig rotation={[0, 0, 0.05]}>
                     <Carousel />

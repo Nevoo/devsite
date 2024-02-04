@@ -14,7 +14,6 @@
   background-color: #f8f5f2;
   background-size: cover;
   color: #232323;
-  overflow: hidden;
   background-image: url("/public/DSC03855-2.png");
 }
 
@@ -26,23 +25,21 @@
 
 .top-left {
   position: absolute;
-  top: 150px;
-  /* left: 8%; */
+  top: 125px;
   color: #f45d48;
 }
 
 .bottom-right {
   position: absolute;
-  bottom: 250px;
-  /* right: 15%; */
+  bottom: 100px;
 }
 
 .headline h1 {
   text-align: left;
   line-height: 0.8;
-  letter-spacing: -25px;
   font-weight: 800;
-  font-size: 20em;
+  font-size: 7em;
+  letter-spacing: -8px;
   margin: 0;
   padding: 0;
   font-family: 'GilroyExtraBold';
@@ -92,6 +89,7 @@
   /* margin: 5em 0 0 5em; */
 }
 
+/* basically deskptop adjustments */
 @media (min-width: 480px) {
   .nav {
     margin: 40px 50px 0px 0px;
@@ -103,5 +101,33 @@
 
   .body {
     padding: 0px 200px 40px  200px;
+  }
+
+  .headline h1 {
+    letter-spacing: -25px;
+    font-size: 20em;
+  }
+
+  .bottom-right {
+    bottom: 250px;
+  }
+
+  .top-left {
+    top: 150px;
+  }
+}
+
+@media (max-width: 1400px) {
+  .headline h1 {
+    letter-spacing: -15px;
+    font-size: 15em;
+  }
+}
+
+
+@media (max-width: 1200px) {
+  .headline h1 {
+    letter-spacing: -15px;
+    font-size: 10em;
   }
 }

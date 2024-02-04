@@ -58,19 +58,19 @@ const LandingPage = () => {
             >
                 <OptimzedOrbitImages />
                 <EffectComposer disableNormalPass>
-                    {/* <Bloom
+                    <Bloom
                         luminanceThreshold={0}
                         mipmapBlur
                         luminanceSmoothing={0.0}
                         intensity={2}
-                    /> */}
+                    />
                     {/* <DepthOfField
                         target={[0, 0, 13]}
                         focalLength={15}
                         bokehScale={15}
                         height={700}
                     /> */}
-                    {/* <N8AO aoRadius={0.1} intensity={1} /> */}
+                    <N8AO aoRadius={0.1} intensity={1} />
                     {/* <TiltShift2 blur={0.1} /> */}
                 </EffectComposer>
             </CameraView>
