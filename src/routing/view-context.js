@@ -56,7 +56,6 @@ export function ViewProvider({ children }) {
 }
 
 export function useView() {
-    const location = useLocation();
     const [context] = useContext(ViewContext);
     const active = context.active;
     const updateRoute = context.updateRoute;
@@ -67,7 +66,7 @@ export function useView() {
             updateRoute,
             active,
         }),
-        [context.path, location.pathname, updateRoute, active]
+        [context.path, updateRoute, active]
     );
 }
 

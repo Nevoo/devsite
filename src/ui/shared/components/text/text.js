@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
-import { Text, Center, Text3D, Edges, Bounds } from "@react-three/drei";
-import { useSpring, animated, config } from "@react-spring/three";
+import { Center, Text3D, Edges, Bounds } from "@react-three/drei";
+import { animated } from "@react-spring/three";
 import { LayerMaterial, Depth, Fresnel } from "lamina";
 import { useControls } from "leva";
 

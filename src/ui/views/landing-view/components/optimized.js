@@ -1,16 +1,8 @@
 import * as THREE from "three";
 import { useRef, useState } from "react";
-import {
-    Image,
-    Environment,
-    ScrollControls,
-    useScroll,
-    useTexture,
-    Bounds,
-    Scroll,
-} from "@react-three/drei";
+import { Image, ScrollControls, useScroll } from "@react-three/drei";
 import { useTrail, animated, config } from "@react-spring/three";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { easing } from "maath";
 import useImageState from "../state/image-state";
 import "./bent-plane-geometry";
@@ -121,7 +113,10 @@ function Carousel({ radius = 2 }) {
 export const Card = ({ style, position, url, ...props }) => {
     const ref = useRef();
     const [hovered, hover] = useState(false);
-    const pointerOver = (e) => (e.stopPropagation(), hover(true));
+    const pointerOver = (e) => {
+        e.stopPropagation();
+        hover(true);
+    };
     const pointerOut = () => hover(false);
     useFrame((state, delta) => {
         easing.damp3(ref.current.scale, hovered ? 1.2 : 1, 0.1, delta);

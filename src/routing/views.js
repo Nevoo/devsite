@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React from "react";
 
 import { Route, Routes } from "react-router-dom";
 import { useView } from "./view-context";
@@ -12,16 +12,10 @@ import { AboutPage } from "../ui/views/about/about-page";
 import { GalleryView } from "../ui/views/gallery-view/gallery-view";
 import {
     Bloom,
-    DepthOfField,
     EffectComposer,
     N8AO,
-    SSR,
     TiltShift2,
 } from "@react-three/postprocessing";
-import { Html, Text } from "@react-three/drei";
-import { useThree } from "@react-three/fiber";
-import { Headlines } from "../App";
-import { useControls } from "leva";
 
 export function Views() {
     const { path } = useView();
@@ -39,13 +33,10 @@ export function Views() {
 }
 
 const TestView3 = () => {
-    const tapCamera = useImageState((state) => state.tapCamera);
-
     return <CameraView isFloating={false} />;
 };
 
 const LandingPage = () => {
-    const categories = useImageState((state) => state.categories);
     const tapCamera = useImageState((state) => state.tapCamera);
 
     return (
@@ -60,21 +51,15 @@ const LandingPage = () => {
             >
                 <OptimzedOrbitImages />
                 <EffectComposer disableNormalPass>
-                    {/* <Bloom
+                    <Bloom
                         luminanceThreshold={0.2}
                         mipmapBlur
                         luminanceSmoothing={0}
-                        intensity={1.75}
-                    /> */}
+                        intensity={1}
+                    />
 
-                    {/* <DepthOfField
-                        target={[0, 0, 13]}
-                        focalLength={15}
-                        bokehScale={15}
-                        height={700}
-                    /> */}
                     <N8AO aoRadius={0.1} intensity={1} />
-                    {/* <TiltShift2 blur={0.1} /> */}
+                    <TiltShift2 blur={0.1} />
                 </EffectComposer>
             </CameraView>
         </group>

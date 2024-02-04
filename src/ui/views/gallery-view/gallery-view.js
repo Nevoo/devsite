@@ -5,16 +5,14 @@ import {
     Preload,
     Scroll,
     ScrollControls,
-    Sphere,
     Text,
     useIntersect,
     useScroll,
 } from "@react-three/drei";
 import { CameraView } from "../../../routing/camera-view";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import useImageState from "../landing-view/state/image-state";
 import { useParams } from "react-router-dom";
-import { PlaneGeometry } from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { suspend } from "suspend-react";
 

@@ -1,8 +1,8 @@
-import React, { Suspense, useEffect, useState } from "react";
+import React, { useState } from "react";
 import "./App.css";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
-import { Html, useProgress } from "@react-three/drei";
+import { Html } from "@react-three/drei";
 
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
 import { ViewProvider } from "./routing/view-context";
@@ -13,7 +13,6 @@ import useImageState from "./ui/views/landing-view/state/image-state";
 import { SmartSuspense } from "./ui/shared/fake-loader";
 
 function App() {
-    const { progress } = useProgress();
     const [showOverlay, setShowOverlay] = useState(false);
 
     return (

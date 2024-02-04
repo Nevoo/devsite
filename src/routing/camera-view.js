@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     animated,
     config,
@@ -17,35 +17,26 @@ import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
 import { Rig } from "../ui/shared/components/rig";
 import { transitionObjects } from "./routes";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { easing } from "maath";
 import { CameraNew } from "../ui/shared/components/blender-models/Model";
 
 export const CameraView = ({
     children,
     displayRig,
-    isRigStatic,
     isFloating,
     onCameraTap,
     delayedTransition,
 }) => {
-    const {
-        previousPosition,
-        position,
-        previousScale,
-        scale,
-        previousRotation,
-        rotation,
-    } = useCameraTransitionState(
-        useShallow((state) => ({
-            previousPosition: state.previousPosition,
-            position: state.position,
-            previousScale: state.previousScale,
-            scale: state.scale,
-            previousRotation: state.previousRotation,
-            rotation: state.rotation,
-        }))
-    );
+    const { previousPosition, position, previousScale, scale } =
+        useCameraTransitionState(
+            useShallow((state) => ({
+                previousPosition: state.previousPosition,
+                position: state.position,
+                previousScale: state.previousScale,
+                scale: state.scale,
+            }))
+        );
 
     useFrame((state, delta) => {
         if (!displayRig) {
@@ -138,7 +129,7 @@ export const CameraView = ({
                             far={10}
                             position={[0, -1.5, 0]}
                         />
-                        {displayRig && <Rig isStatic={isRigStatic} />}
+                        {displayRig && <Rig />}
                     </>
                 );
             })}

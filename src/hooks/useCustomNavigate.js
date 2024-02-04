@@ -1,12 +1,6 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { routes } from "../routing/routes";
-import {
-    matchPath,
-    useLocation,
-    useNavigate,
-    useParams,
-} from "react-router-dom";
-import { useView } from "../routing/view-context";
+import { matchPath, useLocation } from "react-router-dom";
 import useCameraTransitionState from "../global-state/model-state";
 import { useThree } from "@react-three/fiber";
 import useImageState from "../ui/views/landing-view/state/image-state";

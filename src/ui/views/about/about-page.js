@@ -1,9 +1,7 @@
-import { Html, Scroll, ScrollControls } from "@react-three/drei";
+import { Scroll, ScrollControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
 import { CameraView } from "../../../routing/camera-view";
-
-// probably can be improved
 
 export const AboutPage = () => {
     const { width, height } = useThree((state) => state.size);
@@ -84,6 +82,7 @@ export const AboutPage = () => {
                         }}
                     >
                         <img
+                            alt="portrait of me"
                             src="portrait.jpeg"
                             style={{
                                 maxWidth: "100%",
