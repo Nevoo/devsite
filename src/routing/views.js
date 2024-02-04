@@ -16,6 +16,7 @@ import {
     N8AO,
     TiltShift2,
 } from "@react-three/postprocessing";
+import { ContactPage } from "../ui/views/contact/contact";
 
 export function Views() {
     const { path } = useView();
@@ -26,15 +27,11 @@ export function Views() {
         <Routes location={path}>
             <Route path={routes.home} element={<LandingPage />} />
             <Route path={routes.about} element={<AboutPage />} />
-            <Route path={routes.contact} element={<TestView3 />} />
+            <Route path={routes.contact} element={<ContactPage />} />
             <Route path={routes.gallery} element={<GalleryView />} />
         </Routes>
     );
 }
-
-const TestView3 = () => {
-    return <CameraView isFloating={false} />;
-};
 
 const LandingPage = () => {
     const tapCamera = useImageState((state) => state.tapCamera);

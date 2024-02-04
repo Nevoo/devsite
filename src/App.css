@@ -122,6 +122,10 @@
     letter-spacing: -15px;
     font-size: 15em;
   }
+
+  .body {
+    padding: 20px 30px 20px 30px;
+  }
 }
 
 
@@ -129,6 +133,10 @@
   .headline h1 {
     letter-spacing: -15px;
     font-size: 10em;
+  }
+
+  .body {
+    padding: 20px 30px 20px 30px;
   }
 }
 

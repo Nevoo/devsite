@@ -14,15 +14,16 @@ export const AboutPage = () => {
 
     return (
         <CameraView isFloating={false}>
-            <MobileScrollWrapper width={width} height={height}>
+            <MobileScrollWrapper>
                 <animated.div
                     className="body"
                     style={{
                         display: "flex",
                         opacity,
-                        flexDirection: width > 1000 ? "row" : "column",
+                        flexDirection: width > 1200 ? "row" : "column",
                         justifyContent: "space-between",
                         textAlign: "left",
+                        paddingTop: "150px",
                     }}
                 >
                     <div
@@ -30,30 +31,37 @@ export const AboutPage = () => {
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "center",
-                            width: width > 1000 ? "50%" : "100%",
+                            width: width > 1200 ? "50%" : "100%",
                             marginRight:
-                                width > 1000 && height > 1000 ? "0px" : "100px",
+                                width > 1200 && height > 1000 ? "0px" : "100px",
                         }}
                     >
                         <h1
                             style={{
                                 fontFamily: "GilroyExtraBold",
                                 fontSize:
-                                    width > 1000
-                                        ? "7em"
-                                        : width < 400
-                                        ? "2em"
-                                        : "4em",
+                                    width > 1200
+                                        ? "10em"
+                                        : width < 700
+                                        ? "4em"
+                                        : "6em",
                                 fontWeight: "bold",
+                                lineHeight: "0.9",
+                                letterSpacing:
+                                    width > 1200
+                                        ? "-12px"
+                                        : width < 700
+                                        ? "-2px"
+                                        : "-10px",
                             }}
                         >
-                            ABOUT ME
+                            about me
                         </h1>
 
                         <div
                             style={{
                                 fontFamily: "GilroyExtraBold",
-                                fontSize: "1.8em",
+                                fontSize: "2em",
                                 fontWeight: "bold",
                             }}
                         >
@@ -76,7 +84,7 @@ export const AboutPage = () => {
                         style={{
                             paddingTop: "150px",
                             height:
-                                width > 1000 && height > 1000
+                                width > 1200 && height > 1000
                                     ? "800px"
                                     : "700px",
                         }}
@@ -96,15 +104,12 @@ export const AboutPage = () => {
     );
 };
 
-const MobileScrollWrapper = ({ children, width, height }) => {
-    // return width > 1000 && height > 1000 ? (
-    //     <>{children}</>
-    // ) :
+export const MobileScrollWrapper = ({ children }) => {
+    const { width, height } = useThree((state) => state.size);
+
     return (
-        <ScrollControls pages="2">
-            <Scroll html>
-                <>{children}</>
-            </Scroll>
+        <ScrollControls pages={width > 1200 && height > 1000 ? "0" : "2"}>
+            <Scroll html>{children}</Scroll>
         </ScrollControls>
     );
 };
