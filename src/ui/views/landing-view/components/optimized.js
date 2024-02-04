@@ -10,7 +10,7 @@ import {
     Scroll,
 } from "@react-three/drei";
 import { useTrail, animated, config } from "@react-spring/three";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { easing } from "maath";
 import useImageState from "../state/image-state";
 import "./bent-plane-geometry";
@@ -21,11 +21,17 @@ import { CategoryTitle } from "./orbit-images";
 
 export const OptimzedOrbitImages = () => {
     const cameraTapped = useImageState((state) => state.cameraTapped);
+    const { width, height } = useThree((state) => state.size);
 
     return (
         <group>
             <fog attach="fog" args={["#a79", 8.5, 12]} />
-            <ScrollControls enabled={cameraTapped} pages={4} infinite>
+            <ScrollControls
+                enabled={cameraTapped}
+                pages={4}
+                infinite
+                horizontal={width > 1000 && height > 700 ? false : true}
+            >
                 <Rig rotation={[0, 0, 0.05]}>
                     <Carousel />
                 </Rig>
