@@ -1,4 +1,3 @@
-import { Html } from "@react-three/drei";
 import { CameraView } from "../../../routing/camera-view";
 import { animated, config, useSpring } from "@react-spring/web";
 import { useThree } from "@react-three/fiber";
