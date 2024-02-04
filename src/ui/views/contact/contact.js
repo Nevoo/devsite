@@ -102,9 +102,10 @@ export function ContactPage() {
                             </h2>
                             <ul
                                 style={{
+                                    color: "#232323",
                                     fontSize:
                                         width > 1200
-                                            ? "4em"
+                                            ? "2em"
                                             : width < 700
                                             ? "1.8em"
                                             : "2.2em",
@@ -112,6 +113,7 @@ export function ContactPage() {
                             >
                                 <li>
                                     <a
+                                        style={{ color: "#232323" }}
                                         target="_blank"
                                         href="https://www.youtube.com/@codewithnevo"
                                     >
@@ -120,6 +122,7 @@ export function ContactPage() {
                                 </li>
                                 <li>
                                     <a
+                                        style={{ color: "#232323" }}
                                         target="_blank"
                                         href="https://github.com/Nevoo"
                                     >
@@ -128,6 +131,7 @@ export function ContactPage() {
                                 </li>
                                 <li>
                                     <a
+                                        style={{ color: "#232323" }}
                                         target="_blank"
                                         href="https://twitter.com/truenevo"
                                     >
@@ -136,6 +140,7 @@ export function ContactPage() {
                                 </li>
                                 <li>
                                     <a
+                                        style={{ color: "#232323" }}
                                         target="_blank"
                                         href="https://www.instagram.com/truenevo/"
                                     >
