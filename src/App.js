@@ -17,7 +17,6 @@ function App() {
 
     return (
         <div>
-            {/* <animated.div className="App" style={isHovering ? { background } : null}> */}
             <animated.div className="App">
                 <Router>
                     <Canvas camera={{ position: [0, 0, 15], fov: 15 }}>
