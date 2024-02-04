@@ -44,6 +44,8 @@ function App() {
 // TODO: implement full screen view of images
 // TODO: maybe implement small camera shake on camera tap
 
+// TODO: add loading animation
+
 const Overlay = () => {
     const navigate = useNavigate();
 
@@ -53,29 +55,31 @@ const Overlay = () => {
 
     return (
         <>
-            <div className="nav">
-                <div
-                    onClick={() => {
-                        navigate(routes.about);
-                    }}
-                >
-                    about
+            <div className="header">
+                <div className="nav">
+                    <div
+                        onClick={() => {
+                            navigate(routes.about);
+                        }}
+                    >
+                        about
+                    </div>
+                    <div
+                        onClick={() => {
+                            navigate(routes.contact);
+                        }}
+                    >
+                        contact
+                    </div>
                 </div>
                 <div
+                    className="logo"
                     onClick={() => {
-                        navigate(routes.contact);
+                        navigate(routes.home);
                     }}
                 >
-                    contact
+                    nevo
                 </div>
-            </div>
-            <div
-                className="logo"
-                onClick={() => {
-                    navigate(routes.home);
-                }}
-            >
-                nevo
             </div>
             {displayHeadlines ? <Headlines /> : null}
             <div className="footer">
