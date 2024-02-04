@@ -11,6 +11,9 @@ const useImageState = create((set) => ({
         { image: pexel(310452), title: "events" },
         { image: pexel(911738), title: "travel" },
         { image: pexel(327482), title: "street" },
+        { image: pexel(327482), title: "concerts" },
+        { image: pexel(327482), title: "animals" },
+        { image: pexel(327482), title: "nature" },
     ],
     // index is the id of the category
     images: [

@@ -19,6 +19,10 @@ const useCameraTransitionState = create((set, get) => ({
         set({ previousScale: get().scale });
         set({ scale: scale });
     },
+    displayHeadlines: true,
+    setDisplayHeadlines: (displayHeadlines) => {
+        set({ displayHeadlines: displayHeadlines });
+    },
 }));
 
 export default useCameraTransitionState;

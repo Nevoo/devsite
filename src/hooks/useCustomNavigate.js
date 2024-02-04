@@ -16,6 +16,9 @@ export const useMoveCamera = () => {
 
     const setPosition = useCameraTransitionState((state) => state.setPosition);
     const setScale = useCameraTransitionState((state) => state.setScale);
+    const setDisplayHeadlines = useCameraTransitionState(
+        (state) => state.setDisplayHeadlines
+    );
 
     useEffect(() => {
         let scale = 0;
@@ -24,9 +27,11 @@ export const useMoveCamera = () => {
                 scale = 0.5;
                 setPosition([0, 0, 0]);
                 setScale(scale);
+                setDisplayHeadlines(true);
                 document.title = "rouvens.work";
                 break;
             case routes.about:
+                setDisplayHeadlines(false);
                 scale = 0.06;
                 if (size.width > 1000 && size.height > 700) {
                     setPosition([
@@ -41,6 +46,8 @@ export const useMoveCamera = () => {
                 document.title = "About";
                 break;
             case routes.contact:
+                setDisplayHeadlines(false);
+
                 scale = 0.06;
                 if (size.width > 1000 && size.height > 700) {
                     setPosition([
@@ -55,6 +62,8 @@ export const useMoveCamera = () => {
                 document.title = "Contact";
                 break;
             default:
+                setDisplayHeadlines(false);
+
                 const match = matchPath(
                     {
                         path: routes.gallery,
@@ -68,8 +77,8 @@ export const useMoveCamera = () => {
                     scale = 0.05;
                     if (size.width > 1000 && size.height > 700) {
                         setPosition([
-                            -viewport.width / 2 + 1,
-                            viewport.height / 2 - scale * 8,
+                            -viewport.width / 2 + 0.8,
+                            viewport.height / 2 - scale * 5.8,
                             1,
                         ]);
                     } else {

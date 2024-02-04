@@ -17,7 +17,7 @@ import "./bent-plane-geometry";
 import { routes } from "../../../../routing/routes";
 import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
-import { CategoryTitle } from "./orbit-images";
+import { CategoryTitle } from "./category-title";
 
 export const OptimzedOrbitImages = () => {
     const cameraTapped = useImageState((state) => state.cameraTapped);

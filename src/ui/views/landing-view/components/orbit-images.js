@@ -1,24 +1,13 @@
-import { useFrame, useThree } from "@react-three/fiber";
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Scroll, ScrollControls, Text, useScroll } from "@react-three/drei";
-import { suspend } from "suspend-react";
+import { useFrame } from "@react-three/fiber";
+import React, { useRef, useState } from "react";
+import { ScrollControls, useScroll } from "@react-three/drei";
 import { CurvedPlane } from "./curved-plane/curved-plane";
-import { easing } from "maath";
-import {
-    config,
-    animated,
-    useSpring,
-    useTransition,
-    useChain,
-    useTrail,
-} from "@react-spring/three";
+import { useTrail } from "@react-spring/three";
 import useImageState from "../state/image-state";
 import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
 import { routes } from "../../../../routing/routes";
-
-const inter = import("@pmndrs/assets/fonts/inter_extra_bold.woff");
-const gilroy = import("../../../../fonts/Gilroy/Gilroy-ExtraBold.otf");
+import { CategoryTitle } from "./category-title";
 
 export const OrbitImages = ({ radius, images }) => {
     const navigate = useNavigate();
@@ -152,35 +141,5 @@ const CategoryElement = ({
                 hovered={hovered === index}
             />
         </group>
-    );
-};
-
-export const CategoryTitle = ({
-    hovered,
-    title,
-    position,
-    rotation,
-    scale,
-    offset,
-}) => {
-    const { fontSize, color } = useSpring({
-        fontSize: hovered ? 0.7 : 0.6,
-        color: hovered ? "#ff8906" : "#fffffe",
-        config: config.wobbly,
-    });
-
-    const AnimatedText = animated(Text);
-
-    return (
-        <AnimatedText
-            scale={scale}
-            fontSize={fontSize}
-            font={suspend(gilroy).default}
-            color={color}
-            position={[position[0], position[1] - offset ?? 3, position[2]]}
-            rotation={rotation}
-        >
-            {title}
-        </AnimatedText>
     );
 };

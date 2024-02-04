@@ -44,8 +44,6 @@ export const CameraView = ({
         }))
     );
 
-    const { width, height } = useThree((state) => state.viewport);
-
     useFrame((state, delta) => {
         if (!displayRig) {
             // fixes issue where camera would be positioned weird on a reload
