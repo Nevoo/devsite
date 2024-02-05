@@ -137,15 +137,6 @@ export function ContactPage() {
                                         twitter
                                     </a>
                                 </li>
-                                <li>
-                                    <a
-                                        style={{ color: "#232323" }}
-                                        target="_blank"
-                                        href="https://www.instagram.com/truenevo/"
-                                    >
-                                        instagram
-                                    </a>
-                                </li>
                             </ul>
                         </div>
                     </div>

@@ -45,6 +45,7 @@ function App() {
 // TODO: maybe implement small camera shake on camera tap
 
 // TODO: add loading animation
+// TODO: add vercel blob storage to store and read images
 
 const Overlay = () => {
     const navigate = useNavigate();
