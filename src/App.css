@@ -11,14 +11,10 @@
   justify-content: center;
   /* background-image: url('/public/noisegradient.png'); */
   /* background-color: #0f0e17; */
-  background-color: #f8f5f2;
+  background-color: #eff0f3;
   background-size: cover;
   color: #232323;
   background-image: url("/public/DSC03855-2.png");
-}
-
-.header {
-
 }
 
 .top-left {
@@ -36,8 +32,8 @@
   text-align: left;
   line-height: 0.8;
   font-weight: 800;
-  font-size: 7em;
-  letter-spacing: -8px;
+  font-size: calc(300px + 0.390625vw);
+  letter-spacing: -20px;
   margin: 0;
   padding: 0;
   font-family: 'GilroyExtraBold';
@@ -98,16 +94,11 @@
   }
 
   .body {
-    padding: 0px 200px 40px  200px;
-  }
-
-  .headline h1 {
-    letter-spacing: -25px;
-    font-size: 25em;
+    padding: 0px 200px 40px 200px;
   }
 
   .bottom-right {
-    bottom: 200px;
+    bottom: 100px;
   }
 
   .top-left {
@@ -117,20 +108,26 @@
 
 @media (max-width: 1400px) {
   .headline h1 {
+    font-size: calc(200px + 0.390625vw);
     letter-spacing: -15px;
-    font-size: 15em;
+    /* letter-spacing: -15px; */
+    /* font-size: 15em; */
   }
 
   .body {
     padding: 20px 30px 20px 30px;
+  }
+
+  .bottom-right {
+    bottom: 100px;
   }
 }
 
 
 @media (max-width: 1200px) {
   .headline h1 {
-    letter-spacing: -15px;
-    font-size: 10em;
+    font-size: calc(150px + 0.390625vw);
+    letter-spacing: -10px;
   }
 
   .body {
@@ -140,8 +137,8 @@
 
 @media (max-width: 600px) {
   .headline h1 {
-    letter-spacing: -10px;
-    font-size: 7em;
+    /* letter-spacing: -10px; */
+    font-size: calc(100px + 0.390625vw);
   }
 
   .bottom-right {

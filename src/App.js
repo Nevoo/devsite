@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import "./App.css";
 import { Canvas } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
-import { Html } from "@react-three/drei";
+import { Html, Preload } from "@react-three/drei";
 
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
 import { ViewProvider } from "./routing/view-context";
@@ -20,6 +20,7 @@ function App() {
             <animated.div className="App">
                 <Router>
                     <Canvas camera={{ position: [0, 0, 15], fov: 15 }}>
+                        <Preload all />
                         <SmartSuspense
                             fallback={<Html>Loading...</Html>}
                             fallbackMinDurationMs={1000}
@@ -109,7 +110,7 @@ export const Headlines = () => {
     const right = useSpring({
         from: { right: "-1000px" },
         to: {
-            right: isDesktop ? "200px" : "20px",
+            right: isDesktop ? "200px" : "80px",
         },
         config: config.gentle,
         reverse: galleryOpened,

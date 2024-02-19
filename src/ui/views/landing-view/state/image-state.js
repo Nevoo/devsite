@@ -6,13 +6,13 @@ const pexel = (id) =>
 // TODO: all this should be handled through a cms, s3 bucket or something
 const useImageState = create((set) => ({
     categories: [
-        { image: "https://i.imgur.com/clGfTlK.jpg", title: "black mist" },
+        { image: pexel(911738), title: "black mist" },
         { image: pexel(416430), title: "weddings" },
-        { image: pexel(310452), title: "events" },
-        { image: pexel(911738), title: "travel" },
-        { image: pexel(327482), title: "street" },
+        { image: pexel(310452), title: "events" }, // bytabo events future & beer
+        { image: pexel(911738), title: "travel" }, // bali, lisbon
+        { image: pexel(327482), title: "street" }, // nordtrip mixed with travel
         { image: pexel(327482), title: "concerts" },
-        { image: pexel(327482), title: "animals" },
+        { image: pexel(310452), title: "animals" }, // zoe
         { image: pexel(327482), title: "nature" },
     ],
     // index is the id of the category
