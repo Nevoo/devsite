@@ -69,7 +69,7 @@ const Images = () => {
                         key={index}
                         position={position}
                         scale={image.scale}
-                        url={image.url}
+                        url={`/${image.url}`}
                     />
                 );
             })}
