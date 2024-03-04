@@ -16,7 +16,7 @@ export const OptimzedOrbitImages = () => {
     const { width, height } = useThree((state) => state.size);
 
     return (
-        <group>
+        <group visible={cameraTapped}>
             <fog attach="fog" args={["#a79", 8.5, 12]} />
             <ScrollControls
                 enabled={cameraTapped}
@@ -105,7 +105,7 @@ function Carousel({ radius = 2 }) {
                 ]}
                 rotation={[0, Math.PI + (index / count) * Math.PI * 2, 0]}
                 style={style}
-            ></Card>
+            />
         );
     });
 }

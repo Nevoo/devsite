@@ -24,6 +24,7 @@ html::-webkit-scrollbar {
 }
 
 body {
+  overflow: hidden; /* Hide scrollbars */
   margin: 0;
   font-family: "Inter", "GilroyExtraBold", -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',

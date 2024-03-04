@@ -8,10 +8,12 @@ import {
 
 import { useView, View } from "./view-context";
 import {
+    Backdrop,
     ContactShadows,
     Environment,
     Float,
     Lightformer,
+    Stage,
 } from "@react-three/drei";
 import useCameraTransitionState from "../global-state/model-state";
 import { useShallow } from "zustand/react/shallow";
@@ -90,7 +92,6 @@ export const CameraView = ({
 
     useEffect(() => {
         transApi.start();
-        // console.log({ position, previousPosition });
     }, [view.active, position, previousPosition]);
 
     const AnimatedCamera = animated(CameraNew);
@@ -100,10 +101,15 @@ export const CameraView = ({
             {transition((props, option, _, i) => {
                 return (
                     <>
-                        <Environment preset="warehouse">
+                        <Environment>
                             <Lightformer
                                 intensity={8}
-                                position={[10, 5, 5]}
+                                position={[10, 15, 5]}
+                                scale={[10, 50, 1]}
+                            />
+                            <Lightformer
+                                intensity={3}
+                                position={[-10, 15, 5]}
                                 scale={[10, 50, 1]}
                             />
                         </Environment>
@@ -124,11 +130,6 @@ export const CameraView = ({
                                 onPointerDown={onCameraTap}
                             />
                         </Float>
-                        <ContactShadows
-                            opacity={0.25}
-                            far={10}
-                            position={[0, -1.5, 0]}
-                        />
                         {displayRig && <Rig />}
                     </>
                 );
