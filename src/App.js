@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./App.css";
 import { Canvas } from "@react-three/fiber";
 import { animated, config, useSpring } from "@react-spring/web";
-import { Html, Preload } from "@react-three/drei";
+import { Html, Loader, Preload } from "@react-three/drei";
 
 import { BrowserRouter as Router, useNavigate } from "react-router-dom";
 import { ViewProvider } from "./routing/view-context";
@@ -11,6 +11,7 @@ import { routes } from "./routing/routes";
 import useCameraTransitionState from "./global-state/model-state";
 import useImageState from "./ui/views/landing-view/state/image-state";
 import { SmartSuspense } from "./ui/shared/fake-loader";
+import { LoadingScreen } from "./ui/views/landing-view/components/loading/loading-screen";
 
 function App() {
     const [showOverlay, setShowOverlay] = useState(false);
@@ -22,8 +23,7 @@ function App() {
                     <Canvas camera={{ position: [0, 0, 15], fov: 15 }}>
                         <Preload all />
                         <SmartSuspense
-                            fallback={<Html>Loading...</Html>}
-                            fallbackMinDurationMs={1000}
+                            fallback={null}
                             onLoaded={() => setShowOverlay(true)}
                         >
                             <ViewProvider>
@@ -33,14 +33,13 @@ function App() {
                     </Canvas>
                     {showOverlay && <Overlay />}
                 </Router>
+                <LoadingScreen />
             </animated.div>
         </div>
     );
 }
 
 // TODO: fix scrolling categories on mobile
-// TODO: use smaller images for gallery instead of 30 mb iamges and add rest of images
-// TODO: still adjust model materials a little and subdivide to make it look smoother
 // TODO: implement portal on camera display for gallery instead
 // TODO: implement full screen view of images
 // TODO: maybe implement small camera shake on camera tap
