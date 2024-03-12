@@ -8,7 +8,7 @@ export const Privacy = () => {
 
     return (
         <CameraView isFloating={false}>
-            <MobileScrollWrapper>
+            <MobileScrollWrapper pages={"4"}>
                 <div
                     className="body"
                     style={{

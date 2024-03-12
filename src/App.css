@@ -90,7 +90,6 @@
 
 .body {
   padding: 20px 30px 20px 30px;
-  /* margin: 5em 0 0 5em; */
 }
 
 /* basically deskptop adjustments */
@@ -156,11 +155,16 @@
   }
 
   .footer {
+    position: unset;
     margin-bottom: 10px;
   }
 
   .footer-privacy {
-    bottom: 0;
-    right: unset;
+    position: unset;
+    font-size: 0.7em;
+    /* background:#232323; */
+    /* width: 100%; */
+    /* bottom: 0; */
+    /* right: unset; */
   }
 }
