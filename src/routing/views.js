@@ -10,13 +10,9 @@ import { useMoveCamera } from "../hooks/useCustomNavigate";
 import { OptimzedOrbitImages } from "../ui/views/landing-view/components/optimized";
 import { AboutPage } from "../ui/views/about/about-page";
 import { GalleryView } from "../ui/views/gallery-view/gallery-view";
-import {
-    Bloom,
-    EffectComposer,
-    N8AO,
-    TiltShift2,
-} from "@react-three/postprocessing";
+import { Bloom, EffectComposer, N8AO } from "@react-three/postprocessing";
 import { ContactPage } from "../ui/views/contact/contact";
+import { Privacy } from "../ui/views/privacy";
 
 export function Views() {
     const { path } = useView();
@@ -29,6 +25,7 @@ export function Views() {
             <Route path={routes.about} element={<AboutPage />} />
             <Route path={routes.contact} element={<ContactPage />} />
             <Route path={routes.gallery} element={<GalleryView />} />
+            <Route path={routes.privacy} element={<Privacy />} />
         </Routes>
     );
 }

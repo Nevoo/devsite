@@ -78,6 +78,16 @@
   font-size: 1em;
 }
 
+.footer-privacy {
+  font-weight: 800;
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  color: #f8f5f2;
+  font-size: 1em;
+  cursor: pointer;
+}
+
 .body {
   padding: 20px 30px 20px 30px;
   /* margin: 5em 0 0 5em; */
@@ -143,5 +153,14 @@
 
   .bottom-right {
     bottom: 100px;
+  }
+
+  .footer {
+    margin-bottom: 10px;
+  }
+
+  .footer-privacy {
+    bottom: 0;
+    right: unset;
   }
 }

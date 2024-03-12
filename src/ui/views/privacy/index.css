@@ -1,0 +1,17 @@
+.footer {
+    font-weight: 800;
+    position: absolute;
+    bottom: 20px;
+    color: #232323;
+    font-size: 1em;
+  }
+  
+  .footer-privacy {
+    font-weight: 800;
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    color: #232323;
+    font-size: 1em;
+    cursor: pointer;
+  }

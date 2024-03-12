@@ -59,6 +59,22 @@ export const useMoveCamera = () => {
                 setScale(scale);
                 document.title = "Contact";
                 break;
+            case routes.privacy:
+                setDisplayHeadlines(false);
+                setGalleryOpen(false);
+                scale = 0.06;
+                if (size.width > 1000 && size.height > 700) {
+                    setPosition([
+                        viewport.width / 2 - 0.5,
+                        viewport.height / 2 - scale * 1.5,
+                        -1,
+                    ]);
+                } else {
+                    setPosition([0, viewport.height / 2 - scale * 1, -1]);
+                }
+                setScale(scale);
+                document.title = "Privacy";
+                break;
             default:
                 setDisplayHeadlines(false);
                 setGalleryOpen(false);

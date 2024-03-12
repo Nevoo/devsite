@@ -3,6 +3,7 @@ export const routes = {
     about: "/about",
     contact: "/contact",
     gallery: "/gallery/:id",
+    privacy: "/privacy",
 };
 
 export const transitionObjects = Object.entries(routes).map(([key, value]) => {

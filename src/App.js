@@ -86,6 +86,14 @@ const Overlay = () => {
             <div className="footer">
                 web developer - mobile developer - photographer
             </div>
+            <div
+                className="footer-privacy"
+                onClick={() => {
+                    navigate(routes.privacy);
+                }}
+            >
+                Privacy Policy
+            </div>
         </>
     );
 };
