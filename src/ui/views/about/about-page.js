@@ -104,11 +104,13 @@ export const AboutPage = () => {
     );
 };
 
-export const MobileScrollWrapper = ({ children }) => {
+export const MobileScrollWrapper = ({ children, pages }) => {
     const { width, height } = useThree((state) => state.size);
 
     return (
-        <ScrollControls pages={width > 1200 && height > 1200 ? "0" : "3"}>
+        <ScrollControls
+            pages={width > 1200 && height > 1200 ? "0" : pages ?? "3"}
+        >
             <Scroll html>{children}</Scroll>
         </ScrollControls>
     );

@@ -13,8 +13,10 @@ export const LoadingScreen = ({ props }) => {
     const buildTitleElement = (title) => {
         return (
             <p>
-                {title.split("").map((letter) => (
-                    <span className="letter">{letter}</span>
+                {title.split("").map((letter, i) => (
+                    <span key={i} className="letter">
+                        {letter}
+                    </span>
                 ))}
             </p>
         );
@@ -67,9 +69,9 @@ export const LoadingScreen = ({ props }) => {
     return (
         isLoading && (
             <div className="loading-html">
-                <div class="pre-loader">
-                    <div class="loader" />
-                    <div class="loader-bg" />
+                <div className="pre-loader">
+                    <div className="loader" />
+                    <div className="loader-bg" />
                 </div>
                 <div className="loading-background">
                     <p className="progress">{progress.toFixed(0)}%</p>
