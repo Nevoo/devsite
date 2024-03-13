@@ -45,12 +45,6 @@ const LandingPage = () => {
             >
                 <OptimzedOrbitImages />
                 <EffectComposer disableNormalPass>
-                    <Bloom
-                        luminanceThreshold={0.2}
-                        mipmapBlur
-                        luminanceSmoothing={0}
-                        intensity={1}
-                    />
                     <N8AO aoRadius={0.1} intensity={1} />
                 </EffectComposer>
             </CameraView>
