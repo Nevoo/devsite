@@ -22,6 +22,7 @@ import { transitionObjects } from "./routes";
 import { useFrame } from "@react-three/fiber";
 import { easing } from "maath";
 import { CameraNew } from "../ui/shared/components/blender-models/Model";
+import useImageState from "../ui/views/landing-view/state/image-state";
 
 export const CameraView = ({
     children,
@@ -39,6 +40,8 @@ export const CameraView = ({
                 scale: state.scale,
             }))
         );
+
+    const cameraTapped = useImageState((state) => state.cameraTapped);
 
     useFrame((state, delta) => {
         if (!displayRig) {
@@ -122,7 +125,9 @@ export const CameraView = ({
                         >
                             {children}
                             <AnimatedCamera
-                                onPointerEnter={() => setHovered(true)}
+                                onPointerEnter={() => {
+                                    if (!cameraTapped) setHovered(true);
+                                }}
                                 onPointerLeave={() => setHovered(false)}
                                 scale={props.scale}
                                 rotation={[0, -2, 0]}
