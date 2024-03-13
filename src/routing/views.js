@@ -10,9 +10,12 @@ import { useMoveCamera } from "../hooks/useCustomNavigate";
 import { OptimzedOrbitImages } from "../ui/views/landing-view/components/optimized";
 import { AboutPage } from "../ui/views/about/about-page";
 import { GalleryView } from "../ui/views/gallery-view/gallery-view";
-import { Bloom, EffectComposer, N8AO } from "@react-three/postprocessing";
+import { EffectComposer, N8AO } from "@react-three/postprocessing";
 import { ContactPage } from "../ui/views/contact/contact";
 import { Privacy } from "../ui/views/privacy";
+import { Html } from "@react-three/drei";
+
+import "./../App.css";
 
 export function Views() {
     const { path } = useView();
@@ -34,20 +37,18 @@ const LandingPage = () => {
     const tapCamera = useImageState((state) => state.tapCamera);
 
     return (
-        <group>
-            <CameraView
-                displayRig
-                isFloating={true}
-                onCameraTap={(e) => {
-                    e.stopPropagation();
-                    tapCamera(true);
-                }}
-            >
-                <OptimzedOrbitImages />
-                <EffectComposer disableNormalPass>
-                    <N8AO aoRadius={0.1} intensity={1} />
-                </EffectComposer>
-            </CameraView>
-        </group>
+        <CameraView
+            displayRig
+            isFloating={true}
+            onCameraTap={(e) => {
+                e.stopPropagation();
+                tapCamera(true);
+            }}
+        >
+            <OptimzedOrbitImages />
+            <EffectComposer disableNormalPass>
+                <N8AO aoRadius={0.1} intensity={1} />
+            </EffectComposer>
+        </CameraView>
     );
 };
