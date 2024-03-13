@@ -53,14 +53,14 @@ function App() {
 
 const Overlay = () => {
     const navigate = useNavigate();
-    const galleryOpened = useImageState((state) => state.galleryOpened);
 
     const displayHeadlines = useCameraTransitionState(
         (state) => state.displayHeadlines
     );
 
     useEffect(() => {
-        if (galleryOpened) {
+        // TODO: use a state variable instead of this
+        if (document.title !== "rouvens.work") {
             gsap.to(".background img", { opacity: 0, delay: 0, duration: 0.5 });
             gsap.to(".footer", { color: "#232323", delay: 0, duration: 0.5 });
             gsap.to(".footer-privacy", {
@@ -77,7 +77,7 @@ const Overlay = () => {
                 duration: 0.5,
             });
         }
-    }, [galleryOpened]);
+    }, [document.title]);
 
     return (
         <>
