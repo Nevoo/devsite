@@ -12,6 +12,7 @@ import useCameraTransitionState from "./global-state/model-state";
 import useImageState from "./ui/views/landing-view/state/image-state";
 import { SmartSuspense } from "./ui/shared/fake-loader";
 import { LoadingScreen } from "./ui/views/landing-view/components/loading/loading-screen";
+import gsap from "gsap";
 
 function App() {
     const [showOverlay, setShowOverlay] = useState(false);
@@ -20,7 +21,10 @@ function App() {
         <div>
             <animated.div className="App">
                 <Router>
-                    <Canvas camera={{ position: [0, 0, 15], fov: 15 }}>
+                    <Canvas
+                        camera={{ position: [0, 0, 15], fov: 15 }}
+                        style={{ zIndex: 1 }}
+                    >
                         <Preload all />
                         <SmartSuspense
                             fallback={null}
@@ -49,10 +53,31 @@ function App() {
 
 const Overlay = () => {
     const navigate = useNavigate();
+    const galleryOpened = useImageState((state) => state.galleryOpened);
 
     const displayHeadlines = useCameraTransitionState(
         (state) => state.displayHeadlines
     );
+
+    useEffect(() => {
+        if (galleryOpened) {
+            gsap.to(".background img", { opacity: 0, delay: 0, duration: 0.5 });
+            gsap.to(".footer", { color: "#232323", delay: 0, duration: 0.5 });
+            gsap.to(".footer-privacy", {
+                color: "#232323",
+                delay: 0,
+                duration: 0.5,
+            });
+        } else {
+            gsap.to(".background img", { opacity: 1, delay: 0, duration: 0.5 });
+            gsap.to(".footer", { color: "#f8f5f2", delay: 0, duration: 0.5 });
+            gsap.to(".footer-privacy", {
+                color: "#f8f5f2",
+                delay: 0,
+                duration: 0.5,
+            });
+        }
+    }, [galleryOpened]);
 
     return (
         <>
@@ -93,6 +118,17 @@ const Overlay = () => {
                 }}
             >
                 Privacy Policy
+            </div>
+            <div className="background">
+                <img
+                    // className="background-image"
+                    src="/DSC03855-2.png"
+                    style={{
+                        backgroundSize: "cover",
+                        width: "100%",
+                        height: "100%",
+                    }}
+                />
             </div>
         </>
     );

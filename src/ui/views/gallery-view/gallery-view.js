@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import {
+    Html,
     Image,
     Preload,
     Scroll,

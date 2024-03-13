@@ -9,12 +9,16 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* background-image: url('/public/noisegradient.png'); */
-  /* background-color: #0f0e17; */
-  background-color: #eff0f3;
-  background-size: cover;
   color: #232323;
-  background-image: url("/public/DSC03855-2.png");
+ 
+}
+
+.background {
+  position: absolute;
+  height: 100vh;
+  width: 100vw;
+  background-color: #eff0f3;
+  z-index: -2;
 }
 
 .top-left {
@@ -40,6 +44,7 @@
 }
 
 .nav {
+  z-index: 1;
   position: absolute;
   font-weight: 700;
   text-align: right;
@@ -79,6 +84,7 @@
 }
 
 .footer-privacy {
+  z-index: 1;
   font-weight: 800;
   position: absolute;
   bottom: 20px;

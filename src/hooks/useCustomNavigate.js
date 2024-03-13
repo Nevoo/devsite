@@ -99,6 +99,8 @@ export const useMoveCamera = () => {
                         setPosition([0, viewport.height / 2 - scale * 6, 1]);
                     }
                     setScale(scale);
+                    setGalleryOpen(true);
+
                     document.title = "Gallery";
                     break;
                 }
