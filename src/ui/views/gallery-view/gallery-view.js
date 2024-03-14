@@ -33,7 +33,7 @@ export const GalleryView = () => {
 
     return (
         <CameraView isFloating={false}>
-            <ScrollControls damping={0.2} pages={pages} distance={0.5}>
+            <ScrollControls damping={0.2} pages={pages + 1} distance={0.5}>
                 {/* <Lens> */}
                 <Scroll>
                     {/* <Typography /> */}
