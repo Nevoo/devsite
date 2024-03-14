@@ -15,8 +15,6 @@ import { LoadingScreen } from "./ui/views/landing-view/components/loading/loadin
 import gsap from "gsap";
 
 function App() {
-    const [showOverlay, setShowOverlay] = useState(false);
-
     return (
         <div>
             <animated.div className="App">
@@ -26,16 +24,13 @@ function App() {
                         style={{ zIndex: 1 }}
                     >
                         <Preload all />
-                        <SmartSuspense
-                            fallback={null}
-                            onLoaded={() => setShowOverlay(true)}
-                        >
+                        <SmartSuspense fallback={null}>
                             <ViewProvider>
                                 <Views />
                             </ViewProvider>
                         </SmartSuspense>
                     </Canvas>
-                    {showOverlay && <Overlay />}
+                    <Overlay />
                 </Router>
                 <LoadingScreen />
             </animated.div>
@@ -60,6 +55,7 @@ const Overlay = () => {
 
     useEffect(() => {
         // TODO: use a state variable instead of this
+        console.log(document.title);
         if (document.title !== "rouvens.work") {
             gsap.to(".background img", { opacity: 0, delay: 0, duration: 0.5 });
             gsap.to(".footer", { color: "#232323", delay: 0, duration: 0.5 });
