@@ -1,14 +1,12 @@
 import * as THREE from "three";
 
 import {
-    Html,
     Image,
     Preload,
     Scroll,
     ScrollControls,
     Text,
     useIntersect,
-    useScroll,
 } from "@react-three/drei";
 import { CameraView } from "../../../routing/camera-view";
 import { useRef } from "react";
@@ -22,13 +20,20 @@ const gilroy = import("../../../fonts/Gilroy/Gilroy-ExtraBold.otf");
 export const GalleryView = () => {
     const { width, height } = useThree((state) => state.size);
 
+    const { id } = useParams();
+    const categoryImages = useImageState((state) => state.images[id] ?? []);
+
+    const pages =
+        width > 1200 && height > 800
+            ? Math.ceil(categoryImages.length / 2)
+            : categoryImages.length > 3
+            ? categoryImages.length - 1
+            : categoryImages.length;
+    console.log(pages);
+
     return (
         <CameraView isFloating={false}>
-            <ScrollControls
-                damping={0.2}
-                pages={width > 1200 && height > 800 ? 6 : 8}
-                distance={0.5}
-            >
+            <ScrollControls damping={0.2} pages={pages} distance={0.5}>
                 {/* <Lens> */}
                 <Scroll>
                     {/* <Typography /> */}
@@ -43,7 +48,6 @@ export const GalleryView = () => {
 
 const Images = () => {
     const group = useRef();
-    const data = useScroll();
     const { width, height } = useThree((state) => state.size);
 
     const { id } = useParams();
