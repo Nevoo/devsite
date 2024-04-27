@@ -11,6 +11,7 @@ export const useMoveCamera = () => {
 
     const setPosition = useCameraTransitionState((state) => state.setPosition);
     const setScale = useCameraTransitionState((state) => state.setScale);
+    const setRotation = useCameraTransitionState((state) => state.setRotation);
     const setDisplayHeadlines = useCameraTransitionState(
         (state) => state.setDisplayHeadlines
     );
@@ -23,6 +24,7 @@ export const useMoveCamera = () => {
                 scale = 0.5;
                 setPosition([0, 0, 0]);
                 setScale(scale);
+                setRotation([0, 4, 0]);
                 setDisplayHeadlines(true);
                 document.title = "rouvens.work";
                 setGalleryOpen(false);

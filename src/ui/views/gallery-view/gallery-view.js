@@ -29,7 +29,6 @@ export const GalleryView = () => {
             : categoryImages.length > 3
             ? categoryImages.length - 1
             : categoryImages.length;
-    console.log(pages);
 
     return (
         <CameraView isFloating={false}>

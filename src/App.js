@@ -48,6 +48,7 @@ function App() {
 
 const Overlay = () => {
     const navigate = useNavigate();
+    const setGalleryOpen = useImageState((state) => state.setGalleryOpen);
 
     const displayHeadlines = useCameraTransitionState(
         (state) => state.displayHeadlines
@@ -55,7 +56,6 @@ const Overlay = () => {
 
     useEffect(() => {
         // TODO: use a state variable instead of this
-        console.log(document.title);
         if (document.title !== "rouvens.work") {
             gsap.to(".background img", { opacity: 0, delay: 0, duration: 0.5 });
             gsap.to(".footer", { color: "#232323", delay: 0, duration: 0.5 });

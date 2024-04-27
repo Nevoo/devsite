@@ -31,15 +31,23 @@ export const CameraView = ({
     onCameraTap,
     delayedTransition,
 }) => {
-    const { previousPosition, position, previousScale, scale } =
-        useCameraTransitionState(
-            useShallow((state) => ({
-                previousPosition: state.previousPosition,
-                position: state.position,
-                previousScale: state.previousScale,
-                scale: state.scale,
-            }))
-        );
+    const {
+        previousPosition,
+        position,
+        previousScale,
+        scale,
+        rotation,
+        previousRotation,
+    } = useCameraTransitionState(
+        useShallow((state) => ({
+            previousPosition: state.previousPosition,
+            position: state.position,
+            previousScale: state.previousScale,
+            scale: state.scale,
+            rotation: state.rotation,
+            previousRotation: state.previousRotation,
+        }))
+    );
 
     const cameraTapped = useImageState((state) => state.cameraTapped);
 
@@ -54,9 +62,10 @@ export const CameraView = ({
     const view = useView();
 
     const [hovered, setHovered] = useState(false);
-    const { hoveredScale, springPos } = useSpring({
+    const { hoveredScale, springPos, springRot } = useSpring({
         hoveredScale: hovered ? scale * 1.3 : scale,
         springPos: position,
+        springRot: rotation,
     });
 
     const [transition, transApi] = useTransition(
@@ -65,19 +74,19 @@ export const CameraView = ({
             from: {
                 scale: previousScale,
                 position: previousPosition,
-                rotation: 0,
+                rotation: previousRotation,
             },
             enter: {
                 config: config.stiff,
                 scale: hoveredScale,
                 position: springPos,
-                rotation: 4,
+                rotation: springRot,
             },
             leave: {
                 config: config.stiff,
                 scale: previousScale,
                 position: previousPosition,
-                rotation: 0,
+                rotation: previousRotation,
                 onRest: (_, __, c) => {
                     // Switch route when the last item has finished
                     // IDK if theres a better way to do this
@@ -130,7 +139,7 @@ export const CameraView = ({
                                 }}
                                 onPointerLeave={() => setHovered(false)}
                                 scale={props.scale}
-                                rotation={[0, -2, 0]}
+                                rotation={props.rotation}
                                 position={props.position}
                                 onPointerDown={onCameraTap}
                             />

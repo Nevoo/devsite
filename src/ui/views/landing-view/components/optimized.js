@@ -10,13 +10,15 @@ import { routes } from "../../../../routing/routes";
 import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
 import { CategoryTitle } from "./category-title";
+import useCameraTransitionState from "../../../../global-state/model-state";
 
 export const OptimzedOrbitImages = () => {
     const cameraTapped = useImageState((state) => state.cameraTapped);
     const { width, height } = useThree((state) => state.size);
 
     return (
-        <group visible={cameraTapped}>
+        <group>
+            {/* visible={cameraTapped} */}
             <fog attach="fog" args={["#a79", 8.5, 12]} />
             <ScrollControls
                 enabled={cameraTapped}
@@ -28,7 +30,6 @@ export const OptimzedOrbitImages = () => {
                     <Carousel />
                 </Rig>
             </ScrollControls>
-            {/* <Environment preset="city" background blur={0.5} /> */}
         </group>
     );
 };
@@ -54,6 +55,9 @@ function Carousel({ radius = 2 }) {
     const navigate = useNavigate();
     const categories = useImageState((state) => state.categories);
     const setGalleryOpen = useImageState((state) => state.setGalleryOpen);
+    const setRotation = useCameraTransitionState((state) => state.setRotation);
+    const setScale = useCameraTransitionState((state) => state.setScale);
+
     const count = categories.length;
 
     const [tappedImage, setTappedImage] = useState(null);
@@ -79,7 +83,9 @@ function Carousel({ radius = 2 }) {
         },
         onRest: (value, _, __) => {
             if (value.finished && tappedImage !== null) {
-                navigate(routes.gallery.replace(":id", tappedImage));
+                // navigate(routes.gallery.replace(":id", tappedImage));
+                setRotation([0, Math.PI / 2, 0]);
+                setScale(1);
             }
         },
     });
