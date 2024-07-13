@@ -57,6 +57,7 @@ function Carousel({ radius = 2 }) {
     const setGalleryOpen = useImageState((state) => state.setGalleryOpen);
     const setRotation = useCameraTransitionState((state) => state.setRotation);
     const setScale = useCameraTransitionState((state) => state.setScale);
+    const { size } = useThree((state) => state);
 
     const count = categories.length;
 
@@ -83,9 +84,11 @@ function Carousel({ radius = 2 }) {
         },
         onRest: (value, _, __) => {
             if (value.finished && tappedImage !== null) {
-                // navigate(routes.gallery.replace(":id", tappedImage));
-                setRotation([0, Math.PI / 2, 0]);
-                setScale(1);
+                if (size.width > 1000 && size.height > 700) {
+                    navigate(routes.gallery.replace(":id", tappedImage));
+                } else {
+                    navigate(routes.mobileGallery.replace(":id", tappedImage));
+                }
             }
         },
     });

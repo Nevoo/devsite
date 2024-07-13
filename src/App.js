@@ -13,6 +13,7 @@ import useImageState from "./ui/views/landing-view/state/image-state";
 import { SmartSuspense } from "./ui/shared/fake-loader";
 import { LoadingScreen } from "./ui/views/landing-view/components/loading/loading-screen";
 import gsap from "gsap";
+import * as THREE from "three";
 
 function App() {
     return (
@@ -20,8 +21,12 @@ function App() {
             <animated.div className="App">
                 <Router>
                     <Canvas
-                        camera={{ position: [0, 0, 15], fov: 15 }}
+                        camera={{ position: [0, 0, 15], fov: 15, far: 25 }}
                         style={{ zIndex: 1 }}
+                        onCreated={({ gl }) => {
+                            gl.gammaFactor = 2.2;
+                            gl.outputEncoding = THREE.sRGBEncoding;
+                        }}
                     >
                         <Preload all />
                         <SmartSuspense fallback={null}>

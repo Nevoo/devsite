@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     animated,
     config,
@@ -25,11 +25,13 @@ import { CameraNew } from "../ui/shared/components/blender-models/Model";
 import useImageState from "../ui/views/landing-view/state/image-state";
 
 export const CameraView = ({
+    canHover,
     children,
     displayRig,
     isFloating,
     onCameraTap,
     delayedTransition,
+    portalChildren,
 }) => {
     const {
         previousPosition,
@@ -61,9 +63,14 @@ export const CameraView = ({
 
     const view = useView();
 
+    const hoverScale = () => {
+        if (!canHover) return scale;
+        return hovered ? scale * 1.3 : scale;
+    };
+
     const [hovered, setHovered] = useState(false);
     const { hoveredScale, springPos, springRot } = useSpring({
-        hoveredScale: hovered ? scale * 1.3 : scale,
+        hoveredScale: hoverScale(),
         springPos: position,
         springRot: rotation,
     });
@@ -139,6 +146,7 @@ export const CameraView = ({
                                 }}
                                 onPointerLeave={() => setHovered(false)}
                                 scale={props.scale}
+                                portalChildren={portalChildren}
                                 rotation={props.rotation}
                                 position={props.position}
                                 onPointerDown={onCameraTap}

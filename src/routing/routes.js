@@ -3,6 +3,7 @@ export const routes = {
     about: "/about",
     contact: "/contact",
     gallery: "/gallery/:id",
+    mobileGallery: "/mgallery/:id",
     privacy: "/privacy",
 };
 

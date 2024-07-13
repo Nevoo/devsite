@@ -89,7 +89,29 @@ export const useMoveCamera = () => {
                     pathname
                 );
 
+                const mobileMatch = matchPath(
+                    {
+                        path: routes.mobileGallery,
+                        exact: true,
+                        strict: false,
+                    },
+                    pathname
+                );
+
                 if (match) {
+                    if (size.width > 1000 && size.height > 700) {
+                        setRotation([0, Math.PI / 2, 0]);
+                        setScale(2.5);
+                    } else {
+                        setRotation([Math.PI / 2, 0, Math.PI * 1.5]);
+                        setScale(1.5);
+                    }
+
+                    setPosition([0, 0, 1]);
+
+                    document.title = "Gallery";
+                    break;
+                } else if (mobileMatch) {
                     scale = 0.05;
                     if (size.width > 1000 && size.height > 700) {
                         setPosition([
@@ -100,10 +122,12 @@ export const useMoveCamera = () => {
                     } else {
                         setPosition([0, viewport.height / 2 - scale * 6, 1]);
                     }
+
                     setScale(scale);
                     setGalleryOpen(true);
 
                     document.title = "Gallery";
+
                     break;
                 }
 
