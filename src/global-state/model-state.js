@@ -7,8 +7,8 @@ const useCameraTransitionState = create((set, get) => ({
         set({ previousPosition: get().position });
         set({ position: position });
     },
-    rotation: -0.2,
-    previousRotation: -0.2,
+    rotation: [0, 4, 0],
+    previousRotation: [0, 4, 0],
     setRotation: (rotation) => {
         set({ previousRotation: get().rotation });
         set({ rotation: rotation });

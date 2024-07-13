@@ -17,7 +17,7 @@ import { suspend } from "suspend-react";
 
 const gilroy = import("../../../fonts/Gilroy/Gilroy-ExtraBold.otf");
 
-export const GalleryView = () => {
+export const MobileGalleryView = () => {
     const { width, height } = useThree((state) => state.size);
 
     const { id } = useParams();
@@ -29,18 +29,14 @@ export const GalleryView = () => {
             : categoryImages.length > 3
             ? categoryImages.length - 1
             : categoryImages.length;
-    console.log(pages);
 
     return (
         <CameraView isFloating={false}>
             <ScrollControls damping={0.2} pages={pages + 1} distance={0.5}>
-                {/* <Lens> */}
                 <Scroll>
-                    {/* <Typography /> */}
                     <Images />
                 </Scroll>
                 <Preload />
-                {/* </Lens> */}
             </ScrollControls>
         </CameraView>
     );

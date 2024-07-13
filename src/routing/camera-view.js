@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     animated,
     config,
@@ -25,21 +25,31 @@ import { CameraNew } from "../ui/shared/components/blender-models/Model";
 import useImageState from "../ui/views/landing-view/state/image-state";
 
 export const CameraView = ({
+    canHover,
     children,
     displayRig,
     isFloating,
     onCameraTap,
     delayedTransition,
+    portalChildren,
 }) => {
-    const { previousPosition, position, previousScale, scale } =
-        useCameraTransitionState(
-            useShallow((state) => ({
-                previousPosition: state.previousPosition,
-                position: state.position,
-                previousScale: state.previousScale,
-                scale: state.scale,
-            }))
-        );
+    const {
+        previousPosition,
+        position,
+        previousScale,
+        scale,
+        rotation,
+        previousRotation,
+    } = useCameraTransitionState(
+        useShallow((state) => ({
+            previousPosition: state.previousPosition,
+            position: state.position,
+            previousScale: state.previousScale,
+            scale: state.scale,
+            rotation: state.rotation,
+            previousRotation: state.previousRotation,
+        }))
+    );
 
     const cameraTapped = useImageState((state) => state.cameraTapped);
 
@@ -53,10 +63,16 @@ export const CameraView = ({
 
     const view = useView();
 
+    const hoverScale = () => {
+        if (!canHover) return scale;
+        return hovered ? scale * 1.3 : scale;
+    };
+
     const [hovered, setHovered] = useState(false);
-    const { hoveredScale, springPos } = useSpring({
-        hoveredScale: hovered ? scale * 1.3 : scale,
+    const { hoveredScale, springPos, springRot } = useSpring({
+        hoveredScale: hoverScale(),
         springPos: position,
+        springRot: rotation,
     });
 
     const [transition, transApi] = useTransition(
@@ -65,19 +81,19 @@ export const CameraView = ({
             from: {
                 scale: previousScale,
                 position: previousPosition,
-                rotation: 0,
+                rotation: previousRotation,
             },
             enter: {
                 config: config.stiff,
                 scale: hoveredScale,
                 position: springPos,
-                rotation: 4,
+                rotation: springRot,
             },
             leave: {
                 config: config.stiff,
                 scale: previousScale,
                 position: previousPosition,
-                rotation: 0,
+                rotation: previousRotation,
                 onRest: (_, __, c) => {
                     // Switch route when the last item has finished
                     // IDK if theres a better way to do this
@@ -130,7 +146,8 @@ export const CameraView = ({
                                 }}
                                 onPointerLeave={() => setHovered(false)}
                                 scale={props.scale}
-                                rotation={[0, -2, 0]}
+                                portalChildren={portalChildren}
+                                rotation={props.rotation}
                                 position={props.position}
                                 onPointerDown={onCameraTap}
                             />
