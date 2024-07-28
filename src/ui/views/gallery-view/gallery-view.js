@@ -57,7 +57,7 @@ const Images = () => {
                 0,
             ];
         } else {
-            return [0, -(index * 2.5) - index * 0.6, -15];
+            return [0, -(index * 2.5) - index * 0.6, -5];
         }
     };
 
