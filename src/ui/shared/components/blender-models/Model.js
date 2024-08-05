@@ -13,7 +13,7 @@ import useCameraTransitionState from "../../../../global-state/model-state";
 const zPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 const yPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1);
 
-export function CameraNew({ portalChildren, ...props }) {
+    export function CameraNew({ portalChildren, ...props }) {
     const displayRef = useRef();
     const { width, height } = useThree((state) => state.size);
 
