@@ -17,7 +17,7 @@ export default function CameraNew(props) {
             {...props}
             dispose={null}
             scale={viewport.width / 4}
-            position={[0, 0.1, -5]}
+            position={[2, 0.1, -5]}
         >
             <mesh
                 name="Cam"

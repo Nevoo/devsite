@@ -15,15 +15,18 @@ export default function Scene() {
         <div className={"container"}>
             <Canvas
                 // position gets overriden by rig component
-                camera={{ position: [0, 0, 15], fov: 20, far: 20 }}
+                camera={{ position: [0, 0, 15], fov: 20, far: 50 }}
                 gl={{ antialias: true, toneMapping: THREE.NoToneMapping }}
                 linear
             >
-                <Environment preset="city" />
+                {/* <Environment preset="city" /> */}
                 <directionalLight position={[0, 5, 10]} intensity={10} />
-                <ambientLight intensity={Math.PI / 2} />
+                <ambientLight intensity={Math.PI} />
                 <TextCarousel />
-                <CameraNew rotation={[0, Math.PI / 2, 0]} />
+                <CameraNew
+                    rotation={[0, Math.PI / 3, 0]}
+                    position={[0, 0, 0]}
+                />
                 {/* <ImageCarousel /> */}
                 {/* <OrbitControls /> */}
             </Canvas>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { animated, useTransition, useSpring } from "@react-spring/three";
-import useGeneralState from "../state/general";
+import useGeneralState, { useProjectState } from "../state/general";
 import { shaderMaterial, Text, useTexture } from "@react-three/drei";
 import { AnimatePresence, motion } from "framer-motion";
 import { extend, useFrame, useLoader, useThree } from "@react-three/fiber";
@@ -68,15 +68,16 @@ export function AnimatedText({ text }) {
     const titleRef = useRef();
     const mainIndex = useGeneralState((state) => state.index);
     const maskTexture = useLoader(THREE.TextureLoader, "/mask.jpg");
+    // const { viewport, size } = useThree();
 
     useFrame(({ viewport }) => {
         if (titleRef.current) {
             // Calculate the position based on the viewport size
             const leftEdge = -viewport.width / 2;
-            titleRef.current.position.x = leftEdge + 2; // Position 3 units to the left of the left edge
+            titleRef.current.position.x = leftEdge + 1.5; // Position 3 units to the left of the left edge
 
             // Scale the text based on the viewport height
-            const scale = viewport.height / 3; // Adjust this divisor to change the relative size of the text
+            const scale = viewport.width / 3; // Adjust this divisor to change the relative size of the text
             titleRef.current.scale.set(scale, scale, scale);
         }
     });
@@ -100,8 +101,7 @@ export function AnimatedText({ text }) {
         <Text
             ref={titleRef}
             font="/fonts/Dirtyline-36daysoftype.otf"
-            fontSize={0.5}
-            // position={[-3, 0, 0]}
+            fontSize={0.4}
             color="#ffffff"
         >
             {text}
@@ -115,24 +115,17 @@ export function AnimatedText({ text }) {
 }
 
 export function TextCarousel() {
-    const scrollDistance = useGeneralState((state) => state.scrollDistance);
     const index = useGeneralState((state) => state.index);
-    const texts = [
-        "TraVel",
-        "aNImaLS",
-        "NaTurE",
-        "StReeT",
-        "CoNceRtS",
-        "WeddINgs",
-        "TraveL2",
-    ];
-    const reversedIndex = texts.length - 1 - index;
+    const projects = useProjectState((state) => state.projects);
+
+    const reversedIndex = projects.length - 1 - index;
+
+    console.log("reversedIndex", reversedIndex);
+    console.log("projects", projects);
+
     return (
         <group>
-            <AnimatedText
-                text={texts[reversedIndex]}
-                // scrollDistance={scrollDistance}
-            />
+            <AnimatedText text={projects[reversedIndex].title} />
         </group>
     );
 }

@@ -4,7 +4,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Image } from "@react-three/drei";
 import "./bent-plane-geometry";
 import { easing } from "maath";
-import useGeneralState from "@/src/state/general";
+import useGeneralState, { useProjectState } from "@/src/state/general";
 import {
     useAnimationFrame,
     useMotionValue,
@@ -16,20 +16,12 @@ import {
 import { motion } from "framer-motion-3d";
 
 export const ImageCarousel = () => {
-    return <Carousel position={[0, -0.13, 0]} />;
+    return <Carousel position={[0, -0.13, 0.8]} rotation={[0, 0, 0]} />;
 };
 
 function Carousel({ radius = 2, count = 7, snapThreshold = 0.2, ...props }) {
-    const imageIds = [
-        "416430",
-        "310452",
-        "327482",
-        "325185",
-        "358574",
-        "227675",
-        "911738",
-        "1738986",
-    ];
+    const projects = useProjectState((state) => state.projects);
+
     const pexel = (id) =>
         `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg`;
 
@@ -50,7 +42,9 @@ function Carousel({ radius = 2, count = 7, snapThreshold = 0.2, ...props }) {
         );
 
         const index = snapPoints.indexOf(closest);
+
         setCurrentIndex(index);
+
         return closest;
     });
 
@@ -63,21 +57,30 @@ function Carousel({ radius = 2, count = 7, snapThreshold = 0.2, ...props }) {
         setScrollDistance(latest);
     });
 
+    const anglePerImage = (2 * Math.PI) / count;
+
     return (
         <motion.group {...props} rotation-y={springDistance}>
-            {Array.from({ length: count }, (_, i) => (
-                <Card
-                    key={i}
-                    index={i}
-                    url={pexel(imageIds[i])}
-                    position={[
-                        Math.sin((i / count) * Math.PI * 2) * radius,
-                        0,
-                        Math.cos((i / count) * Math.PI * 2) * radius,
-                    ]}
-                    rotation={[0, Math.PI + (i / count) * Math.PI * 2, 0]}
-                />
-            ))}
+            {Array.from({ length: count }, (_, i) => {
+                console.log("imageIndex:", i);
+                console.log(projects[i].imageUrl);
+
+                const angle = (i / count) * 2 * Math.PI - anglePerImage; // Offset by one image
+
+                return (
+                    <Card
+                        key={i}
+                        index={i}
+                        url={projects[i].imageUrl}
+                        position={[
+                            Math.sin(angle) * radius,
+                            0,
+                            Math.cos(angle) * radius,
+                        ]}
+                        rotation={[0, Math.PI + (i / count) * Math.PI * 2, 0]}
+                    />
+                );
+            })}
         </motion.group>
     );
 }
@@ -89,14 +92,6 @@ function Card({ url, ...props }) {
     const pointerOut = () => hover(false);
 
     useFrame((state, delta) => {
-        // easing.damp3(ref.current.scale, hovered ? 1.1 : 1, 0.1, delta);
-        // easing.damp(
-        //     ref.current.material,
-        //     "radius",
-        //     hovered ? 0.1 : 0.05,
-        //     0.2,
-        //     delta
-        // );
         easing.damp(
             ref.current.material,
             "zoom",
@@ -114,7 +109,6 @@ function Card({ url, ...props }) {
             side={THREE.DoubleSide}
             onClick={(e) => {
                 e.stopPropagation();
-                console.log("clicked", props.index);
             }}
             onPointerOver={pointerOver}
             onPointerOut={pointerOut}
