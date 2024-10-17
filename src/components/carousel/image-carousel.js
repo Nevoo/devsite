@@ -22,9 +22,6 @@ export const ImageCarousel = () => {
 function Carousel({ radius = 2, count = 7, snapThreshold = 0.2, ...props }) {
     const projects = useProjectState((state) => state.projects);
 
-    const pexel = (id) =>
-        `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg`;
-
     const { scrollYProgress } = useScroll();
     const setScrollDistance = useGeneralState(
         (state) => state.setScrollDistance
@@ -62,9 +59,6 @@ function Carousel({ radius = 2, count = 7, snapThreshold = 0.2, ...props }) {
     return (
         <motion.group {...props} rotation-y={springDistance}>
             {Array.from({ length: count }, (_, i) => {
-                console.log("imageIndex:", i);
-                console.log(projects[i].imageUrl);
-
                 const angle = (i / count) * 2 * Math.PI - anglePerImage; // Offset by one image
 
                 return (
@@ -109,6 +103,9 @@ function Card({ url, ...props }) {
             side={THREE.DoubleSide}
             onClick={(e) => {
                 e.stopPropagation();
+                // TODO: transition to gallery view
+                // maybe through viewfinder of camera?
+                console.log(props.index);
             }}
             onPointerOver={pointerOver}
             onPointerOut={pointerOut}

@@ -7,17 +7,30 @@ import {
 } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { ImageCarousel } from "./carousel/image-carousel";
+import { useResponsiveCamera } from "../hooks/useResponsiveCamera";
+import { useCameraState } from "../state/camera";
+import { useShallow } from "zustand/react/shallow";
 
 export default function CameraNew(props) {
     const { nodes, materials } = useGLTF("/model/cam-final-black.glb");
-    const { viewport } = useThree();
+
+    useResponsiveCamera();
+
+    const { scale, position, rotation } = useCameraState(
+        useShallow((state) => ({
+            scale: state.scale,
+            position: state.position,
+            rotation: state.rotation,
+        }))
+    );
 
     return (
         <group
             {...props}
             dispose={null}
-            scale={viewport.width / 4}
-            position={[2, 0.1, -5]}
+            scale={scale}
+            position={position}
+            rotation={rotation}
         >
             <mesh
                 name="Cam"

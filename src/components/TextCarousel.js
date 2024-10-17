@@ -89,7 +89,7 @@ export function AnimatedText({ text }) {
             timeline.fromTo(
                 titleRef.current.material,
                 { time: 0 },
-                { time: 50, duration: 3, ease: "power1.out" }
+                { time: 50, duration: 5, ease: "power1.out" }
             );
 
             titleRef.current.material.color = new THREE.Color("#ffffff");
@@ -120,14 +120,7 @@ export function TextCarousel() {
 
     const reversedIndex = projects.length - 1 - index;
 
-    console.log("reversedIndex", reversedIndex);
-    console.log("projects", projects);
-
-    return (
-        <group>
-            <AnimatedText text={projects[reversedIndex].title} />
-        </group>
-    );
+    return <AnimatedText text={projects[reversedIndex].title} />;
 }
 
 // ChromaticAberrationEffect

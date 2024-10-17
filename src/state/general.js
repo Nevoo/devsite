@@ -1,4 +1,4 @@
-const { create } = require("zustand");
+import { create } from "zustand";
 
 const useGeneralState = create((set, get) => ({
     scrollDistance: 0,
