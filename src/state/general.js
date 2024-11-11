@@ -82,15 +82,15 @@ export const useProjectState = create((set, get) => ({
                 { url: gallery("02597", "weddings"), scale: verticalScale },
             ], // weddings
         },
-        {
-            imageUrl: cover("street"),
-            title: "StReeT",
-            images: [
-                { url: gallery("05320", "street"), scale: verticalScale },
-                { url: gallery("05299", "street"), scale: verticalScale },
-                { url: gallery("03647", "street"), scale: verticalScale },
-            ], // street
-        },
+        // {
+        //     imageUrl: cover("street"),
+        //     title: "StReeT",
+        //     images: [
+        //         { url: gallery("05320", "street"), scale: verticalScale },
+        //         { url: gallery("05299", "street"), scale: verticalScale },
+        //         { url: gallery("03647", "street"), scale: verticalScale },
+        //     ], // street
+        // },
     ],
     setProjects: (projects) => set({ projects }),
 }));

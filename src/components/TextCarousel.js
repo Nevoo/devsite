@@ -67,14 +67,15 @@ export function AnimatedText({ text }) {
     const groupRef = useRef();
     const titleRef = useRef();
     const mainIndex = useGeneralState((state) => state.index);
-    const maskTexture = useLoader(THREE.TextureLoader, "/mask.jpg");
+    const maskTexture = useLoader(THREE.TextureLoader, "/textures/mask.jpg");
     // const { viewport, size } = useThree();
 
     useFrame(({ viewport }) => {
         if (titleRef.current) {
             // Calculate the position based on the viewport size
-            const leftEdge = -viewport.width / 2;
-            titleRef.current.position.x = leftEdge + 1.5; // Position 3 units to the left of the left edge
+            // const leftEdge = -viewport.width / 4;
+            // titleRef.current.position.x = leftEdge; // Position 3 units to the left of the left edge
+            titleRef.current.position.y = viewport.height / 2 - 0.5;
 
             // Scale the text based on the viewport height
             const scale = viewport.width / 3; // Adjust this divisor to change the relative size of the text
@@ -101,8 +102,9 @@ export function AnimatedText({ text }) {
         <Text
             ref={titleRef}
             font="/fonts/Dirtyline-36daysoftype.otf"
-            fontSize={0.4}
+            fontSize={0.2}
             color="#ffffff"
+            // position={[0, 0, 0]}
         >
             {text}
             <textMaterial
@@ -117,7 +119,7 @@ export function AnimatedText({ text }) {
 export function TextCarousel() {
     const index = useGeneralState((state) => state.index);
     const projects = useProjectState((state) => state.projects);
-
+    //rename variable here
     const reversedIndex = projects.length - 1 - index;
 
     return <AnimatedText text={projects[reversedIndex].title} />;

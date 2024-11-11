@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Image } from "@react-three/drei";
 import "./bent-plane-geometry";
 import { easing } from "maath";
@@ -14,35 +14,49 @@ import {
     useTransform,
 } from "framer-motion";
 import { motion } from "framer-motion-3d";
+import { Exo_2 } from "next/font/google";
 
 export const ImageCarousel = () => {
-    return <Carousel position={[0, -0.13, 0.8]} rotation={[0, 0, 0]} />;
+    return <Carousel position={[0, -0.13, -0.4]} rotation={[0, 0, 0]} />;
 };
 
-function Carousel({ radius = 2, count = 7, snapThreshold = 0.2, ...props }) {
+function Carousel({ snapThreshold = 0.2, ...props }) {
     const projects = useProjectState((state) => state.projects);
+    const count = projects.length;
 
     const { scrollYProgress } = useScroll();
     const setScrollDistance = useGeneralState(
         (state) => state.setScrollDistance
     );
+    const { viewport } = useThree();
+
+    const responsiveRadius = useMemo(() => {
+        return Math.min(viewport.width, viewport.height) * 0.5;
+    }, [viewport]);
+
     const setCurrentIndex = useGeneralState((state) => state.setIndex);
 
-    const rawDistance = useTransform(scrollYProgress, [0, 1], [2 * Math.PI, 0]);
+    const rawDistance = useTransform(scrollYProgress, [0, 1], [0, 2 * Math.PI]);
     const snapDistance = useTransform(rawDistance, (value) => {
         const snapPoints = Array.from(
             { length: count },
             (_, i) => (i / count) * 2 * Math.PI
         );
+
+        const mobileOffset = viewport.width < 768 ? Math.PI / count : 0;
+        const adjustedValue = value + mobileOffset;
+
         const closest = snapPoints.reduce((prev, curr) =>
-            Math.abs(curr - value) < Math.abs(prev - value) ? curr : prev
+            Math.abs(curr - adjustedValue) < Math.abs(prev - adjustedValue)
+                ? curr
+                : prev
         );
 
         const index = snapPoints.indexOf(closest);
 
         setCurrentIndex(index);
 
-        return closest;
+        return closest - mobileOffset;
     });
 
     const springDistance = useSpring(snapDistance, {
@@ -59,7 +73,7 @@ function Carousel({ radius = 2, count = 7, snapThreshold = 0.2, ...props }) {
     return (
         <motion.group {...props} rotation-y={springDistance}>
             {Array.from({ length: count }, (_, i) => {
-                const angle = (i / count) * 2 * Math.PI - anglePerImage; // Offset by one image
+                const angle = (i / count) * 2 * Math.PI;
 
                 return (
                     <Card
@@ -67,9 +81,9 @@ function Carousel({ radius = 2, count = 7, snapThreshold = 0.2, ...props }) {
                         index={i}
                         url={projects[i].imageUrl}
                         position={[
-                            Math.sin(angle) * radius,
+                            Math.sin(angle) * responsiveRadius,
                             0,
-                            Math.cos(angle) * radius,
+                            Math.cos(angle) * responsiveRadius,
                         ]}
                         rotation={[0, Math.PI + (i / count) * Math.PI * 2, 0]}
                     />
