@@ -14,7 +14,6 @@ import {
     useTransform,
 } from "framer-motion";
 import { motion } from "framer-motion-3d";
-import { Exo_2 } from "next/font/google";
 
 export const ImageCarousel = () => {
     return <Carousel position={[0, -0.13, -0.4]} rotation={[0, 0, 0]} />;

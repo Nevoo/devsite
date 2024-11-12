@@ -23,6 +23,7 @@ import Rig from "./Rig";
 import { useRef } from "react";
 import { ModelUpdated } from "./ModelUpdated";
 import NavigationMenu from "./NavigationMenu";
+import { Controls, Slider } from "./carousel/carousel";
 
 export default function Scene() {
     return (
@@ -30,16 +31,15 @@ export default function Scene() {
             <NavigationMenu />
             <Canvas
                 // position gets overriden by rig component
-                camera={{ position: [0, 0, 4], fov: 40, far: 100 }}
+                camera={{ position: [0, 0, 4], fov: 40, far: 10 }}
                 // gl={{ antialias: true, toneMapping: THREE.NoToneMapping }}
                 // linear
             >
                 {/* <Rig /> */}
                 {/* <OrbitControls /> */}
                 <Lights />
-
                 <TextCarousel />
-                <Float floatIntensity={0.5} rotationIntensity={0.5}>
+                <Float floatIntensity={0.5} rotationIntensity={0}>
                     <ModelUpdated />
                 </Float>
             </Canvas>

@@ -10,6 +10,7 @@ import { useCameraState } from "../state/camera";
 import { useShallow } from "zustand/react/shallow";
 import { ImageCarousel } from "./carousel/image-carousel";
 import { DoubleSide } from "three";
+import { Slider } from "./carousel/carousel";
 
 export function ModelUpdated(props) {
     const { nodes, materials } = useGLTF("/model/cam-final-mats.glb");
@@ -126,7 +127,7 @@ export function ModelUpdated(props) {
                 rotation={[0, 1.57, 0]}
             >
                 <MeshPortalMaterial>
-                    <ambientLight intensity={0.05} />
+                    {/* <ambientLight intensity={0.05} />
                     <mesh
                         position={[-1, 0, -0.5]}
                         rotation={[0, -Math.PI / 2, 0]}
@@ -138,8 +139,10 @@ export function ModelUpdated(props) {
                             color={"#FFF"}
                             side={DoubleSide}
                         />
-                    </mesh>
-                    <ImageCarousel />
+                    </mesh> */}
+                    {/* <ImageCarousel  /> */}
+
+                    <Slider />
                 </MeshPortalMaterial>
             </mesh>
             <mesh

@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 const menuItems = [
     { id: "01", label: "Home" },
     { id: "02", label: "Work" },
-    { id: "03", label: "Company" },
-    { id: "04", label: "Careers" },
+    { id: "03", label: "About" },
+    { id: "04", label: "Contact" },
 ];
 
 const container = {

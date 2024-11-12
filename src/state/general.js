@@ -14,8 +14,7 @@ const gallery = (id, category) =>
 
 const cover = (category) => `${galleryBase}/${category}/cover.jpeg`;
 
-const verticalScale = [2, 3, 0];
-
+const verticalScale = [16, 9, 0];
 export const useProjectState = create((set, get) => ({
     projects: [
         {
