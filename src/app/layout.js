@@ -13,7 +13,7 @@ export default function RootLayout({ children }) {
     return (
         <html lang="en">
             <body>
-                <div className="relative z-10">
+                <div className="absolute z-10">
                     <header className="fixed top-0 left-0 right-0 p-6">
                         <h1 className="text-2xl font-bold text-white">
                             rouven
