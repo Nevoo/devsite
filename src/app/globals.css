@@ -2,6 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  @font-face {
+    font-family: 'PPMori';
+    font-style: normal;
+    font-weight: 200;
+    src: url(/fonts/PPMori/PPMori-ExtraLight.otf) format('opentype');
+  }
+
+  @font-face {
+    font-family: 'PPMori';
+    font-style: italic;
+    font-weight: 200;
+    src: url(/fonts/PPMori/PPMori-ExtralightItalic.otf) format('opentype');
+  }
+
+  @font-face {
+    font-family: 'PPMori';
+    font-style: normal;
+    font-weight: 400;
+    src: url(/fonts/PPMori/PPMori-Regular.otf) format('opentype');
+  }
+
+  @font-face {
+    font-family: 'PPMori';
+    font-style: italic;
+    font-weight: 400;
+    src: url(/fonts/PPMori/PPMori-RegularItalic.otf) format('opentype');
+  }
+
+  @font-face {
+    font-family: 'PPMori';
+    font-style: normal;
+    font-weight: 600;
+    src: url(/fonts/PPMori/PPMori-SemiBold.otf) format('opentype');
+  }
+
+  @font-face {
+    font-family: 'PPMori';
+    font-style: italic;
+    font-weight: 600;
+    src: url(/fonts/PPMori/PPMori-SemiBoldItalic.otf) format('opentype');
+  }
+
+  @font-face {
+    font-family: 'Dirtyline';
+    font-style: normal;
+    font-weight: 200;
+    src: url(/fonts/Dirtyline-36daysoftype.otf) format('opentype');
+  }
+
+  @font-face {
+    font-family: 'PottaOne';
+    font-style: normal;
+    font-weight: 200;
+    src: url(/fonts/PottaOne-Regular.ttf);
+  }
+}
+
 html,
 body {
   max-width: 100vw;

@@ -28,20 +28,17 @@ import { Controls, Slider } from "./carousel/carousel";
 export default function Scene() {
     return (
         <div className="container">
-            <NavigationMenu />
             <Canvas
                 // position gets overriden by rig component
                 camera={{ position: [0, 0, 4], fov: 40, far: 10 }}
                 // gl={{ antialias: true, toneMapping: THREE.NoToneMapping }}
                 // linear
             >
-                {/* <Rig /> */}
-                {/* <OrbitControls /> */}
                 <Lights />
-                <TextCarousel />
+                {/* <TextCarousel />
                 <Float floatIntensity={0.5} rotationIntensity={0}>
                     <ModelUpdated />
-                </Float>
+                </Float> */}
             </Canvas>
         </div>
     );
@@ -73,10 +70,3 @@ function Lights() {
         </group>
     );
 }
-
-// Goal 1, finish portfolio rewrite, better performance
-// Goal 2, get first freelance job
-// Goal 3, start traveling and working as a digital nomad - while producing youtube content
-// Goal 4 I AM GONNA MAKE THIS HAPPEN; I AM GONNA MAKE tHis WORK, I WANT THIS TO WORK, I WANT TO BE SUCCESSFUL WITH THIs
-
-// Start building my own saas software tools - get some passive incoming, stop trading my time for money

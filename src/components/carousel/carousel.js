@@ -5,33 +5,14 @@ import * as THREE from "three";
 import { useSpring, animated } from "@react-spring/three";
 import { useProjectState } from "@/src/state/general";
 
-const ImagePlane = ({ texture, position, ...props }) => {
-    return (
-        <mesh position={position} {...props} rotation={[0, -Math.PI / 2, 0]}>
-            <planeGeometry args={[16 * 0.2, 9 * 0.2, 4, 4]} />
-            <meshBasicMaterial map={texture} side={THREE.DoubleSide} />
-        </mesh>
-    );
-};
-
-// Pexel images
-const imageIds = [
-    1103970, 416430, 310452, 327482, 325185, 358574, 227675, 911738, 1738986,
-];
-const imageUrls = imageIds.map(
-    (id) =>
-        `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260`
-);
-
 export const Slider = () => {
     const groupRef = useRef();
     const [currentIndex, setCurrentIndex] = useState(0);
-    const spacing = 16.5; // Width + gap between images
-
-    // Load all textures at once using drei's useTexture
-    const textures = useTexture(imageUrls);
-
+    const [isDragging, setIsDragging] = useState(false);
+    const [startX, setStartX] = useState(0);
+    const spacing = 16.5;
     const projects = useProjectState((state) => state.projects);
+    const [manualOffset, setManualOffset] = useState(0);
 
     // Spring animation for smooth sliding
     const [springs, api] = useSpring(() => ({
@@ -39,52 +20,95 @@ export const Slider = () => {
         config: { mass: 1, tension: 280, friction: 60 },
     }));
 
-    const nextSlide = () => {
-        if (currentIndex < imageIds.length - 1) {
-            setCurrentIndex((prev) => prev + 1);
+    const clampIndex = (index) => {
+        return Math.max(0, Math.min(index, projects.length - 1));
+    };
+
+    const snapToNearestSlide = (offset) => {
+        const slideThreshold = spacing * 0.3; // 30% of slide width for snap threshold
+        const normalizedOffset = offset / spacing;
+        const nearestSlide = Math.round(normalizedOffset);
+
+        if (Math.abs(normalizedOffset - nearestSlide) > slideThreshold) {
+            const newIndex = clampIndex(currentIndex - Math.sign(offset));
+            setCurrentIndex(newIndex);
+        }
+        setManualOffset(0);
+    };
+
+    // Handle wheel scrolling
+    const handleWheel = (event) => {
+        const scrollSensitivity = 0.01;
+        const newOffset = manualOffset + event.deltaY * scrollSensitivity;
+        setManualOffset(newOffset);
+        snapToNearestSlide(newOffset);
+    };
+
+    // Handle drag interactions
+    const handlePointerDown = (event) => {
+        setIsDragging(true);
+        setStartX(event.clientX);
+    };
+
+    const handlePointerUp = () => {
+        if (isDragging) {
+            snapToNearestSlide(manualOffset);
+            setIsDragging(false);
         }
     };
 
-    const previousSlide = () => {
-        if (currentIndex > 0) {
-            setCurrentIndex((prev) => prev - 1);
-        }
+    const handlePointerMove = (event) => {
+        if (!isDragging) return;
+
+        const deltaX = event.clientX - startX;
+        const sensitivity = 0.01;
+        const newOffset = deltaX * sensitivity;
+        setManualOffset(newOffset);
+        setStartX(event.clientX);
     };
 
-    // Update spring when currentIndex changes
+    // Update spring when currentIndex or manualOffset changes
     useEffect(() => {
         api.start({
-            position: -currentIndex * spacing,
+            position: -currentIndex * spacing + manualOffset,
         });
-    }, [currentIndex, api]);
+    }, [currentIndex, manualOffset, api]);
 
     // Handle keyboard navigation
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.key === "ArrowRight") nextSlide();
-            if (e.key === "ArrowLeft") previousSlide();
+            if (e.key === "ArrowRight") {
+                setCurrentIndex((prev) => clampIndex(prev + 1));
+                setManualOffset(0);
+            }
+            if (e.key === "ArrowLeft") {
+                setCurrentIndex((prev) => clampIndex(prev - 1));
+                setManualOffset(0);
+            }
         };
-
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [currentIndex]);
+    }, []);
 
     return (
-        <animated.group ref={groupRef} position-x={springs.position}>
+        <animated.group
+            ref={groupRef}
+            position-x={springs.position}
+            onWheel={handleWheel}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            onPointerMove={handlePointerMove}
+        >
             {projects.map((project, index) => (
                 <Image
                     rotation={[0, -Math.PI / 2, 0]}
-                    key={imageIds[index]}
+                    key={index}
                     url={project.imageUrl}
                     position={[index * spacing, -0.15, -0.5]}
                 >
                     <planeGeometry args={[16 * 0.17, 9 * 0.17, 4, 4]} />
                 </Image>
-                // <ImagePlane
-                //     key={imageIds[index]}
-                //     texture={texture}
-                //     position={[index * spacing, 0, 0]}
-                // />
             ))}
         </animated.group>
     );

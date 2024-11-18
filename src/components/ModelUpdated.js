@@ -10,7 +10,7 @@ import { useCameraState } from "../state/camera";
 import { useShallow } from "zustand/react/shallow";
 import { ImageCarousel } from "./carousel/image-carousel";
 import { DoubleSide } from "three";
-import { Slider } from "./carousel/carousel";
+import { ScrollableSlider, Slider } from "./carousel/carousel";
 
 export function ModelUpdated(props) {
     const { nodes, materials } = useGLTF("/model/cam-final-mats.glb");

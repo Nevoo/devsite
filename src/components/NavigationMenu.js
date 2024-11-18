@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -84,7 +86,7 @@ const NavigationMenu = () => {
             {/* Menu Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="fixed top-6 right-6 p-2 text-green-400 hover:text-green-300 transition-colors z-[100]"
+                className="fixed top-6 right-6 p-2 text-[#FFD803] hover:text-[#FFE249] transition-colors z-[100]"
             >
                 <MenuIcon isOpen={isOpen} />
             </button>
@@ -112,16 +114,16 @@ const NavigationMenu = () => {
                                 duration: 0.3,
                                 ease: "easeInOut",
                             }}
-                            className="fixed inset-y-0 right-0 w-full max-w-md bg-[#0a1f0a] p-6 z-50"
+                            className="fixed inset-y-0 right-0 w-full max-w-md bg-[#1A1A1A] p-6 z-50"
                         >
                             {/* Header */}
                             <div className="flex justify-start mb-12">
                                 <motion.button
-                                    className="bg-green-400 text-black px-4 py-2 rounded-full font-medium"
+                                    className="bg-[#FFD803] text-black px-4 py-2 rounded-full font-medium hover:bg-[#FFE249]"
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                 >
-                                    CONTACT US
+                                    GET IN TOUCH
                                 </motion.button>
                             </div>
 
@@ -136,7 +138,7 @@ const NavigationMenu = () => {
                                     <motion.div
                                         key={id}
                                         variants={item}
-                                        className="border-b border-green-400/20"
+                                        className="border-b border-[#FFD803]/20"
                                     >
                                         <motion.a
                                             href={`#${label.toLowerCase()}`}
@@ -145,10 +147,10 @@ const NavigationMenu = () => {
                                             transition={{ duration: 0.2 }}
                                             onClick={() => setIsOpen(false)}
                                         >
-                                            <span className="text-green-400 opacity-60 text-sm">
+                                            <span className="text-[#FFD803] opacity-60 text-sm">
                                                 {id}
                                             </span>
-                                            <span className="text-green-400 text-4xl font-light tracking-wide group-hover:tracking-wider transition-all duration-300">
+                                            <span className="text-[#FFD803] text-4xl font-light tracking-wide group-hover:tracking-wider transition-all duration-300">
                                                 {label}
                                             </span>
                                         </motion.a>
@@ -163,8 +165,8 @@ const NavigationMenu = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.3, duration: 0.2 }}
                             >
-                                <span className="text-green-400 text-sm">
-                                    Unconventional Solutions
+                                <span className="text-[#FFD803] text-sm">
+                                    rouvens.work © 2024
                                 </span>
                             </motion.div>
                         </motion.div>
