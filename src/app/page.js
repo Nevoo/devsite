@@ -1,16 +1,28 @@
-import { Suspense } from "react";
-import styles from "./page.module.css";
-import dynamic from "next/dynamic";
-import LandingPage from "../components/LandingPage";
+'use client';
 
-// const Scene = dynamic(() => import("../components/Scene"), { ssr: false });
+import { Suspense } from "react";
+import dynamic from "next/dynamic";
+import LoadingScreen from "../components/LoadingScreen";
+
+// Dynamically import LandingPage with delay
+const LandingPage = dynamic(
+    () => new Promise((resolve) => {
+        setTimeout(() => {
+            import("../components/LandingPage").then(resolve);
+        }, 2000);
+    }),
+    {
+        ssr: false
+    }
+);
 
 export default function Home() {
     return (
-        <main className={styles.main}>
-            <Suspense fallback={<div>Loading...</div>}>
+        <main className="min-h-screen">
+            <Suspense fallback={null}>
                 <LandingPage />
             </Suspense>
+            <LoadingScreen />
         </main>
     );
 }
