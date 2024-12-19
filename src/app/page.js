@@ -16,11 +16,17 @@ const LandingPage = dynamic(
     }
 );
 
+const Scene = dynamic(() => import("../components/Scene"), 
+    {
+        ssr: false
+    }
+);
+
 export default function Home() {
     return (
         <main className="min-h-screen">
             <Suspense fallback={null}>
-                <LandingPage />
+                <Scene />
             </Suspense>
             <LoadingScreen />
         </main>
