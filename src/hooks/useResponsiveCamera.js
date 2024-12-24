@@ -17,8 +17,9 @@ export const useResponsiveCamera = () => {
 
     useEffect(() => {
         if (size.width > 1000 && size.height > 700) {
-            setPosition([0, -0.5, 0]);
+            setPosition([0, 0, 0]);
             setScale(scale);
+            // setRotation([Math.PI * 2, Math.PI / 2, -Math.PI / 2]);
             setRotation([0, Math.PI / 2, 0]);
         } else {
             setPosition([0, -0.5, 0]);

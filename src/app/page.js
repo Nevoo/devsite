@@ -28,7 +28,7 @@ export default function Home() {
             <Suspense fallback={null}>
                 <Scene />
             </Suspense>
-            <LoadingScreen />
+            {/* <LoadingScreen /> */}
         </main>
     );
 }

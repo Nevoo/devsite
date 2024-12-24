@@ -2,48 +2,110 @@
 
 import {
     ContactShadows,
-    Environment,
     Float,
     MeshReflectorMaterial,
-    OrbitControls,
-    PivotControls,
-    Stage,
-    useHelper,
+    Preload,
+    useAspect,
+    useVideoTexture,
+    Fade
 } from "@react-three/drei";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useThree, useLoader, useFrame } from "@react-three/fiber";
 import CameraNew from "./Model";
 import * as THREE from "three";
 
 import { TextCarousel } from "./TextCarousel";
 
 import Rig from "./Rig";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { ModelUpdated } from "./ModelUpdated";
 import NavigationMenu from "./NavigationMenu";
 import { Controls, Slider } from "./carousel/carousel";
 import { Bloom, DepthOfField, EffectComposer } from "@react-three/postprocessing";
+import gsap from 'gsap';
+import "./carousel/bent-plane-geometry";
 
 export default function Scene() {
+    const videoRef = useRef(null);
+    const cameraRef = useRef(null);
+    const floorRef = useRef(null);
+    const [isExploring, setIsExploring] = useState(false);
+    const [animationComplete, setAnimationComplete] = useState(false);
+    const initialRotation = useRef(0);
+
+    const handleExplore = () => {
+        setIsExploring(true);
+        // Animate camera
+        if (cameraRef.current) {
+            gsap.to(cameraRef.current.position, {
+                z: 2,
+                y: -0.3,
+                x: 0,
+                duration: 1.5,
+                ease: "power2.inOut"
+            });
+            gsap.to(cameraRef.current.rotation, {
+                y: initialRotation.current + Math.PI,
+                duration: 1.5,
+                ease: "power2.inOut"
+            });
+            initialRotation.current += Math.PI;
+        }
+        // Animate floor
+        if (floorRef.current) {
+            gsap.to(floorRef.current.position, {
+                y: -0.6,
+                duration: 1.5,
+                ease: "power2.inOut"
+            });
+        }
+    };
+
+    const handleReset = () => {
+        setIsExploring(false);
+        // Reset camera
+        if (cameraRef.current) {
+            gsap.to(cameraRef.current.position, {
+                z: 0,
+                y: 0,
+                duration: 1.5,
+                ease: "power2.inOut"
+            });
+            gsap.to(cameraRef.current.rotation, {
+                y: initialRotation.current - Math.PI,
+                duration: 1.5,
+                ease: "power2.inOut"
+            });
+            initialRotation.current -= Math.PI;
+        }
+        // Reset floor
+        if (floorRef.current) {
+            gsap.to(floorRef.current.position, {
+                y: -0.2,
+                duration: 1.5,
+                ease: "power2.inOut"
+            });
+        }
+    };
+
     return (
-        <div className="container">
+        <>
+            <div className="container">
             <Canvas
-                // position gets overriden by rig component
-                camera={{ position: [0, 0, 4], fov: 40, far: 10 }}
-                // gl={{ antialias: true, toneMapping: THREE.NoToneMapping }}
-                // linear
+                camera={{ position: [0, 0, 4], fov: 50, far: 100 }}
             >
                 <color attach="background" args={['black']} />
                 <Lights />
                 {/* <OrbitControls /> */}
                 
                 {/* <TextCarousel /> */}
+                {/* <Rig /> */}
                 <Float floatIntensity={0.5} rotationIntensity={0.5}>
-                    {/* <PivotControls> */}
+                    <group ref={cameraRef}>
                         <CameraNew />
-                    {/* </PivotControls> */}
+                    </group>
                 </Float>
-                <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.8, 0]}>
-                    <planeGeometry args={[50, 50]} />
+                <mesh ref={floorRef} receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]}>
+                    <planeGeometry args={[100, 10]} />
                     <MeshReflectorMaterial
                         blur={[500, 10]}
                         resolution={2048}
@@ -51,31 +113,42 @@ export default function Scene() {
                         mixStrength={180}
                         roughness={1}
                         depthScale={1.5}
-                        minDepthThreshold={0.1}
-                        maxDepthThreshold={2}
+                        minDepthThreshold={0.9}
+                        maxDepthThreshold={1.4}
                         color="#202020"
                         metalness={1}
                     />
                 </mesh>
+
+                {/* <BackgroundVideo isExploring={isExploring} /> */}
+
                 <EffectComposer disableNormalPass>
                     <Bloom luminanceThreshold={0} mipmapBlur luminanceSmoothing={0.0} intensity={1} />
                     <DepthOfField target={[0, 0, 0]} focalLength={5} bokehScale={15} height={700} />
                 </EffectComposer>
+                <Preload all />
             </Canvas>
-        </div>
+            </div>
+            <div className="fixed inset-0 flex items-center justify-center translate-y-[30vh] z-[100] pointer-events-none">
+                <button
+                    onClick={!isExploring ? handleExplore : handleReset}
+                    className="bg-[#FFD803] text-black px-4 py-2 rounded-full font-medium hover:bg-[#FFE249] transition-colors pointer-events-auto"
+                >
+                    {!isExploring ? 'Explore my work' : 'Back to Home'}
+                </button>
+            </div>
+        </>
     );
 }
 
 function Lights() {
     const directionalLightRef = useRef();
 
-    // useHelper(directionalLightRef, THREE.DirectionalLightHelper);
-
     return (
         <group>
-            <pointLight distance={2} intensity={2} position={[1, 0, 0]} color="orange" />
+            <pointLight distance={2} intensity={2} position={[1, 0.5, 0]} color="orange" />
              {/* <hemisphereLight intensity={0.15} groundColor="black" /> */}
-             <spotLight decay={0} position={[10, 20, 10]} angle={0.12} penumbra={1} intensity={1} castShadow shadow-mapSize={1024} />
+            <spotLight decay={0} position={[10, 20, 10]} angle={0.12} penumbra={1} intensity={1} castShadow shadow-mapSize={1024} />
 
             {/* <ambientLight intensity={Math.PI} /> */}
             <directionalLight
@@ -85,14 +158,14 @@ function Lights() {
                 intensity={Math.PI * 0.05}
             />
             {/* <Environment preset="city" blur={1} /> */}
-            <ContactShadows
+            {/* <ContactShadows
                 resolution={512}
                 position={[0, -0.8, 0]}
                 opacity={1}
                 scale={10}
                 blur={2}
                 far={0.8}
-            />
+            /> */}
         </group>
     );
 }

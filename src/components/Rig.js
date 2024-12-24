@@ -11,7 +11,7 @@ export default function Rig({ children, ...props }) {
         // state.events.update(); // Raycasts every frame rather than on pointer-move
         easing.damp3(
             state.camera.position,
-            [-state.pointer.x * 2, state.pointer.y + 1.5, 4],
+            [-state.pointer.x * 1.1, state.pointer.y, 4],
             0.3,
             delta
         ); // Move camera

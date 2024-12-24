@@ -94,7 +94,7 @@ export default function LoadingScreen() {
                     position: 'absolute',
                     zIndex: 10
                 }}
-            >{counter}</span>
+            >{counter} %</span>
 
             {showBlocks && (
                 <div className="overlay" style={{ width: '100%', height: '100vh', backgroundColor: '#DCFF7C'}}>
