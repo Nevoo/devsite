@@ -25,6 +25,12 @@ export default function CameraNew(props) {
 
   const { nodes, materials } = useGLTF("/model/Remodel.glb");
 
+  // Debug log to inspect model structure
+  useEffect(() => {
+    console.log("GLTF Nodes:", nodes);
+    console.log("GLTF Materials:", materials);
+  }, [nodes, materials]);
+
   useResponsiveCamera();
 
   const {
@@ -136,9 +142,11 @@ export default function CameraNew(props) {
             onClick={() => setPortalActive(!portalActive)}
           >
             <MeshPortalMaterial>
-              {mode === "portfolio" && <PortfolioContent />}
-              {mode === "gallery" && <GalleryContent />}
-              {mode === "about" && <AboutContent />}
+              <group rotation={[0, -rotation[1], 0]}>
+                {mode === "portfolio" && <PortfolioContent />}
+                {mode === "gallery" && <GalleryContent />}
+                {mode === "about" && <AboutContent />}
+              </group>
             </MeshPortalMaterial>
           </mesh>
         </group>
@@ -155,8 +163,14 @@ export default function CameraNew(props) {
             castShadow
             receiveShadow
             geometry={nodes.Plane002_1.geometry}
-            material={materials["Material.005"]}
-          />
+          >
+            <meshStandardMaterial
+              {...materials["Material.005"]}
+              transparent={false}
+              opacity={1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
           <mesh
             name="Plane002_2"
             castShadow
