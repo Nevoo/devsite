@@ -23,7 +23,7 @@ export default function CameraNew(props) {
   const displayRef = useRef();
   const textRef = useRef();
 
-  const { nodes, materials } = useGLTF("/model/Remodel.glb");
+  const { nodes, materials } = useGLTF("/model/remodel-knobs.glb");
 
   // Debug log to inspect model structure
   useEffect(() => {
@@ -113,18 +113,44 @@ export default function CameraNew(props) {
       position={position}
       rotation={rotation}
     >
-      <Text
-        ref={textRef}
-        position={[0, 1.5, 0]}
-        fontSize={0.15}
-        color="#ffffff"
-        anchorX="center"
-        anchorY="middle"
-      >
-        {mode.toUpperCase()}
-      </Text>
-
       <group name="Scene">
+        <group name="Cam" position={[-0.002, 0.001, 0]}>
+          <mesh
+            name="Plane001"
+            castShadow
+            receiveShadow
+            geometry={nodes.Plane001.geometry}
+            material={materials.Noise}
+          />
+          <mesh
+            name="Plane001_1"
+            castShadow
+            receiveShadow
+            geometry={nodes.Plane001_1.geometry}
+            material={materials["Material.003"]}
+          />
+          <mesh
+            name="Plane001_2"
+            castShadow
+            receiveShadow
+            geometry={nodes.Plane001_2.geometry}
+            material={materials["Material.002"]}
+          />
+          <mesh
+            name="Plane001_3"
+            castShadow
+            receiveShadow
+            geometry={nodes.Plane001_3.geometry}
+            material={materials["Material.004"]}
+          />
+          <mesh
+            name="Plane001_4"
+            castShadow
+            receiveShadow
+            geometry={nodes.Plane001_4.geometry}
+            material={materials.Material}
+          />
+        </group>
         <group name="Display001" position={[0.006, 0.002, 0]}>
           <mesh
             name="Plane004"
@@ -134,11 +160,11 @@ export default function CameraNew(props) {
             material={materials.Noise}
           />
           <mesh
-            ref={displayRef}
             name="Plane004_1"
             castShadow
             receiveShadow
             geometry={nodes.Plane004_1.geometry}
+            material={materials["Material.002"]}
             onClick={() => setPortalActive(!portalActive)}
           >
             <MeshPortalMaterial>
@@ -150,58 +176,104 @@ export default function CameraNew(props) {
             </MeshPortalMaterial>
           </mesh>
         </group>
-        <group name="Cam001" position={[-0.002, 0.001, 0]}>
-          <mesh
-            name="Plane002"
-            castShadow
-            receiveShadow
-            geometry={nodes.Plane002.geometry}
-            material={materials["Material.006"]}
-          />
-          <mesh
-            name="Plane002_1"
-            castShadow
-            receiveShadow
-            geometry={nodes.Plane002_1.geometry}
-          >
-            <meshStandardMaterial
-              {...materials["Material.005"]}
-              transparent={false}
-              opacity={1}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-          <mesh
-            name="Plane002_2"
-            castShadow
-            receiveShadow
-            geometry={nodes.Plane002_2.geometry}
-            material={materials["Material.009"]}
-            onClick={() => {
-              const modes = ["portfolio", "gallery", "about"];
-              const currentIndex = modes.indexOf(mode);
-              const nextIndex = (currentIndex + 1) % modes.length;
-              setMode(modes[nextIndex]);
-            }}
-          />
-        </group>
         <mesh
           name="Circle002"
           castShadow
           receiveShadow
           geometry={nodes.Circle002.geometry}
-          material={nodes.Circle002.material}
+          material={materials["Material.002"]}
           position={[0.014, 0.107, 0.082]}
           rotation={[0.078, 0.061, -1.341]}
+        />
+        <mesh
+          name="Circle001"
+          castShadow
+          receiveShadow
+          geometry={nodes.Circle001.geometry}
+          material={materials["Material.002"]}
+          position={[0.014, 0.107, -0.025]}
+          rotation={[0.078, 0.061, -1.341]}
+        />
+        <mesh
+          name="Circle003"
+          castShadow
+          receiveShadow
+          geometry={nodes.Circle003.geometry}
+          material={materials["Material.002"]}
+          position={[0.014, 0.106, -0.081]}
+          rotation={[0.078, 0.061, -1.341]}
+        />
+        <mesh
+          name="Circle004"
+          castShadow
+          receiveShadow
+          geometry={nodes.Circle004.geometry}
+          material={materials["Material.002"]}
+          position={[0.016, 0.065, -0.047]}
+          rotation={[0.085, -0.001, -Math.PI / 2]}
         />
         <mesh
           name="Circle005"
           castShadow
           receiveShadow
           geometry={nodes.Circle005.geometry}
-          material={nodes.Circle005.material}
+          material={materials["Material.002"]}
           position={[0.014, 0.107, 0.067]}
           rotation={[0.078, 0.061, -1.341]}
+        />
+        <mesh
+          name="Circle006"
+          castShadow
+          receiveShadow
+          geometry={nodes.Circle006.geometry}
+          material={nodes.Circle006.material}
+          position={[-0.044, 0.109, -0.077]}
+          rotation={[-0.026, 0.126, 0.23]}
+        />
+        <mesh
+          name="Circle007"
+          castShadow
+          receiveShadow
+          geometry={nodes.Circle007.geometry}
+          material={nodes.Circle007.material}
+          position={[-0.017, 0.116, -0.086]}
+          rotation={[0.003, 0.167, 0]}
+        />
+        <mesh
+          name="Circle008"
+          castShadow
+          receiveShadow
+          geometry={nodes.Circle008.geometry}
+          material={nodes.Circle008.material}
+          position={[-0.017, 0.116, -0.068]}
+          rotation={[-0.026, 0.186, 0.019]}
+        />
+        <mesh
+          name="Circle009"
+          castShadow
+          receiveShadow
+          geometry={nodes.Circle009.geometry}
+          material={materials["Material.002"]}
+          position={[0.016, 0.013, -0.046]}
+          rotation={[0.085, -0.001, -Math.PI / 2]}
+        />
+        <mesh
+          name="Circle010"
+          castShadow
+          receiveShadow
+          geometry={nodes.Circle010.geometry}
+          material={materials["Material.002"]}
+          position={[0.016, 0.013, -0.065]}
+          rotation={[0.085, -0.001, -Math.PI / 2]}
+        />
+        <mesh
+          name="IsoButton"
+          castShadow
+          receiveShadow
+          geometry={nodes.IsoButton.geometry}
+          material={materials["Material.002"]}
+          position={[0.014, 0.038, -0.055]}
+          rotation={[0, 0, -Math.PI / 2]}
         />
         <mesh
           name="Detail"
@@ -211,10 +283,37 @@ export default function CameraNew(props) {
           material={materials.Noise}
           position={[0.018, 0.059, -0.052]}
         />
+        <mesh
+          name="Idk"
+          castShadow
+          receiveShadow
+          geometry={nodes.Idk.geometry}
+          material={materials["Material.001"]}
+          position={[0, 0.116, -0.061]}
+          scale={1.193}
+        />
+        <mesh
+          name="Knob"
+          castShadow
+          receiveShadow
+          geometry={nodes.Knob.geometry}
+          material={materials["Material.002"]}
+          position={[0.001, 0.119, -0.087]}
+        />
+        <mesh
+          name="ModeKnob"
+          castShadow
+          receiveShadow
+          geometry={nodes.ModeKnob.geometry}
+          material={materials["Material.002"]}
+          position={[-0.009, 0.125, -0.033]}
+        />
       </group>
     </group>
   );
 }
+
+useGLTF.preload("/remodel-knobs.glb");
 
 useGLTF.preload("/model/Remodel.glb");
 
