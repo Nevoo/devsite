@@ -21,7 +21,6 @@ import {
 export default function CameraNew(props) {
   const group = useRef();
   const displayRef = useRef();
-  const textRef = useRef();
 
   const { nodes, materials } = useGLTF("/model/remodel-knobs.glb");
 
@@ -95,14 +94,6 @@ export default function CameraNew(props) {
       });
     }
   }, [portalActive, rotation]);
-
-  // Mode text animation
-  useFrame((state) => {
-    if (textRef.current) {
-      textRef.current.position.y =
-        1.5 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
-    }
-  });
 
   return (
     <group

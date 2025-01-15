@@ -8,6 +8,7 @@ import {
   useAspect,
   useVideoTexture,
   Fade,
+  Text,
 } from "@react-three/drei";
 import { Canvas, useThree, useLoader, useFrame } from "@react-three/fiber";
 import CameraNew from "./Model";
@@ -105,14 +106,24 @@ export default function Scene() {
         <Canvas camera={{ position: [0, 0, 4], fov: 50, far: 100 }}>
           <color attach="background" args={["black"]} />
           <Lights />
-          {/* <OrbitControls /> */}
-
-          {/* <TextCarousel /> */}
-          {/* <Rig /> */}
           <Float floatIntensity={0.5} rotationIntensity={0.5}>
             <group ref={cameraRef}>
               <CameraNew />
             </group>
+            {isExploring && (
+              <Text
+                position={[0.4, 0.6, 2]}
+                rotation={[0, 0, 0]}
+                fontSize={0.1}
+                font="fonts/Dirtyline-36daysoftype.otf"
+                color="white"
+                anchorX="center"
+                anchorY="middle"
+                side={THREE.DoubleSide}
+              >
+                portfolio
+              </Text>
+            )}
           </Float>
           <mesh
             ref={floorRef}
