@@ -76,20 +76,10 @@ export default function CameraNew(props) {
         duration: 1,
         ease: "power2.inOut",
       });
-      gsap.to(group.current.rotation, {
-        y: rotation[1] + Math.PI,
-        duration: 1.5,
-        ease: "power2.inOut",
-      });
     } else {
       gsap.to(group.current.position, {
         z: 0,
         duration: 1,
-        ease: "power2.inOut",
-      });
-      gsap.to(group.current.rotation, {
-        y: rotation[1],
-        duration: 1.5,
         ease: "power2.inOut",
       });
     }

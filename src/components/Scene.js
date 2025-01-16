@@ -29,13 +29,15 @@ import {
 import gsap from "gsap";
 import "./carousel/bent-plane-geometry";
 import LoadingScreen from "./LoadingScreen";
+import { useFloorState } from "../state/general";
+import { useResponsiveFloor } from "../hooks/useResponsiveCamera";
 
 export default function Scene() {
+  const textRef = useRef(null);
   const videoRef = useRef(null);
   const cameraRef = useRef(null);
   const floorRef = useRef(null);
   const [isExploring, setIsExploring] = useState(false);
-  const [animationComplete, setAnimationComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const initialRotation = useRef(0);
 
@@ -46,6 +48,8 @@ export default function Scene() {
 
   const handleExplore = () => {
     setIsExploring(true);
+    // Create timeline for animations
+
     // Animate camera
     if (cameraRef.current) {
       gsap.to(cameraRef.current.position, {
@@ -55,20 +59,34 @@ export default function Scene() {
         duration: 1.5,
         ease: "power2.inOut",
       });
-      gsap.to(cameraRef.current.rotation, {
-        y: initialRotation.current + Math.PI,
-        duration: 1.5,
-        ease: "power2.inOut",
-      });
+      gsap.to(
+        cameraRef.current.rotation,
+        {
+          y: initialRotation.current + Math.PI,
+          duration: 1.5,
+          ease: "power2.inOut",
+        },
+        "<"
+      );
+      gsap.fromTo(
+        textRef.current,
+        { fillOpacity: 0 },
+        { fillOpacity: 1, duration: 1.5, ease: "power2.inOut" }
+      );
+
       initialRotation.current += Math.PI;
     }
     // Animate floor
     if (floorRef.current) {
-      gsap.to(floorRef.current.position, {
-        y: -0.6,
-        duration: 1.5,
-        ease: "power2.inOut",
-      });
+      gsap.to(
+        floorRef.current.position,
+        {
+          y: -0.6,
+          duration: 1.5,
+          ease: "power2.inOut",
+        },
+        "<"
+      );
     }
   };
 
@@ -85,6 +103,11 @@ export default function Scene() {
       gsap.to(cameraRef.current.rotation, {
         y: initialRotation.current - Math.PI,
         duration: 1.5,
+        ease: "power2.inOut",
+      });
+      gsap.to(textRef.current, {
+        fillOpacity: 0,
+        duration: 0.5,
         ease: "power2.inOut",
       });
       initialRotation.current -= Math.PI;
@@ -106,47 +129,28 @@ export default function Scene() {
         <Canvas camera={{ position: [0, 0, 4], fov: 50, far: 100 }}>
           <color attach="background" args={["black"]} />
           <Lights />
-          <Float floatIntensity={0.5} rotationIntensity={0.5}>
-            <group ref={cameraRef}>
+          <Float floatIntensity={0.2} rotationIntensity={0.2}>
+            <group ref={cameraRef} rotation={[0, Math.PI / 2, 0]}>
               <CameraNew />
             </group>
-            {isExploring && (
-              <Text
-                position={[0.4, 0.6, 2]}
-                rotation={[0, 0, 0]}
-                fontSize={0.1}
-                font="fonts/Dirtyline-36daysoftype.otf"
-                color="white"
-                anchorX="center"
-                anchorY="middle"
-                side={THREE.DoubleSide}
-              >
-                portfolio
-              </Text>
-            )}
+            <Text
+              ref={textRef}
+              position={[0.5, 0.65, 2]}
+              rotation={[0, 0, 0]}
+              fontSize={0.1}
+              font="fonts/Dirtyline-36daysoftype.otf"
+              color="white"
+              anchorX="center"
+              anchorY="middle"
+              fillOpacity={0}
+              side={THREE.DoubleSide}
+              pointerEvents="none"
+            >
+              portfolio
+            </Text>
           </Float>
-          <mesh
-            ref={floorRef}
-            receiveShadow
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, -0.2, 0]}
-          >
-            <planeGeometry args={[100, 10]} />
-            <MeshReflectorMaterial
-              blur={[500, 10]}
-              resolution={2048}
-              mixBlur={1}
-              mixStrength={180}
-              roughness={1}
-              depthScale={1.5}
-              minDepthThreshold={0.9}
-              maxDepthThreshold={1.4}
-              color="#202020"
-              metalness={1}
-            />
-          </mesh>
 
-          {/* <BackgroundVideo isExploring={isExploring} /> */}
+          <Floor ref={floorRef} />
 
           <EffectComposer disableNormalPass>
             <Bloom
@@ -174,6 +178,29 @@ export default function Scene() {
         </button>
       </div>
     </>
+  );
+}
+
+function Floor({ ...props }) {
+  // useResponsiveFloor();
+  const { floorY } = useFloorState();
+
+  return (
+    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} {...props}>
+      <planeGeometry args={[100, 10]} />
+      <MeshReflectorMaterial
+        blur={[500, 10]}
+        resolution={2048}
+        mixBlur={1}
+        mixStrength={180}
+        roughness={1}
+        depthScale={1.5}
+        minDepthThreshold={0.9}
+        maxDepthThreshold={1.4}
+        color="#202020"
+        metalness={1}
+      />
+    </mesh>
   );
 }
 
