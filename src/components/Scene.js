@@ -14,6 +14,7 @@ import {
 import { Canvas, useThree, useLoader, useFrame } from "@react-three/fiber";
 import CameraNew from "./Model";
 import * as THREE from "three";
+import { easing } from "maath";
 
 import { TextCarousel } from "./TextCarousel";
 
@@ -38,6 +39,7 @@ export default function Scene() {
   const videoRef = useRef(null);
   const cameraRef = useRef(null);
   const floorRef = useRef(null);
+  const backgroundEffectsRef = useRef(null);
   const [isExploring, setIsExploring] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const initialRotation = useRef(0);
@@ -49,13 +51,12 @@ export default function Scene() {
 
   const handleExplore = () => {
     setIsExploring(true);
-    // Create timeline for animations
 
     // Animate camera
     if (cameraRef.current) {
       gsap.to(cameraRef.current.position, {
         z: 2,
-        y: -0.3,
+        y: -0.2,
         x: 0,
         duration: 1.5,
         ease: "power2.inOut",
@@ -69,26 +70,33 @@ export default function Scene() {
         },
         "<"
       );
-      gsap.fromTo(
-        textRef.current,
-        { fillOpacity: 0 },
-        { fillOpacity: 1, duration: 1.5, ease: "power2.inOut" }
-      );
 
       initialRotation.current += Math.PI;
     }
-    // Animate floor
-    console.log(floorRef.current);
-    if (floorRef.current) {
-      gsap.to(
-        floorRef.current.position,
-        {
-          y: -0.6,
-          duration: 1.5,
+    // Animate distortion
+    const material =
+      backgroundEffectsRef.current.children[0].children[0].material;
+    if (material) {
+      gsap.to(material, {
+        distortion: 5,
+        distortionScale: 0.5,
+        duration: 1.5,
+        ease: "power2.inOut",
+      });
+    }
+
+    // Fade in texts
+    const textGroup = backgroundEffectsRef.current.children[0].children[1];
+
+    if (textGroup) {
+      textGroup.children.forEach((text, index) => {
+        gsap.to(text, {
+          fillOpacity: 1,
+          duration: 1,
+          delay: 0.2 * index,
           ease: "power2.inOut",
-        },
-        "<"
-      );
+        });
+      });
     }
   };
 
@@ -107,19 +115,30 @@ export default function Scene() {
         duration: 1.5,
         ease: "power2.inOut",
       });
-      gsap.to(textRef.current, {
-        fillOpacity: 0,
-        duration: 0.5,
-        ease: "power2.inOut",
-      });
       initialRotation.current -= Math.PI;
     }
-    // Reset floor
-    if (floorRef.current) {
-      gsap.to(floorRef.current.position, {
-        y: -0.2,
+    // Reset distortion
+    const material =
+      backgroundEffectsRef.current.children[0].children[0].material;
+    if (material) {
+      gsap.to(material, {
+        distortion: 0,
+        distortionScale: 0,
         duration: 1.5,
         ease: "power2.inOut",
+      });
+    }
+
+    // Fade out texts
+    const textGroup = backgroundEffectsRef.current.children[0].children[1];
+    if (textGroup) {
+      textGroup.children.forEach((text) => {
+        gsap.to(text, {
+          fillOpacity: 0,
+          duration: 0.5,
+          delay: 0.5,
+          ease: "power2.inOut",
+        });
       });
     }
   };
@@ -135,26 +154,13 @@ export default function Scene() {
             <group ref={cameraRef} rotation={[0, 0, 0]}>
               <CameraNew />
             </group>
-            <Text
-              ref={textRef}
-              position={[0.5, 0.65, 2]}
-              rotation={[0, 0, 0]}
-              fontSize={0.1}
-              font="fonts/Dirtyline-36daysoftype.otf"
-              color="white"
-              anchorX="center"
-              anchorY="middle"
-              fillOpacity={0}
-              side={THREE.DoubleSide}
-              pointerEvents="none"
-            >
-              portfolio
-            </Text>
           </Float>
 
-          <BackgroundEffects />
+          <group ref={backgroundEffectsRef}>
+            <BackgroundEffects />
+          </group>
 
-          {/* <Floor ref={floorRef} position={[0, -0.2, 0]} /> */}
+          <Rig></Rig>
 
           <EffectComposer disableNormalPass>
             <Bloom
@@ -185,44 +191,56 @@ export default function Scene() {
   );
 }
 
-function BackgroundEffects() {
+const BackgroundEffects = forwardRef(function (props, ref) {
+  const materialRef = useRef();
+  const textGroupRef = useRef();
+  const textRefs = useRef([]);
   const textPositions = [
-    [0, 1, -5],
+    [0, 2, -5],
     [0, 0, -5],
-    [0, -1, -5],
+    [0, -2, -5],
   ];
 
+  useFrame((state, delta) => {});
+
   return (
-    <group>
+    <group ref={ref}>
       <mesh>
-        <boxGeometry args={[5, 5, 0.1]} position={[0, 0, -4]} />
+        <boxGeometry args={[10, 10, 0.1]} position={[0, 0, -4]} />
         <MeshTransmissionMaterial
+          ref={materialRef}
           ior={1.2}
           thickness={1.5}
           anisotropy={0.1}
           chromaticAberration={0.04}
-          distortion={5}
-          distortionScale={0.5}
+          distortion={0}
+          distortionScale={0}
+          temporalDistortion={0.01}
         />
       </mesh>
-      {textPositions.map((position, index) => (
-        <Text
-          key={index}
-          position={position}
-          fontSize={2}
-          font="fonts/Dirtyline-36daysoftype.otf"
-          color="white"
-          anchorX="center"
-          anchorY="middle"
-          side={THREE.DoubleSide}
-          pointerEvents="none"
-        >
-          eXpLoRe
-        </Text>
-      ))}
+
+      <group ref={textGroupRef}>
+        {textPositions.map((position, index) => (
+          <Text
+            key={index}
+            ref={(el) => (textRefs.current[index] = el)}
+            position={position}
+            fontSize={2}
+            font="fonts/Dirtyline-36daysoftype.otf"
+            color="white"
+            anchorX="center"
+            anchorY="middle"
+            side={THREE.DoubleSide}
+            pointerEvents="none"
+            fillOpacity={0}
+          >
+            eXpLoRe
+          </Text>
+        ))}
+      </group>
     </group>
   );
-}
+});
 
 const Floor = forwardRef(function (props, ref) {
   return (

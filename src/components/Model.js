@@ -95,7 +95,7 @@ export default function CameraNew(props) {
       rotation={rotation}
     >
       <group name="Scene">
-        <group name="Cam" position={[-0.002, 0.001, 0]}>
+        <group name="Cam" position={[-0.002, 0, 0]}>
           <mesh
             name="Plane001"
             castShadow
