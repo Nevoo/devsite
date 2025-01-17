@@ -5,18 +5,18 @@ import {
   useVideoTexture,
   Text,
 } from "@react-three/drei";
-import { useResponsiveCamera } from "../hooks/useResponsiveCamera";
-import { useCameraState } from "../state/camera";
+import { useResponsiveCamera } from "../../hooks/useResponsiveCamera";
+import { useCameraState } from "../../state/camera";
 import { useShallow } from "zustand/react/shallow";
 import { useFrame } from "@react-three/fiber";
-import "./carousel/bent-plane-geometry";
+import "../carousel/bent-plane-geometry";
 import * as THREE from "three";
 import gsap from "gsap";
 import {
   PortfolioContent,
   GalleryContent,
   AboutContent,
-} from "./PortalContent";
+} from "../PortalContent";
 
 export default function CameraNew(props) {
   const group = useRef();

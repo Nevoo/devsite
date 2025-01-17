@@ -1,13 +1,11 @@
 "use client";
 
 import {
-  ContactShadows,
   Float,
   MeshReflectorMaterial,
   Preload,
   useAspect,
   useVideoTexture,
-  Fade,
   Text,
   MeshTransmissionMaterial,
 } from "@react-three/drei";
@@ -16,23 +14,19 @@ import CameraNew from "./Model";
 import * as THREE from "three";
 import { easing } from "maath";
 
-import { TextCarousel } from "./TextCarousel";
+import { TextCarousel } from "../TextCarousel";
 
-import Rig from "./Rig";
+import Rig from "../Rig";
 import { useRef, useState, useEffect, forwardRef } from "react";
-import { ModelUpdated } from "./ModelUpdated";
-import NavigationMenu from "./NavigationMenu";
-import { Controls, Slider } from "./carousel/carousel";
-import {
-  Bloom,
-  DepthOfField,
-  EffectComposer,
-} from "@react-three/postprocessing";
 import gsap from "gsap";
-import "./carousel/bent-plane-geometry";
-import LoadingScreen from "./LoadingScreen";
-import { useFloorState } from "../state/general";
-import { useResponsiveFloor } from "../hooks/useResponsiveCamera";
+import "../carousel/bent-plane-geometry";
+import LoadingScreen from "../LoadingScreen";
+import { useFloorState } from "../../state/general";
+import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
+
+import BackgroundDistortion from "./BackgroundDistortion";
+import Effects from "./Effects";
+import Lights from "./Lights";
 
 export default function Scene() {
   const textRef = useRef(null);
@@ -55,7 +49,7 @@ export default function Scene() {
     // Animate camera
     if (cameraRef.current) {
       gsap.to(cameraRef.current.position, {
-        z: 2,
+        z: 2.5,
         y: -0.2,
         x: 0,
         duration: 1.5,
@@ -157,25 +151,10 @@ export default function Scene() {
           </Float>
 
           <group ref={backgroundEffectsRef}>
-            <BackgroundEffects />
+            <BackgroundDistortion />
           </group>
 
-          <Rig></Rig>
-
-          <EffectComposer disableNormalPass>
-            <Bloom
-              luminanceThreshold={0}
-              mipmapBlur
-              luminanceSmoothing={0.0}
-              intensity={1}
-            />
-            <DepthOfField
-              target={[0, 0, 0]}
-              focalLength={5}
-              bokehScale={15}
-              height={700}
-            />
-          </EffectComposer>
+          <Effects />
           <Preload all />
         </Canvas>
       </div>
@@ -190,57 +169,6 @@ export default function Scene() {
     </>
   );
 }
-
-const BackgroundEffects = forwardRef(function (props, ref) {
-  const materialRef = useRef();
-  const textGroupRef = useRef();
-  const textRefs = useRef([]);
-  const textPositions = [
-    [0, 2, -5],
-    [0, 0, -5],
-    [0, -2, -5],
-  ];
-
-  useFrame((state, delta) => {});
-
-  return (
-    <group ref={ref}>
-      <mesh>
-        <boxGeometry args={[10, 10, 0.1]} position={[0, 0, -4]} />
-        <MeshTransmissionMaterial
-          ref={materialRef}
-          ior={1.2}
-          thickness={1.5}
-          anisotropy={0.1}
-          chromaticAberration={0.04}
-          distortion={0}
-          distortionScale={0}
-          temporalDistortion={0.01}
-        />
-      </mesh>
-
-      <group ref={textGroupRef}>
-        {textPositions.map((position, index) => (
-          <Text
-            key={index}
-            ref={(el) => (textRefs.current[index] = el)}
-            position={position}
-            fontSize={2}
-            font="fonts/Dirtyline-36daysoftype.otf"
-            color="white"
-            anchorX="center"
-            anchorY="middle"
-            side={THREE.DoubleSide}
-            pointerEvents="none"
-            fillOpacity={0}
-          >
-            eXpLoRe
-          </Text>
-        ))}
-      </group>
-    </group>
-  );
-});
 
 const Floor = forwardRef(function (props, ref) {
   return (
@@ -266,45 +194,3 @@ const Floor = forwardRef(function (props, ref) {
     </mesh>
   );
 });
-
-function Lights() {
-  const directionalLightRef = useRef();
-
-  return (
-    <group>
-      <pointLight
-        distance={2}
-        intensity={2}
-        position={[1, 0.5, 0]}
-        color="orange"
-      />
-      {/* <hemisphereLight intensity={0.15} groundColor="black" /> */}
-      <spotLight
-        decay={0}
-        position={[10, 20, 10]}
-        angle={0.12}
-        penumbra={1}
-        intensity={1}
-        castShadow
-        shadow-mapSize={1024}
-      />
-
-      {/* <ambientLight intensity={Math.PI} /> */}
-      <directionalLight
-        ref={directionalLightRef}
-        position={[-5, 1, 20]}
-        angle={0.1}
-        intensity={Math.PI * 0.05}
-      />
-      {/* <Environment preset="city" blur={1} /> */}
-      {/* <ContactShadows
-                resolution={512}
-                position={[0, -0.8, 0]}
-                opacity={1}
-                scale={10}
-                blur={2}
-                far={0.8}
-            /> */}
-    </group>
-  );
-}

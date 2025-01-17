@@ -17,7 +17,7 @@ const LandingPage = dynamic(
   }
 );
 
-const Scene = dynamic(() => import("../components/Scene"), {
+const Scene = dynamic(() => import("../components/scene/Scene"), {
   ssr: false,
 });
 
@@ -27,7 +27,6 @@ export default function Home() {
       <Suspense fallback={null}>
         <Scene />
       </Suspense>
-      {/* <LoadingScreen /> */}
     </main>
   );
 }
