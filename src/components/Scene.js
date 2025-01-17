@@ -9,6 +9,7 @@ import {
   useVideoTexture,
   Fade,
   Text,
+  MeshTransmissionMaterial,
 } from "@react-three/drei";
 import { Canvas, useThree, useLoader, useFrame } from "@react-three/fiber";
 import CameraNew from "./Model";
@@ -151,7 +152,9 @@ export default function Scene() {
             </Text>
           </Float>
 
-          <Floor ref={floorRef} position={[0, -0.2, 0]} />
+          <BackgroundEffects />
+
+          {/* <Floor ref={floorRef} position={[0, -0.2, 0]} /> */}
 
           <EffectComposer disableNormalPass>
             <Bloom
@@ -170,15 +173,54 @@ export default function Scene() {
           <Preload all />
         </Canvas>
       </div>
-      <div className="fixed inset-0 flex items-center justify-center translate-y-[30vh] z-[100] pointer-events-none">
+      <div className="fixed inset-0 flex items-center justify-center translate-y-[15vh] z-[100] pointer-events-none">
         <button
           onClick={!isExploring ? handleExplore : handleReset}
-          className="bg-[#FFD803] text-black px-4 py-2 rounded-full font-medium hover:bg-[#FFE249] transition-colors pointer-events-auto"
+          className="bg-[#FFD803] text-black px-8 py-4 rounded-full font-semibold hover:bg-[#FFE249] transition-colors pointer-events-auto text-[36px]"
         >
-          {!isExploring ? "Explore my work" : "Back to Home"}
+          {!isExploring ? "Explore My Work" : "Back To Home"}
         </button>
       </div>
     </>
+  );
+}
+
+function BackgroundEffects() {
+  const textPositions = [
+    [0, 1, -5],
+    [0, 0, -5],
+    [0, -1, -5],
+  ];
+
+  return (
+    <group>
+      <mesh>
+        <boxGeometry args={[5, 5, 0.1]} position={[0, 0, -4]} />
+        <MeshTransmissionMaterial
+          ior={1.2}
+          thickness={1.5}
+          anisotropy={0.1}
+          chromaticAberration={0.04}
+          distortion={5}
+          distortionScale={0.5}
+        />
+      </mesh>
+      {textPositions.map((position, index) => (
+        <Text
+          key={index}
+          position={position}
+          fontSize={2}
+          font="fonts/Dirtyline-36daysoftype.otf"
+          color="white"
+          anchorX="center"
+          anchorY="middle"
+          side={THREE.DoubleSide}
+          pointerEvents="none"
+        >
+          eXpLoRe
+        </Text>
+      ))}
+    </group>
   );
 }
 
