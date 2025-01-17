@@ -17,7 +17,7 @@ import * as THREE from "three";
 import { TextCarousel } from "./TextCarousel";
 
 import Rig from "./Rig";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, forwardRef } from "react";
 import { ModelUpdated } from "./ModelUpdated";
 import NavigationMenu from "./NavigationMenu";
 import { Controls, Slider } from "./carousel/carousel";
@@ -77,6 +77,7 @@ export default function Scene() {
       initialRotation.current += Math.PI;
     }
     // Animate floor
+    console.log(floorRef.current);
     if (floorRef.current) {
       gsap.to(
         floorRef.current.position,
@@ -130,7 +131,7 @@ export default function Scene() {
           <color attach="background" args={["black"]} />
           <Lights />
           <Float floatIntensity={0.2} rotationIntensity={0.2}>
-            <group ref={cameraRef} rotation={[0, Math.PI / 2, 0]}>
+            <group ref={cameraRef} rotation={[0, 0, 0]}>
               <CameraNew />
             </group>
             <Text
@@ -150,7 +151,7 @@ export default function Scene() {
             </Text>
           </Float>
 
-          <Floor ref={floorRef} />
+          <Floor ref={floorRef} position={[0, -0.2, 0]} />
 
           <EffectComposer disableNormalPass>
             <Bloom
@@ -181,12 +182,14 @@ export default function Scene() {
   );
 }
 
-function Floor({ ...props }) {
-  // useResponsiveFloor();
-  const { floorY } = useFloorState();
-
+const Floor = forwardRef(function (props, ref) {
   return (
-    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} {...props}>
+    <mesh
+      ref={ref}
+      receiveShadow
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={props.position}
+    >
       <planeGeometry args={[100, 10]} />
       <MeshReflectorMaterial
         blur={[500, 10]}
@@ -202,7 +205,7 @@ function Floor({ ...props }) {
       />
     </mesh>
   );
-}
+});
 
 function Lights() {
   const directionalLightRef = useRef();
