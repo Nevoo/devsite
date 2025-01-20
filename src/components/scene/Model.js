@@ -17,6 +17,7 @@ import {
   GalleryContent,
   AboutContent,
 } from "../PortalContent";
+import { ProjectPortals } from "./ProjectPortals";
 
 export default function CameraNew(props) {
   const group = useRef();
@@ -149,11 +150,7 @@ export default function CameraNew(props) {
             onClick={() => setPortalActive(!portalActive)}
           >
             <MeshPortalMaterial>
-              <group rotation={[0, -rotation[1], 0]}>
-                {mode === "portfolio" && <PortfolioContent />}
-                {mode === "gallery" && <GalleryContent />}
-                {mode === "about" && <AboutContent />}
-              </group>
+              <ProjectPortals />
             </MeshPortalMaterial>
           </mesh>
         </group>

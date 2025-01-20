@@ -17,7 +17,7 @@ import { easing } from "maath";
 import { TextCarousel } from "../TextCarousel";
 
 import Rig from "../Rig";
-import { useRef, useState, useEffect, forwardRef } from "react";
+import { useRef, useState, useEffect, forwardRef, Suspense } from "react";
 import gsap from "gsap";
 import "../carousel/bent-plane-geometry";
 import LoadingScreen from "../LoadingScreen";
@@ -142,20 +142,22 @@ export default function Scene() {
       <LoadingScreen isVisible={isLoading} />
       <div className="container">
         <Canvas camera={{ position: [0, 0, 4], fov: 50, far: 100 }}>
-          <color attach="background" args={["black"]} />
-          <Lights />
-          <Float floatIntensity={0.2} rotationIntensity={0.2}>
-            <group ref={cameraRef} rotation={[0, 0, 0]}>
-              <CameraNew />
+          <Suspense fallback={null}>
+            <color attach="background" args={["black"]} />
+            <Lights />
+            <Float floatIntensity={0.2} rotationIntensity={0.2}>
+              <group ref={cameraRef} rotation={[0, 0, 0]}>
+                <CameraNew />
+              </group>
+            </Float>
+
+            <group ref={backgroundEffectsRef}>
+              <BackgroundDistortion />
             </group>
-          </Float>
 
-          <group ref={backgroundEffectsRef}>
-            <BackgroundDistortion />
-          </group>
-
-          <Effects />
-          <Preload all />
+            <Effects />
+            <Preload all />
+          </Suspense>
         </Canvas>
       </div>
       <div className="fixed inset-0 flex items-center justify-center translate-y-[15vh] z-[100] pointer-events-none">
