@@ -4,6 +4,7 @@ import {
   useGLTF,
   useVideoTexture,
   Text,
+  PerspectiveCamera,
 } from "@react-three/drei";
 import { useResponsiveCamera } from "../../hooks/useResponsiveCamera";
 import { useCameraState } from "../../state/camera";
@@ -146,11 +147,18 @@ export default function CameraNew(props) {
             castShadow
             receiveShadow
             geometry={nodes.Plane004_1.geometry}
-            material={materials["Material.002"]}
-            onClick={() => setPortalActive(!portalActive)}
           >
             <MeshPortalMaterial>
               <ProjectPortals />
+              {/* <PerspectiveCamera makeDefault position={[0, 0, 2]} /> */}
+              {/* <mesh
+                rotation={[0, Math.PI / 2, 0]}
+                position={[0, 0, 0]}
+                onClick={() => console.log("clicked")}
+              >
+                <planeGeometry args={[0.1, 0.1]} side={THREE.DoubleSide} />
+                <meshBasicMaterial color="black" />
+              </mesh> */}
             </MeshPortalMaterial>
           </mesh>
         </group>
