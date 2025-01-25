@@ -59,21 +59,16 @@ export default function ProjectTitle({ projects, currentIndex, isExploring }) {
           >
             <div
               className={`absolute ${
-                index % 2 === 0 ? "left-8" : "right-8"
-              } text-white`}
+                index % 2 === 0 ? "left-64" : "right-64"
+              } text-white max-w-xl`}
+              style={{
+                transform: `translateY(${index % 2 === 0 ? "-25%" : "25%"})`,
+              }}
             >
-              <h2 className="text-6xl font-['Dirtyline']">{project.title}</h2>
+              <h2 className="text-7xl font-['Dirtyline'] leading-tight">
+                {project.title}
+              </h2>
             </div>
-            {/* <Text
-              ref={(el) => (textRefs.current[index] = el)}
-              fontSize={0.5}
-              position={[index % 2 === 0 ? -3 : 3, 0, 0]}
-              rotation={[0, index % 2 === 0 ? -Math.PI / 2 : Math.PI / 2, 0]}
-              anchorX="center"
-              anchorY="middle"
-            >
-              {project.title}
-            </Text> */}
           </section>
         ))}
       </div>
