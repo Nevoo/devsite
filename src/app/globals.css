@@ -53,6 +53,14 @@
   }
 
   @font-face {
+    font-family: 'Dirtyline';
+    src: url('/fonts/Dirtyline-36daysoftype.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  @font-face {
     font-family: 'PottaOne';
     font-style: normal;
     font-weight: 200;

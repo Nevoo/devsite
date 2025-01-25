@@ -19,6 +19,7 @@ import { useProjectState } from "../../state/general";
 import LoadingScreen from "../LoadingScreen";
 import BackgroundDistortion from "./BackgroundDistortion";
 import Effects from "./Effects";
+import ProjectTitle from "./ProjectTitle";
 
 import Rig from "../Rig";
 import "../carousel/bent-plane-geometry";
@@ -176,10 +177,11 @@ export default function Scene() {
     }
   };
 
-  function CameraAnimation({ timeline, enabled }) {
+  function CameraAnimation({ timeline, enabled, projects }) {
     const scroll = useScroll();
     const scrollRef = useRef(scroll);
     const isInitialized = useRef(false);
+    const [currentIndex, setCurrentIndex] = useState(0);
 
     useEffect(() => {
       if (!timeline || !enabled) return;
@@ -195,11 +197,24 @@ export default function Scene() {
       if (!timeline || !enabled || !scrollRef.current) return;
 
       requestAnimationFrame(() => {
-        timeline.progress(scrollRef.current.offset);
+        const progress = scrollRef.current.offset;
+        timeline.progress(progress);
+
+        // Calculate current project index based on scroll progress
+        const projectIndex = Math.floor(progress * projects.length);
+        if (projectIndex < projects.length) {
+          setCurrentIndex(projectIndex);
+        }
       });
     });
 
-    return null;
+    return (
+      <ProjectTitle
+        projects={projects}
+        currentIndex={currentIndex}
+        isExploring={enabled}
+      />
+    );
   }
 
   return (
@@ -207,9 +222,8 @@ export default function Scene() {
       <LoadingScreen isVisible={isLoading} />
       <div className="container">
         <Canvas camera={{ position: [0, 0, 4], fov: 50, far: 100 }}>
+          <color attach="background" args={["black"]} />
           <Suspense fallback={null}>
-            <color attach="background" args={["black"]} />
-            <Lights />
             <ScrollControls
               pages={projects.length}
               damping={0.2}
@@ -218,6 +232,7 @@ export default function Scene() {
               <CameraAnimation
                 timeline={timelineRef.current}
                 enabled={isExploring}
+                projects={projects}
               />
               <group ref={cameraRef} rotation={[0, 0, 0]}>
                 <Float floatIntensity={0.2} rotationIntensity={0.2}>
@@ -225,6 +240,7 @@ export default function Scene() {
                 </Float>
               </group>
             </ScrollControls>
+            <Lights />
             <group ref={backgroundEffectsRef}>
               <BackgroundDistortion />
             </group>
