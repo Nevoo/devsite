@@ -10,19 +10,20 @@ import {
   MeshTransmissionMaterial,
 } from "@react-three/drei";
 import { Canvas, useThree, useLoader, useFrame } from "@react-three/fiber";
+import { Suspense, useState, useEffect, useRef, forwardRef } from "react";
+import { ScrollControls, useScroll } from "@react-three/drei";
 import CameraNew from "./Model";
-
-import Rig from "../Rig";
-import { useRef, useState, useEffect, forwardRef, Suspense } from "react";
+import Lights from "./Lights";
 import gsap from "gsap";
-import "../carousel/bent-plane-geometry";
+import { useProjectState } from "../../state/general";
 import LoadingScreen from "../LoadingScreen";
-import { useFloorState } from "../../state/general";
-import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
-
 import BackgroundDistortion from "./BackgroundDistortion";
 import Effects from "./Effects";
-import Lights from "./Lights";
+
+import Rig from "../Rig";
+import "../carousel/bent-plane-geometry";
+import { useFloorState } from "../../state/general";
+import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
 
 export default function Scene() {
   const textRef = useRef(null);
@@ -33,6 +34,8 @@ export default function Scene() {
   const [isExploring, setIsExploring] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const initialRotation = useRef(0);
+  const { projects } = useProjectState();
+  const timelineRef = useRef();
 
   useEffect(() => {
     // Reset loading state when needed
@@ -40,34 +43,68 @@ export default function Scene() {
   }, []); // Add dependencies if you want to trigger loading in specific scenarios
 
   const handleExplore = () => {
-    // const { viewport, size } = useThree();
+    if (!cameraRef.current) return;
 
+    // Create initial timeline if it doesn't exist
+    if (!timelineRef.current) {
+      const tl = gsap.timeline({ paused: true });
+      timelineRef.current = tl;
+
+      // Add animations for each project transition
+      projects.forEach((_, index) => {
+        const isEven = index % 2 === 0;
+        const targetX = !isEven ? 1.3 : -1.3;
+        const rotation = !isEven ? Math.PI : -Math.PI;
+
+        // Position animation
+        tl.to(
+          cameraRef.current.position,
+          {
+            x: targetX,
+            duration: 1,
+            ease: "power2.inOut",
+          },
+          index
+        );
+
+        // Rotation animation
+        tl.to(
+          cameraRef.current.rotation,
+          {
+            y: rotation,
+            duration: 1,
+            ease: "power2.inOut",
+          },
+          index
+        );
+      });
+    }
+
+    // Enable exploring before animations start
     setIsExploring(true);
 
-    // Animate camera
-    if (cameraRef.current) {
+    // Initial camera movement
+    const ctx = gsap.context(() => {
       gsap.to(cameraRef.current.position, {
-        z: 2,
+        x: 1.3,
+        z: 1,
         y: -0.2,
-        x: -0.8,
         duration: 1.5,
         ease: "power2.inOut",
       });
-      gsap.to(
-        cameraRef.current.rotation,
-        {
-          y: initialRotation.current + Math.PI,
-          duration: 1.5,
-          ease: "power2.inOut",
-        },
-        "<"
-      );
 
-      initialRotation.current += Math.PI;
-    }
+      gsap.to(cameraRef.current.rotation, {
+        y: initialRotation.current + Math.PI,
+        duration: 1.5,
+        ease: "power2.inOut",
+      });
+    });
+
+    initialRotation.current += Math.PI;
+
     // Animate distortion
     const material =
-      backgroundEffectsRef.current.children[0].children[0].material;
+      backgroundEffectsRef.current?.children[0]?.children[0]?.material;
     if (material) {
       gsap.to(material, {
         distortion: 5,
@@ -78,8 +115,7 @@ export default function Scene() {
     }
 
     // Fade in texts
-    const textGroup = backgroundEffectsRef.current.children[0].children[1];
-
+    const textGroup = backgroundEffectsRef.current?.children[0]?.children[1];
     if (textGroup) {
       textGroup.children.forEach((text, index) => {
         gsap.to(text, {
@@ -90,6 +126,9 @@ export default function Scene() {
         });
       });
     }
+
+    // Cleanup function
+    return () => ctx.revert();
   };
 
   const handleReset = () => {
@@ -103,6 +142,7 @@ export default function Scene() {
         duration: 1.5,
         ease: "power2.inOut",
       });
+
       gsap.to(cameraRef.current.rotation, {
         y: initialRotation.current - Math.PI,
         duration: 1.5,
@@ -136,6 +176,32 @@ export default function Scene() {
     }
   };
 
+  function CameraAnimation({ timeline, enabled }) {
+    const scroll = useScroll();
+    const scrollRef = useRef(scroll);
+    const isInitialized = useRef(false);
+
+    useEffect(() => {
+      if (!timeline || !enabled) return;
+
+      scrollRef.current = scroll;
+      if (!isInitialized.current) {
+        timeline.progress(0);
+        isInitialized.current = true;
+      }
+    }, [scroll, enabled, timeline]);
+
+    useFrame(() => {
+      if (!timeline || !enabled || !scrollRef.current) return;
+
+      requestAnimationFrame(() => {
+        timeline.progress(scrollRef.current.offset);
+      });
+    });
+
+    return null;
+  }
+
   return (
     <>
       <LoadingScreen isVisible={isLoading} />
@@ -144,16 +210,24 @@ export default function Scene() {
           <Suspense fallback={null}>
             <color attach="background" args={["black"]} />
             <Lights />
-            <Float floatIntensity={0.2} rotationIntensity={0.2}>
+            <ScrollControls
+              pages={projects.length}
+              damping={0.2}
+              enabled={isExploring}
+            >
+              <CameraAnimation
+                timeline={timelineRef.current}
+                enabled={isExploring}
+              />
               <group ref={cameraRef} rotation={[0, 0, 0]}>
-                <CameraNew />
+                <Float floatIntensity={0.2} rotationIntensity={0.2}>
+                  <CameraNew />
+                </Float>
               </group>
-            </Float>
-
+            </ScrollControls>
             <group ref={backgroundEffectsRef}>
               <BackgroundDistortion />
             </group>
-
             <Effects />
             <Preload all />
           </Suspense>
