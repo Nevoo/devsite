@@ -23,7 +23,7 @@ const Scene = dynamic(() => import("../components/scene/Scene"), {
 
 export default function Home() {
   return (
-    <main className="min-h-screen">
+    <main>
       <Suspense fallback={null}>
         <Scene />
       </Suspense>

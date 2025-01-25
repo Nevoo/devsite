@@ -1,15 +1,17 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   MeshPortalMaterial,
   useGLTF,
   useVideoTexture,
   Text,
   PerspectiveCamera,
+  ScrollControls,
 } from "@react-three/drei";
 import { useResponsiveCamera } from "../../hooks/useResponsiveCamera";
 import { useCameraState } from "../../state/camera";
 import { useShallow } from "zustand/react/shallow";
 import { useFrame } from "@react-three/fiber";
+import { useProjectState } from "../../state/general";
 import "../carousel/bent-plane-geometry";
 import * as THREE from "three";
 import gsap from "gsap";
@@ -19,6 +21,8 @@ import {
   AboutContent,
 } from "../PortalContent";
 import { ProjectPortals } from "./ProjectPortals";
+
+const GRID_SIZE = 2;
 
 export default function CameraNew(props) {
   const group = useRef();
@@ -55,6 +59,8 @@ export default function CameraNew(props) {
       setPortalActive: state.setPortalActive,
     }))
   );
+
+  const { projects } = useProjectState();
 
   // Handle shutter animation
   useEffect(() => {
@@ -150,15 +156,6 @@ export default function CameraNew(props) {
           >
             <MeshPortalMaterial>
               <ProjectPortals />
-              {/* <PerspectiveCamera makeDefault position={[0, 0, 2]} /> */}
-              {/* <mesh
-                rotation={[0, Math.PI / 2, 0]}
-                position={[0, 0, 0]}
-                onClick={() => console.log("clicked")}
-              >
-                <planeGeometry args={[0.1, 0.1]} side={THREE.DoubleSide} />
-                <meshBasicMaterial color="black" />
-              </mesh> */}
             </MeshPortalMaterial>
           </mesh>
         </group>

@@ -11,10 +11,6 @@ import {
 } from "@react-three/drei";
 import { Canvas, useThree, useLoader, useFrame } from "@react-three/fiber";
 import CameraNew from "./Model";
-import * as THREE from "three";
-import { easing } from "maath";
-
-import { TextCarousel } from "../TextCarousel";
 
 import Rig from "../Rig";
 import { useRef, useState, useEffect, forwardRef, Suspense } from "react";
@@ -44,14 +40,16 @@ export default function Scene() {
   }, []); // Add dependencies if you want to trigger loading in specific scenarios
 
   const handleExplore = () => {
+    // const { viewport, size } = useThree();
+
     setIsExploring(true);
 
     // Animate camera
     if (cameraRef.current) {
       gsap.to(cameraRef.current.position, {
-        z: 2.5,
+        z: 2,
         y: -0.2,
-        x: 0,
+        x: -0.8,
         duration: 1.5,
         ease: "power2.inOut",
       });
@@ -99,6 +97,7 @@ export default function Scene() {
     // Reset camera
     if (cameraRef.current) {
       gsap.to(cameraRef.current.position, {
+        x: 0,
         z: 0,
         y: 0,
         duration: 1.5,

@@ -60,11 +60,14 @@
   }
 }
 
-html,
-body {
-  max-width: 100vw;
-  /* height: 400vh; */
-  overflow-x: hidden;
+html, body {
+  margin: 0;
+  overflow: auto;
+}
+
+main {
+  height: 100vh; /* Adjust based on your content */
+  position: relative;
 }
 
 .container {
@@ -74,4 +77,6 @@ body {
   right: 0;
   bottom: 0;
   left: 0;
+  width: 100%;
+  height: 100vh;
 }

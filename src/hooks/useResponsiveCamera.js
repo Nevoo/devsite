@@ -23,7 +23,7 @@ export const useResponsiveCamera = () => {
       // setRotation([Math.PI * 2, Math.PI / 2, -Math.PI / 2]);
       setRotation([0, Math.PI / 2, 0]);
     } else {
-      setPosition([0, -0.5, 0]);
+      // setPosition([0, -0.5, 0]);
       setScale(6);
       setRotation([0, Math.PI / 2, 0]);
     }

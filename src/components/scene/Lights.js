@@ -25,7 +25,7 @@ export default function Lights() {
       {/* <ambientLight intensity={Math.PI} /> */}
       <directionalLight
         ref={directionalLightRef}
-        position={[-5, 1, 20]}
+        position={[-3, 1, 20]}
         angle={0.1}
         intensity={Math.PI * 0.05}
       />
