@@ -50,35 +50,6 @@ export default function Scene() {
     if (!timelineRef.current) {
       const tl = gsap.timeline({ paused: true });
       timelineRef.current = tl;
-
-      // Add animations for each project transition
-      projects.forEach((_, index) => {
-        const isEven = index % 2 === 0;
-        const targetX = !isEven ? 1.3 : -1.3;
-        const rotation = !isEven ? Math.PI : -Math.PI;
-
-        // Position animation
-        tl.to(
-          cameraRef.current.position,
-          {
-            x: targetX,
-            duration: 1,
-            ease: "power2.inOut",
-          },
-          index
-        );
-
-        // Rotation animation
-        tl.to(
-          cameraRef.current.rotation,
-          {
-            y: rotation,
-            duration: 1,
-            ease: "power2.inOut",
-          },
-          index
-        );
-      });
     }
 
     // Enable exploring before animations start

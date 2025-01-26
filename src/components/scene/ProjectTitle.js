@@ -10,37 +10,9 @@ export default function ProjectTitle({ projects, currentIndex, isExploring }) {
     textRefs.current.forEach((ref, index) => {
       if (!ref) return;
 
-      const isEven = index % 2 === 0;
-
-      // Reset position and opacity
-      gsap.set(ref.position, {
-        x: isEven ? -3 : 3,
-        y: 0,
-      });
-
       gsap.set(ref.material, {
         opacity: index === currentIndex && isExploring ? 1 : 0,
       });
-
-      // Animate current title
-      if (index === currentIndex && isExploring) {
-        gsap.fromTo(
-          ref.position,
-          {
-            x: isEven ? -10 : 10,
-          },
-          {
-            x: isEven ? -3 : 3,
-            duration: 1,
-            ease: "power2.out",
-          }
-        );
-
-        gsap.to(ref.material, {
-          duration: 1,
-          ease: "power2.out",
-        });
-      }
     });
   }, [currentIndex, isExploring]);
 
@@ -58,9 +30,7 @@ export default function ProjectTitle({ projects, currentIndex, isExploring }) {
             }}
           >
             <div
-              className={`absolute ${
-                index % 2 === 0 ? "left-64" : "right-64"
-              } text-white max-w-xl`}
+              className={`absolute left-64 text-white max-w-xl`}
               style={{
                 transform: `translateY(${index % 2 === 0 ? "-25%" : "25%"})`,
               }}
