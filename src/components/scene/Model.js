@@ -296,9 +296,7 @@ export default function CameraNew(props) {
   );
 }
 
-useGLTF.preload("/remodel-knobs.glb");
-
-useGLTF.preload("/model/Remodel.glb");
+useGLTF.preload("/model/remodel-knobs.glb");
 
 function VideoMaterial({ url }) {
   const texture = useVideoTexture(url);
