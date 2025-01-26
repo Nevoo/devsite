@@ -30,12 +30,6 @@ export default function CameraNew(props) {
 
   const { nodes, materials } = useGLTF("/model/remodel-knobs.glb");
 
-  // Debug log to inspect model structure
-  useEffect(() => {
-    console.log("GLTF Nodes:", nodes);
-    console.log("GLTF Materials:", materials);
-  }, [nodes, materials]);
-
   useResponsiveCamera();
 
   const {
@@ -55,26 +49,10 @@ export default function CameraNew(props) {
       mode: state.mode,
       isShutterActive: state.isShutterActive,
       portalActive: state.portalActive,
-      setMode: state.setMode,
+      setMode: state.setMode, // can be deleted
       setPortalActive: state.setPortalActive,
     }))
   );
-
-  const { projects } = useProjectState();
-
-  // Handle shutter animation
-  useEffect(() => {
-    if (isShutterActive && displayRef.current) {
-      const material = displayRef.current.material;
-      gsap.to(material, {
-        opacity: 0,
-        duration: 0.15,
-        yoyo: true,
-        repeat: 1,
-        ease: "power2.inOut",
-      });
-    }
-  }, [isShutterActive]);
 
   // Handle portal zoom
   useEffect(() => {
