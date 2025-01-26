@@ -8,9 +8,17 @@ import {
   useVideoTexture,
   Text,
   MeshTransmissionMaterial,
+  Scroll,
 } from "@react-three/drei";
 import { Canvas, useThree, useLoader, useFrame } from "@react-three/fiber";
-import { Suspense, useState, useEffect, useRef, forwardRef } from "react";
+import {
+  Suspense,
+  useState,
+  useEffect,
+  useRef,
+  forwardRef,
+  useLayoutEffect,
+} from "react";
 import { ScrollControls, useScroll } from "@react-three/drei";
 import CameraNew from "./Model";
 import Lights from "./Lights";
@@ -27,8 +35,6 @@ import { useFloorState } from "../../state/general";
 import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
 
 export default function Scene() {
-  const textRef = useRef(null);
-  const videoRef = useRef(null);
   const cameraRef = useRef(null);
   const floorRef = useRef(null);
   const backgroundEffectsRef = useRef(null);
@@ -79,7 +85,7 @@ export default function Scene() {
       backgroundEffectsRef.current?.children[0]?.children[0]?.material;
     if (material) {
       gsap.to(material, {
-        distortion: 5,
+        distortion: 10,
         distortionScale: 0.5,
         duration: 1.5,
         ease: "power2.inOut",
@@ -148,46 +154,6 @@ export default function Scene() {
     }
   };
 
-  function CameraAnimation({ timeline, enabled, projects }) {
-    const scroll = useScroll();
-    const scrollRef = useRef(scroll);
-    const isInitialized = useRef(false);
-    const [currentIndex, setCurrentIndex] = useState(0);
-
-    useEffect(() => {
-      if (!timeline || !enabled) return;
-
-      scrollRef.current = scroll;
-      if (!isInitialized.current) {
-        timeline.progress(0);
-        isInitialized.current = true;
-      }
-    }, [scroll, enabled, timeline]);
-
-    useFrame(() => {
-      if (!timeline || !enabled || !scrollRef.current) return;
-
-      requestAnimationFrame(() => {
-        const progress = scrollRef.current.offset;
-        timeline.progress(progress);
-
-        // Calculate current project index based on scroll progress
-        const projectIndex = Math.floor(progress * projects.length);
-        if (projectIndex < projects.length) {
-          setCurrentIndex(projectIndex);
-        }
-      });
-    });
-
-    return (
-      <ProjectTitle
-        projects={projects}
-        currentIndex={currentIndex}
-        isExploring={enabled}
-      />
-    );
-  }
-
   return (
     <>
       <LoadingScreen isVisible={isLoading} />
@@ -200,23 +166,19 @@ export default function Scene() {
               damping={0.2}
               enabled={isExploring}
             >
-              <CameraAnimation
-                timeline={timelineRef.current}
-                enabled={isExploring}
-                projects={projects}
-              />
+              <ProjectTitle projects={projects} />
               <group ref={cameraRef} rotation={[0, 0, 0]}>
                 <Float floatIntensity={0.2} rotationIntensity={0.2}>
                   <CameraNew />
                 </Float>
               </group>
+              <group ref={backgroundEffectsRef}>
+                <BackgroundDistortion />
+              </group>
             </ScrollControls>
-            <Lights />
-            <group ref={backgroundEffectsRef}>
-              <BackgroundDistortion />
-            </group>
             <Effects />
-            <Preload all />
+            <Lights />
+            <Floor ref={floorRef} />
           </Suspense>
         </Canvas>
       </div>

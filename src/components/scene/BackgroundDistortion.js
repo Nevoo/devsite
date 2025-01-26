@@ -1,4 +1,5 @@
-import { MeshTransmissionMaterial, Text } from "@react-three/drei";
+import { MeshTransmissionMaterial, Text, useScroll } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import { forwardRef, useRef } from "react";
 import * as THREE from "three";
 
@@ -6,6 +7,7 @@ const BackgroundDistortion = forwardRef(function (props, ref) {
   const materialRef = useRef();
   const textGroupRef = useRef();
   const textRefs = useRef([]);
+
   const textPositions = [
     [0, 2, -5],
     [0, 0, -5],
@@ -21,7 +23,7 @@ const BackgroundDistortion = forwardRef(function (props, ref) {
           ior={1.2}
           thickness={1.5}
           anisotropy={0.1}
-          chromaticAberration={0.04}
+          chromaticAberration={0.5}
           distortion={0}
           distortionScale={0}
           temporalDistortion={0.01}

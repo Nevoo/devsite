@@ -3,21 +3,7 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { Scroll } from "@react-three/drei";
 
-export default function ProjectTitle({ projects, currentIndex, isExploring }) {
-  const textRefs = useRef([]);
-
-  useEffect(() => {
-    textRefs.current.forEach((ref, index) => {
-      if (!ref) return;
-
-      gsap.set(ref.material, {
-        opacity: index === currentIndex && isExploring ? 1 : 0,
-      });
-    });
-  }, [currentIndex, isExploring]);
-
-  if (!isExploring) return null;
-
+export default function ProjectTitle({ projects }) {
   return (
     <Scroll html style={{ width: "100vw" }}>
       <div className="absolute top-0 left-0 w-full">
