@@ -32,17 +32,25 @@ export default function CameraNew(props) {
 
   useResponsiveCamera();
 
+  const { scale, position, rotation } = useCameraState(
+    useShallow((state) => ({
+      scale: state.scale,
+      position: state.position,
+      rotation: state.rotation,
+    }))
+  );
+
   useExplore(group, {
     target: "position",
     exploringProps: {
       x: 0.4,
       z: 2.2,
-      y: -0.4,
+      y: -0.6,
     },
     notExploringProps: {
       x: 0,
+      y: -0.5,
       z: 0,
-      y: 0,
     },
   });
 
@@ -55,14 +63,6 @@ export default function CameraNew(props) {
       y: Math.PI / 2,
     },
   });
-
-  const { scale, position, rotation } = useCameraState(
-    useShallow((state) => ({
-      scale: state.scale,
-      position: state.position,
-      rotation: state.rotation,
-    }))
-  );
 
   return (
     <group

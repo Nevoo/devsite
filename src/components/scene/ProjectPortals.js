@@ -37,7 +37,7 @@ export function ProjectPortals() {
           transparent
           url={currentProject.images[0].url}
           side={THREE.DoubleSide}
-          scale={0.12}
+          scale={0.13}
           position={[-0.025, 0.045, 0]}
           renderOrder={1000}
           depthTest={false}
