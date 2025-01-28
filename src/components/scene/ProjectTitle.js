@@ -1,12 +1,27 @@
 import { Text } from "@react-three/drei";
-import { useEffect, useRef } from "react";
-import gsap from "gsap";
+import { useRef } from "react";
 import { Scroll } from "@react-three/drei";
+import useExplore from "@/src/hooks/useExplore";
 
 export default function ProjectTitle({ projects }) {
+  const titleRef = useRef();
+
+  useExplore(titleRef, {
+    exploringProps: {
+      opacity: 1,
+      scale: 1,
+      transformOrigin: "center top",
+    },
+    notExploringProps: {
+      opacity: 0,
+      scale: 0.8,
+      transformOrigin: "center top",
+    },
+  });
+
   return (
     <Scroll html style={{ width: "100vw" }}>
-      <div className="absolute top-0 left-0 w-full">
+      <div className="absolute top-0 left-0 w-full opacity-0" ref={titleRef}>
         {projects.map((project, index) => (
           <section
             key={project.title}

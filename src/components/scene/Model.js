@@ -21,55 +21,49 @@ import {
   AboutContent,
 } from "../PortalContent";
 import { ProjectPortals } from "./ProjectPortals";
+import useExplore from "@/src/hooks/useExplore";
 
 const GRID_SIZE = 2;
 
 export default function CameraNew(props) {
-  const group = useRef();
+  const group = useRef(null);
   const displayRef = useRef();
 
   const { nodes, materials } = useGLTF("/model/remodel-knobs.glb");
 
   useResponsiveCamera();
 
-  const {
-    scale,
-    position,
-    rotation,
-    mode,
-    isShutterActive,
-    portalActive,
-    setMode,
-    setPortalActive,
-  } = useCameraState(
+  useExplore(group, {
+    target: "position",
+    exploringProps: {
+      x: 1.3,
+      z: 1,
+      y: -0.2,
+    },
+    notExploringProps: {
+      x: 0,
+      z: 0,
+      y: 0,
+    },
+  });
+
+  useExplore(group, {
+    target: "rotation",
+    exploringProps: {
+      y: -Math.PI / 2,
+    },
+    notExploringProps: {
+      y: Math.PI / 2,
+    },
+  });
+
+  const { scale, position, rotation } = useCameraState(
     useShallow((state) => ({
       scale: state.scale,
       position: state.position,
       rotation: state.rotation,
-      mode: state.mode,
-      isShutterActive: state.isShutterActive,
-      portalActive: state.portalActive,
-      setMode: state.setMode, // can be deleted
-      setPortalActive: state.setPortalActive,
     }))
   );
-
-  // Handle portal zoom
-  useEffect(() => {
-    if (portalActive) {
-      gsap.to(group.current.position, {
-        z: 2,
-        duration: 1,
-        ease: "power2.inOut",
-      });
-    } else {
-      gsap.to(group.current.position, {
-        z: 0,
-        duration: 1,
-        ease: "power2.inOut",
-      });
-    }
-  }, [portalActive, rotation]);
 
   return (
     <group
