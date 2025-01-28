@@ -27,7 +27,6 @@ const GRID_SIZE = 2;
 
 export default function CameraNew(props) {
   const group = useRef(null);
-  const displayRef = useRef();
 
   const { nodes, materials } = useGLTF("/model/remodel-knobs.glb");
 
@@ -36,9 +35,9 @@ export default function CameraNew(props) {
   useExplore(group, {
     target: "position",
     exploringProps: {
-      x: 1.3,
-      z: 1,
-      y: -0.2,
+      x: 0.4,
+      z: 2.2,
+      y: -0.4,
     },
     notExploringProps: {
       x: 0,

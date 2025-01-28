@@ -32,7 +32,7 @@ export default function BackgroundDistortion() {
       gsap.to(text, {
         fillOpacity: isExploring ? 1 : 0,
         duration: isExploring ? 1 : 0.5,
-        delay: isExploring ? 0.2 * index : 0.3,
+        delay: isExploring ? 0.2 * index : 0.4,
         ease: "power2.inOut",
       });
     });
