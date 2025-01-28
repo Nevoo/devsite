@@ -34,6 +34,7 @@ import "../carousel/bent-plane-geometry";
 import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
 import { useExploreState } from "@/src/state/explore";
 import { useShallow } from "zustand/react/shallow";
+import * as THREE from "three";
 
 export default function Scene() {
   const { isExploring, setIsExploring } = useExploreState(
@@ -48,7 +49,13 @@ export default function Scene() {
     <>
       <LoadingScreen />
       <div className="container">
-        <Canvas camera={{ position: [0, 0, 4], fov: 50, far: 100 }}>
+        <Canvas
+          camera={{ position: [0, 0, 4], fov: 50, far: 100 }}
+          onCreated={({ gl }) => {
+            gl.gammaFactor = 2.2;
+            gl.outputEncoding = THREE.sRGBEncoding;
+          }}
+        >
           <color attach="background" args={["black"]} />
           <Suspense fallback={null}>
             <ScrollControls

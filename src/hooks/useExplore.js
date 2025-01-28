@@ -27,8 +27,6 @@ const useExplore = (ref, props = {}) => {
   useEffect(() => {
     if (!ref.current) return;
 
-    console.log("useExplore", isExploring);
-
     const exploringProps = {
       ...defaultExploringProps,
       ...props.exploringProps,
