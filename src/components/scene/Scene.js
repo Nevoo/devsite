@@ -37,7 +37,7 @@ import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
 import ExploreButton from "../cta/ExploreButton";
 
-export default function Scene() {
+export default function Scene({ onLoadingComplete }) {
   const { isExploring, setIsExploring } = useExploreState(
     useShallow((state) => ({
       isExploring: state.isExploring,
@@ -45,6 +45,15 @@ export default function Scene() {
     }))
   );
   const { projects } = useProjectState();
+
+  useEffect(() => {
+    // Call onLoadingComplete after a short delay to ensure smooth transition
+    const timer = setTimeout(() => {
+      onLoadingComplete?.();
+    }, 4000); // Adjust this timing to match your loading screen animation duration
+
+    return () => clearTimeout(timer);
+  }, [onLoadingComplete]);
 
   return (
     <>
@@ -65,7 +74,9 @@ export default function Scene() {
               enabled={isExploring}
             >
               <ProjectTitle projects={projects} />
-              <CameraNew />
+              <Float floatIntensity={0.2} speed={2} rotationIntensity={0.2}>
+                <CameraNew />
+              </Float>
               <Lights />
               <BackgroundDistortion />
               <Effects />
@@ -73,18 +84,6 @@ export default function Scene() {
             </ScrollControls>
           </Suspense>
         </Canvas>
-        <div
-          className="absolute inset-0 flex flex-col items-center justify-center"
-          style={{ paddingBottom: "10rem" }}
-        >
-          <div className="mt-auto">
-            <ExploreButton
-              handleExplore={() => setIsExploring(true)}
-              handleReset={() => setIsExploring(false)}
-              isExploring={isExploring}
-            />
-          </div>
-        </div>
       </div>
     </>
   );

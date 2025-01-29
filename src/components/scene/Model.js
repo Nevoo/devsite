@@ -1,29 +1,17 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef } from "react";
 import {
   MeshPortalMaterial,
   useGLTF,
   useVideoTexture,
-  Text,
-  PerspectiveCamera,
-  ScrollControls,
 } from "@react-three/drei";
 import { useResponsiveCamera } from "../../hooks/useResponsiveCamera";
 import { useCameraState } from "../../state/camera";
 import { useShallow } from "zustand/react/shallow";
 import { useFrame } from "@react-three/fiber";
-import { useProjectState } from "../../state/general";
 import "../carousel/bent-plane-geometry";
 import * as THREE from "three";
-import gsap from "gsap";
-import {
-  PortfolioContent,
-  GalleryContent,
-  AboutContent,
-} from "../PortalContent";
 import { ProjectPortals } from "./ProjectPortals";
 import useExplore from "@/src/hooks/useExplore";
-
-const GRID_SIZE = 2;
 
 export default function CameraNew(props) {
   const group = useRef(null);
@@ -48,8 +36,8 @@ export default function CameraNew(props) {
       y: -0.6,
     },
     notExploringProps: {
-      x: 0,
-      y: -0.5,
+      x: 1,
+      y: -0.4,
       z: 0,
     },
   });
