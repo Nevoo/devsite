@@ -35,6 +35,7 @@ import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
 import { useExploreState } from "@/src/state/explore";
 import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
+import GlowingOutlineButton from "../cta/ExploreButton";
 
 export default function Scene() {
   const { isExploring, setIsExploring } = useExploreState(
@@ -73,24 +74,11 @@ export default function Scene() {
           </Suspense>
         </Canvas>
       </div>
-      <ExploreButton
+      <GlowingOutlineButton
         handleExplore={() => setIsExploring(true)}
         handleReset={() => setIsExploring(false)}
         isExploring={isExploring}
       />
     </>
-  );
-}
-
-function ExploreButton({ handleExplore, handleReset, isExploring }) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center translate-y-[15vh] z-[100] pointer-events-none">
-      <button
-        onClick={!isExploring ? handleExplore : handleReset}
-        className="bg-[#FFD803] text-black px-8 py-4 rounded-full font-semibold hover:bg-[#FFE249] transition-colors pointer-events-auto text-[36px]"
-      >
-        {!isExploring ? "Explore My Work" : "Back To Home"}
-      </button>
-    </div>
   );
 }
