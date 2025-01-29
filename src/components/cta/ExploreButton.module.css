@@ -1,5 +1,17 @@
 .glow {
     background: radial-gradient(circle at center, rgba(255, 0, 255, 0.35) 0%, transparent 70%);
     filter: blur(20px);
-  }
-  
+}
+
+.gradientBg {
+  background: linear-gradient(45deg, #ff00ff, #00ffff);
+  filter: blur(20px);
+  transform: translateZ(0);
+  will-change: filter, transform, opacity;
+  pointer-events: none;
+}
+
+.outline {
+  mix-blend-mode: screen;
+  stroke-linecap: round;
+}
