@@ -45,7 +45,7 @@ export default function ExploreButton({
           }}
           transition={{ duration: 0.3 }}
         >
-          {!isExploring ? "Explore My Work" : "Back To Home"}
+          Explore My Work
         </motion.span>
       </motion.button>
     </div>
