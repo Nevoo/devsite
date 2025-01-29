@@ -3,10 +3,24 @@
 import { motion } from "framer-motion";
 import ExploreButton from "./cta/ExploreButton";
 import { useExploreState } from "../state/explore";
+import useExplore from "@/src/hooks/useExplore";
+import { useRef } from "react";
 
 export default function HeroSection() {
+  const containerRef = useRef();
   const isExploring = useExploreState((state) => state.isExploring);
   const setIsExploring = useExploreState((state) => state.setIsExploring);
+
+  useExplore(containerRef, {
+    exploringProps: {
+      x: "-100%",
+      opacity: 0,
+    },
+    notExploringProps: {
+      x: "0%",
+      opacity: 1,
+    },
+  });
 
   const handleExplore = () => {
     setIsExploring(true);
@@ -18,6 +32,7 @@ export default function HeroSection() {
 
   return (
     <motion.div
+      ref={containerRef}
       className="absolute left-0 top-0 z-10 flex h-screen w-3/5 flex-col justify-center px-64"
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
