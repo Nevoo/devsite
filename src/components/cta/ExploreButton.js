@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import styles from "./ExploreButton.module.css";
 
-export default function GlowingOutlineButton({
+export default function ExploreButton({
   handleExplore,
   handleReset,
   isExploring,
@@ -12,11 +12,15 @@ export default function GlowingOutlineButton({
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div className="flex items-center justify-center min-h-screen translate-y-[30vh]">
+    <div className="inline-block relative">
       <motion.button
-        className="relative px-6 py-3 text-lg font-medium text-white bg-purple-600 rounded-full overflow-hidden"
-        onHoverStart={() => setIsHovered(true)}
-        onHoverEnd={() => setIsHovered(false)}
+        className="px-6 py-3 text-lg font-bold text-white bg-purple-600 rounded-full overflow-hidden z-10"
+        onMouseEnter={(e) => {
+          e.preventDefault();
+          setIsHovered(true);
+          console.log("hover start");
+        }}
+        onMouseLeave={() => setIsHovered(false)}
         onClick={!isExploring ? handleExplore : handleReset}
         animate={{ scale: isHovered ? 1.05 : 1 }}
         transition={{ duration: 0.3 }}

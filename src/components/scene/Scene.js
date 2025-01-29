@@ -35,7 +35,7 @@ import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
 import { useExploreState } from "@/src/state/explore";
 import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
-import GlowingOutlineButton from "../cta/ExploreButton";
+import ExploreButton from "../cta/ExploreButton";
 
 export default function Scene() {
   const { isExploring, setIsExploring } = useExploreState(
@@ -73,12 +73,19 @@ export default function Scene() {
             </ScrollControls>
           </Suspense>
         </Canvas>
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center"
+          style={{ paddingBottom: "10rem" }}
+        >
+          <div className="mt-auto">
+            <ExploreButton
+              handleExplore={() => setIsExploring(true)}
+              handleReset={() => setIsExploring(false)}
+              isExploring={isExploring}
+            />
+          </div>
+        </div>
       </div>
-      <GlowingOutlineButton
-        handleExplore={() => setIsExploring(true)}
-        handleReset={() => setIsExploring(false)}
-        isExploring={isExploring}
-      />
     </>
   );
 }
