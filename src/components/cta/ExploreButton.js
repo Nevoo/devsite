@@ -39,7 +39,7 @@ export default function ExploreButton({
         <span className={styles.spark}></span>
         <span className={styles.backdrop}></span>
         <motion.span
-          className={styles.text}
+          className={`${styles.text} font-['PPMori'] font-bold`}
           animate={{
             scale: isHovered ? 1.05 : 1,
           }}
