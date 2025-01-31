@@ -5,14 +5,19 @@ import useExplore from "@/src/hooks/useExplore";
 import gsap from "gsap";
 import { Observer } from "gsap/Observer";
 import { useGSAP } from "@gsap/react";
+import { useProjectState } from "@/src/state/general";
+import { useExploreState } from "@/src/state/explore";
 
-export default function ProjectTitle({ projects }) {
+export default function ProjectTitle() {
   const titleRef = useRef();
   const containerRef = useRef();
   const scroll = useScroll();
   const [currentIndex, setCurrentIndex] = useState(-1);
   const isAnimating = useRef(false);
   const sectionsRef = useRef([]);
+  const isExploring = useExploreState((state) => state.isExploring);
+
+  const projects = useProjectState((state) => state.projects);
 
   useExplore(containerRef, {
     exploringProps: {
@@ -21,7 +26,7 @@ export default function ProjectTitle({ projects }) {
     },
     notExploringProps: {
       opacity: 0,
-      scale: 0.95,
+      scale: 0,
     },
   });
 
@@ -36,22 +41,14 @@ export default function ProjectTitle({ projects }) {
           {projects.map((project, index) => (
             <section
               key={project.title}
-              className="relative w-full flex items-center justify-center project-title"
+              className="relative flex items-center justify-center project-title"
               style={{
                 top: `${index * 100}vh`,
               }}
             >
-              <div className={`absolute left-64 text-white max-w-xl`}>
-                <div className="relative overflow-hidden rounded-3xl bg-white/5">
-                  <div
-                    className="absolute inset-0 blur-3xl"
-                    style={{
-                      background:
-                        "radial-gradient(circle at center, rgba(255,255,255,0.15), transparent)",
-                      transform: "scale(1.5)",
-                    }}
-                  />
-                  <div className="relative p-12 backdrop-blur-md">
+              <div className={`absolute left-32 text-white max-w-xl`}>
+                <div className="relative overflow-hidden rounded-3xl">
+                  <div className="relative p-12 w-full">
                     <h2 className="text-7xl font-['Dirtyline'] leading-tight title mb-6">
                       {project.title}
                     </h2>

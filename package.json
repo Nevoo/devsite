@@ -15,7 +15,7 @@
     "@react-three/postprocessing": "2.7.1",
     "framer-motion": "^11.15.0",
     "framer-motion-3d": "^11.15.0",
-    "gsap": "^3.12.5",
+    "gsap": "^3.12.7",
     "leva": "^0.9.35",
     "next": "14.2.20",
     "postprocessing": "6.31.0",

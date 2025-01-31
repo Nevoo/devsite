@@ -36,6 +36,7 @@ import { useExploreState } from "@/src/state/explore";
 import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
 import ExploreButton from "../cta/ExploreButton";
+import useExplore from "@/src/hooks/useExplore";
 
 export default function Scene({ onLoadingComplete }) {
   const { isExploring, setIsExploring } = useExploreState(
@@ -74,7 +75,12 @@ export default function Scene({ onLoadingComplete }) {
               enabled={isExploring}
             >
               <ProjectTitle projects={projects} />
-              <Float floatIntensity={0.2} speed={2} rotationIntensity={0.2}>
+              {/* <GaussianBlur3D /> */}
+              <Float
+                floatIntensity={isExploring ? 0.1 : 0.2}
+                speed={isExploring ? 0.5 : 2}
+                rotationIntensity={isExploring ? 0.1 : 0.2}
+              >
                 <CameraNew />
               </Float>
               <Lights />
