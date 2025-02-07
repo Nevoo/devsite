@@ -36,7 +36,6 @@ import { useExploreState } from "@/src/state/explore";
 import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
 import ExploreButton from "../cta/ExploreButton";
-import useExplore from "@/src/hooks/useExplore";
 
 export default function Scene({ onLoadingComplete }) {
   const { isExploring, setIsExploring } = useExploreState(
@@ -46,6 +45,19 @@ export default function Scene({ onLoadingComplete }) {
     }))
   );
   const { projects } = useProjectState();
+  const floatRef = useRef();
+
+  useEffect(() => {
+    if (floatRef.current) {
+      gsap.to(floatRef.current, {
+        duration: 0.8,
+        ease: "power2.inOut",
+        floatIntensity: isExploring ? 0.1 : 0.2,
+        speed: isExploring ? 0.5 : 2,
+        rotationIntensity: isExploring ? 0.1 : 0.2,
+      });
+    }
+  }, [isExploring]);
 
   useEffect(() => {
     // Call onLoadingComplete after a short delay to ensure smooth transition
@@ -77,9 +89,10 @@ export default function Scene({ onLoadingComplete }) {
               <ProjectTitle projects={projects} />
               {/* <GaussianBlur3D /> */}
               <Float
-                floatIntensity={isExploring ? 0.1 : 0.2}
-                speed={isExploring ? 0.5 : 2}
-                rotationIntensity={isExploring ? 0.1 : 0.2}
+                ref={floatRef}
+                floatIntensity={0.2}
+                speed={2}
+                rotationIntensity={0.2}
               >
                 <CameraNew />
               </Float>

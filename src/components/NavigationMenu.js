@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const menuItems = [
   { id: "01", label: "Home", href: "/" },
@@ -51,9 +53,7 @@ const MenuIcon = ({ isOpen }) => {
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
-        animate={{
-          opacity: isOpen ? 0 : 1,
-        }}
+        animate={{ opacity: isOpen ? 0 : 1 }}
         transition={{ duration: 0.3 }}
       />
       <motion.line
@@ -74,8 +74,9 @@ const MenuIcon = ({ isOpen }) => {
   );
 };
 
-const NavigationMenu = () => {
+function NavigationMenu() {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <div className="overflow-hidden">
@@ -136,11 +137,13 @@ const NavigationMenu = () => {
                     variants={item}
                     className="border-b border-[#FFD803]/20"
                   >
-                    <motion.a
+                    <Link
                       href={href}
-                      className="group flex items-center justify-end space-x-4 pb-4"
-                      whileHover={{ x: -10 }}
-                      transition={{ duration: 0.2 }}
+                      className={`group flex items-center justify-end space-x-4 pb-4 ${
+                        pathname === href
+                          ? "text-[#FFD803]"
+                          : "text-[#FFD803]/60 hover:text-[#FFD803]"
+                      } transition-colors`}
                       onClick={() => setIsOpen(false)}
                     >
                       <span className="text-[#FFD803] opacity-60 text-sm">
@@ -149,7 +152,7 @@ const NavigationMenu = () => {
                       <span className="text-[#FFD803] text-4xl font-light tracking-wide group-hover:tracking-wider transition-all duration-300">
                         {label}
                       </span>
-                    </motion.a>
+                    </Link>
                   </motion.div>
                 ))}
               </motion.nav>
@@ -162,7 +165,7 @@ const NavigationMenu = () => {
                 transition={{ delay: 0.3, duration: 0.2 }}
               >
                 <span className="text-[#FFD803] text-sm">
-                  rouvens.work © 2024
+                  rouvens.work &copy; 2024
                 </span>
               </motion.div>
             </motion.div>
@@ -171,6 +174,6 @@ const NavigationMenu = () => {
       </AnimatePresence>
     </div>
   );
-};
+}
 
 export default NavigationMenu;
