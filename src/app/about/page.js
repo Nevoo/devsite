@@ -45,7 +45,7 @@ export default function About() {
       </motion.div>
 
       {/* Scroll Content */}
-      <div className="min-h-[200vh] bg-black text-white p-8">
+      <div className="min-h-[200vh] bg-black text-white p-8 overflow-x-hidden overscroll-none">
         <div className="max-w-7xl mx-auto">
           <div className="relative h-screen flex items-center justify-center">
             {/* Background Text */}
@@ -65,9 +65,9 @@ export default function About() {
               transition={{ duration: 0.8 }}
               className="absolute top-32"
             >
-              <h1 className="text-[16rem] font-[PPMori] font-bold text-center flex flex-col leading-none">
-                <span>About</span>
-                <span className="mt-[200px]">Myself</span>
+              <h1 className="text-[16rem] font-[Dirtyline] text-center flex flex-col leading-none">
+                <span>AbOUt</span>
+                <span className="mt-[200px]">mYSeLf</span>
               </h1>
             </motion.div>
           </div>
