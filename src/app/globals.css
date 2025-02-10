@@ -68,6 +68,21 @@
   }
 }
 
+:root {
+  --navbar-height: 88px;
+}
+
+.header-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--navbar-height);
+  z-index: 10;
+  mix-blend-mode: difference;
+  color: white;
+}
+
 html, body {
   margin: 0;
   overflow: auto;
