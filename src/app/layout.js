@@ -17,8 +17,8 @@ export default function RootLayout({ children }) {
           <Link href="/" onClick={() => setIsExploring(false)}>
             <motion.h1 className="text-2xl font-bold">rouven</motion.h1>
           </Link>
-          <NavigationMenu />
         </header>
+        <NavigationMenu />
         {children}
       </body>
     </html>
