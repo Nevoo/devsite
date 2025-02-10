@@ -5,9 +5,18 @@ import "./globals.css";
 import NavigationMenu from "../components/NavigationMenu";
 import { useExploreState } from "../state/explore";
 import Link from "next/link";
+import { motion, useScroll, useTransform } from "framer-motion";
 
 export default function RootLayout({ children }) {
   const setIsExploring = useExploreState((state) => state.setIsExploring);
+  const { scrollYProgress } = useScroll();
+
+  // Create a color transform based on scroll position
+  const textColor = useTransform(
+    scrollYProgress,
+    [0.4, 0.5], // adjust these values to match when the white section appears
+    ["#FFFFFF", "#000000"]
+  );
 
   return (
     <html lang="en">
@@ -15,7 +24,12 @@ export default function RootLayout({ children }) {
         <div className="absolute z-10">
           <header className="fixed top-0 left-0 right-0 p-6">
             <Link href="/" onClick={() => setIsExploring(false)}>
-              <h1 className="text-2xl font-bold text-white">rouven</h1>
+              <motion.h1 
+                className="text-2xl font-bold"
+                style={{ color: textColor }}
+              >
+                rouven
+              </motion.h1>
             </Link>
             <NavigationMenu />
           </header>

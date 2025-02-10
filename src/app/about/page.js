@@ -18,6 +18,9 @@ export default function About() {
   const imageScale = useTransform(smoothProgress, [0, 0.5], [1, 1.5]);
   const imageX = useTransform(smoothProgress, [0, 0.5], [0, 300]);
 
+  // Scale transform for the white section
+  const whiteScale = useTransform(smoothProgress, [0.3, 0.8], [0.8, 1]);
+
   return (
     <>
       {/* Fixed Image Container that's independent of scroll container */}
@@ -46,18 +49,9 @@ export default function About() {
 
       {/* Scroll Content */}
       <div className="min-h-[200vh] bg-black text-white p-8 overflow-x-hidden overscroll-none">
+        {/* First Page */}
         <div className="max-w-7xl mx-auto">
           <div className="relative h-screen flex items-center justify-center">
-            {/* Background Text */}
-            <motion.h2
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="absolute text-[30vw] font-[PPMori] font-bold text-white/10 select-none"
-            >
-              Team
-            </motion.h2>
-
             {/* Title */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -72,6 +66,18 @@ export default function About() {
             </motion.div>
           </div>
         </div>
+
+        {/* Second Page - White with rounded corners */}
+        <motion.div
+          style={{
+            scale: whiteScale,
+          }}
+          className="h-screen bg-white rounded-t-[3rem] text-black p-16 origin-bottom"
+        >
+          <div className="max-w-7xl mx-auto">
+            {/* Add your content for the second page here */}
+          </div>
+        </motion.div>
       </div>
     </>
   );
