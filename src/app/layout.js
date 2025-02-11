@@ -13,7 +13,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <header className="header-nav p-6">
+        <header className="header-nav p-6 fixed w-full mix-blend-difference z-50">
           <Link href="/" onClick={() => setIsExploring(false)}>
             <motion.h1 className="text-2xl font-bold">rouven</motion.h1>
           </Link>

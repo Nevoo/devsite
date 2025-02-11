@@ -15,12 +15,19 @@ const ScrollArrow = () => {
   const { scrollYProgress } = useScroll();
   const opacity = useTransform(scrollYProgress, [0, 0.1], [1, 0]);
 
+  const scrollToBottom = () => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: "smooth",
+    });
+  };
+
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed bottom-12 left-1/2 -translate-x-1/2 text-white flex flex-col items-center gap-3 pointer-events-none mix-blend-difference"
+        className="fixed bottom-12 left-1/2 -translate-x-1/2 text-white flex flex-col items-center gap-3 mix-blend-difference z-50"
         style={{ opacity }}
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 5 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 10 }}
       >
@@ -31,9 +38,11 @@ const ScrollArrow = () => {
             repeat: Infinity,
             ease: "easeInOut",
           }}
-          className="flex flex-col items-center gap-3"
+          className="flex flex-col items-center gap-3 cursor-pointer"
+          onClick={scrollToBottom}
+          whileTap={{ scale: 0.95 }}
         >
-          <span className="text-sm uppercase tracking-wider font-light">
+          <span className="text-sm uppercase font-PPMori tracking-wider font-light">
             Scroll
           </span>
           <svg
@@ -116,7 +125,7 @@ export default function About() {
           duration: 1.2,
           ease: [0.16, 1, 0.3, 1],
         }}
-        className="fixed w-[400px] h-[500px] z-10 inset-0 m-auto pointer-events-none"
+        className="fixed w-[400px] h-[500px] z-30 inset-0 m-auto pointer-events-none"
       >
         <Image
           src="/images/aboutme.jpg"
@@ -144,7 +153,7 @@ export default function About() {
                 y: textY,
               }}
               transition={{ duration: 0.8 }}
-              className="flex flex-col items-center justify-center"
+              className="flex flex-col items-center justify-center z-0 mix-blend-difference"
             >
               <h1 className="text-[16rem] font-[Dirtyline] text-center flex flex-col leading-none">
                 <span>AbOUt</span>
@@ -159,10 +168,44 @@ export default function About() {
           style={{
             scale: whiteScale,
           }}
-          className="h-screen bg-white rounded-t-[3rem] text-black p-16 origin-bottom"
+          className="h-screen bg-white rounded-t-[3rem] text-black p-16 origin-bottom relative isolate"
         >
-          <div className="max-w-7xl mx-auto">
-            {/* Add your content for the second page here */}
+          <div className="max-w-7xl mx-auto h-full">
+            <div className="grid grid-cols-2 gap-16 items-center h-full">
+              <div className="space-y-6 font-light text-lg leading-relaxed flex flex-col justify-center h-full">
+                <h2 className="text-4xl font-bold">Hi I'm Rouven!</h2>
+                <p>
+                  I'm a Full Stack Developer, Filmmaker, and Photographer with a
+                  passion for creating digital products and visual experiences.
+                  With over 6 years of experience in development, I focus on
+                  bringing ideas to life in ways that make a real difference.
+                </p>
+                <p>
+                  I love working in tech because I can blend analytical thinking
+                  with creativity. Adding filmmaking and photography into the
+                  mix gives me the best of both worlds - I get to combine my
+                  technical expertise with creative expression while working
+                  with great people on things I'm passionate about.
+                </p>
+                <p>
+                  This blend of technical expertise and creative skills gives me
+                  a unique perspective on every project I tackle. I approach
+                  each challenge with both analytical thinking and creative
+                  vision, whether I'm building a web application, an app or
+                  crafting visual content.
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="font-medium">Want to collaborate?</span>
+                  <a
+                    href="mailto:rouven@luehrs.dev"
+                    className="inline-block font-medium text-black hover:text-white bg-transparent hover:bg-black border-2 border-black rounded-full px-4 py-2 transition-colors duration-300"
+                  >
+                    Let's talk!
+                  </a>
+                </div>
+              </div>
+              <div className="w-full h-full"></div>
+            </div>
           </div>
         </motion.div>
       </div>
