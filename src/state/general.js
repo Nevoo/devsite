@@ -20,7 +20,7 @@ export const useProjectState = create((set, get) => ({
   projects: [
     {
       imageUrl: "/videos/landing.mp4",
-      title: "Exploring Kuala Lumpur",
+      title: "ExploRiNG KuaLA LumPur",
       type: "video",
       videoUrl: "/videos/landing.mp4",
       description: "Video Project 1",
@@ -41,7 +41,7 @@ export const useProjectState = create((set, get) => ({
     // },
     {
       imageUrl: cover("photography"),
-      title: "Photography",
+      title: "PhOtoGraPhY",
       type: "gallery",
       images: [
         { url: gallery("00880", "animals"), scale: verticalScale },
