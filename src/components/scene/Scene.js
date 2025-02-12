@@ -28,7 +28,6 @@ import LoadingScreen from "../LoadingScreen";
 import BackgroundDistortion from "./BackgroundDistortion";
 import Effects from "./Effects";
 import ProjectTitle from "./ProjectTitle";
-
 import Rig from "../Rig";
 import "../carousel/bent-plane-geometry";
 import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
@@ -36,6 +35,7 @@ import { useExploreState } from "@/src/state/explore";
 import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
 import ExploreButton from "../cta/ExploreButton";
+import { useLoadingState } from "@/src/state/loading";
 
 export default function Scene({ onLoadingComplete }) {
   const { isExploring, setIsExploring } = useExploreState(
@@ -46,6 +46,12 @@ export default function Scene({ onLoadingComplete }) {
   );
   const { projects } = useProjectState();
   const floatRef = useRef();
+  const { isLoading, setIsLoading } = useLoadingState(
+    useShallow((state) => ({
+      isLoading: state.isLoading,
+      setIsLoading: state.setIsLoading,
+    }))
+  );
 
   useEffect(() => {
     if (floatRef.current) {
@@ -60,17 +66,19 @@ export default function Scene({ onLoadingComplete }) {
   }, [isExploring]);
 
   useEffect(() => {
-    // Call onLoadingComplete after a short delay to ensure smooth transition
+    if (!isLoading) return;
+
     const timer = setTimeout(() => {
       onLoadingComplete?.();
-    }, 4000); // Adjust this timing to match your loading screen animation duration
+      setIsLoading(false);
+    }, 4000);
 
     return () => clearTimeout(timer);
-  }, [onLoadingComplete]);
+  }, [onLoadingComplete, isLoading, setIsLoading]);
 
   return (
     <>
-      <LoadingScreen />
+      {isLoading && <LoadingScreen />}
       <div className="container">
         <Canvas
           camera={{ position: [0, 0, 4], fov: 50, far: 100 }}

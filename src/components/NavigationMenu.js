@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
+import { useExploreState } from "@/src/state/explore";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useShallow } from "zustand/react/shallow";
 
 const menuItems = [
   { id: "01", label: "Home", href: "/" },
@@ -76,6 +77,20 @@ const MenuIcon = ({ isOpen }) => {
 function NavigationMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const { setIsExploring } = useExploreState(
+    useShallow((state) => ({
+      setIsExploring: state.setIsExploring,
+    }))
+  );
+
+  const handleNavigation = (href) => {
+    if (href === "/") {
+      setIsExploring(false);
+    }
+    router.replace(href);
+    setIsOpen(false);
+  };
 
   return (
     <div className="overflow-hidden">
@@ -136,14 +151,13 @@ function NavigationMenu() {
                     variants={item}
                     className="border-b border-[#FFD803]/20"
                   >
-                    <Link
-                      href={href}
+                    <button
+                      onClick={() => handleNavigation(href)}
                       className={`group flex items-center justify-end space-x-4 pb-4 ${
                         pathname === href
                           ? "text-[#FFD803]"
                           : "text-[#FFD803]/60 hover:text-[#FFD803]"
                       } transition-colors`}
-                      onClick={() => setIsOpen(false)}
                     >
                       <span className="text-[#FFD803] opacity-60 text-sm">
                         {id}
@@ -151,7 +165,7 @@ function NavigationMenu() {
                       <span className="text-[#FFD803] text-4xl font-light tracking-wide group-hover:tracking-wider transition-all duration-300">
                         {label}
                       </span>
-                    </Link>
+                    </button>
                   </motion.div>
                 ))}
               </motion.nav>

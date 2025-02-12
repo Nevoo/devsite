@@ -1,9 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect } from "react";
 import dynamic from "next/dynamic";
 import LoadingScreen from "../components/LoadingScreen";
 import HeroSection from "../components/HeroSection";
+import { useLoadingState } from "../state/loading";
+import { useShallow } from "zustand/react/shallow";
 
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -28,7 +30,12 @@ const Scene = dynamic(() => import("../components/scene/Scene"), {
 });
 
 export default function Home() {
-  const [isLoading, setIsLoading] = useState(true);
+  const { isLoading, setIsLoading } = useLoadingState(
+    useShallow((state) => ({
+      isLoading: state.isLoading,
+      setIsLoading: state.setIsLoading,
+    }))
+  );
 
   useEffect(() => {
     gsap.registerPlugin(Observer, ScrollTrigger, useGSAP);

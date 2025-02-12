@@ -63,4 +63,9 @@ export const useFloorState = create((set, get) => ({
   setFloor: (floorY) => set({ floorY }),
 }));
 
+export const useLoadingState = create((set) => ({
+  isLoading: true,
+  setIsLoading: (value) => set({ isLoading: value }),
+}));
+
 export default useGeneralState;
