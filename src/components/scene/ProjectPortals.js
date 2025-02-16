@@ -10,43 +10,6 @@ import * as THREE from "three";
 import { useFrame, extend, useLoader } from "@react-three/fiber";
 import gsap from "gsap";
 
-const LiquidMaskMaterial = shaderMaterial(
-  {
-    currentTexture: new THREE.Texture(),
-    nextTexture: new THREE.Texture(),
-    progress: 0,
-    resolution: new THREE.Vector2(1, 1),
-  },
-  // vertex shader
-  `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  // fragment shader
-  `
-    uniform sampler2D currentTexture;
-    uniform sampler2D nextTexture;
-    uniform float progress;
-    uniform vec2 resolution;
-    varying vec2 vUv;
-
-    void main() {
-      vec4 currentColor = texture2D(currentTexture, vUv);
-      vec4 nextColor = texture2D(nextTexture, vUv);
-      
-      float transition = smoothstep(vUv.y - 0.1, vUv.y + 0.1, progress);
-      vec4 finalColor = mix(currentColor, nextColor, transition);
-      
-      gl_FragColor = finalColor;
-    }
-  `
-);
-
-extend({ LiquidMaskMaterial });
-
 const VideoPortal = ({ url, meshRef }) => {
   const videoTexture = useVideoTexture(url);
 
@@ -63,7 +26,7 @@ const VideoPortal = ({ url, meshRef }) => {
   return (
     <mesh ref={meshRef} position={[-0.025, 0.045, 0]}>
       <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial map={videoTexture} transparent />
+      <meshBasicMaterial map={videoTexture} transparent toneMapped={false} />
     </mesh>
   );
 };
@@ -78,11 +41,12 @@ const ImagePortal = ({
   return (
     <mesh ref={meshRef} position={[-0.025, 0.045, 0]}>
       <planeGeometry args={[1, 1]} />
-      <liquidMaskMaterial
+      <meshBasicMaterial
         ref={materialRef}
+        map={currentTexture}
         transparent
-        depthTest={false}
-        depthWrite={false}
+        toneMapped={false}
+        encoding={THREE.sRGBEncoding}
       />
     </mesh>
   );
@@ -140,8 +104,8 @@ export function ProjectPortals() {
           });
 
           if (materialRef.current) {
-            tl.to(materialRef.current.uniforms.progress, {
-              value: 1,
+            tl.to(materialRef.current, {
+              opacity: 0,
               duration: 0.5,
               ease: "power2.inOut",
             });
@@ -253,21 +217,12 @@ export function ProjectPortals() {
     }
   }, [currentProjectIndex]);
 
-  // Update material uniforms when textures change
+  // Update material when texture changes
   useEffect(() => {
     if (materialRef.current && !showVideo) {
-      materialRef.current.uniforms.currentTexture.value = currentTexture;
-      materialRef.current.uniforms.nextTexture.value =
-        nextTexture || currentTexture;
-
-      if (currentTexture) {
-        materialRef.current.uniforms.resolution.value.set(
-          currentTexture.image.width,
-          currentTexture.image.height
-        );
-      }
+      materialRef.current.map = currentTexture;
     }
-  }, [currentTexture, nextTexture, showVideo]);
+  }, [currentTexture, showVideo]);
 
   const currentProject = projects[currentProjectIndex] || { images: [] };
 

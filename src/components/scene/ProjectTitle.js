@@ -56,14 +56,16 @@ export default function ProjectTitle() {
                       Lorem ipsum dolor sit amet, consectetur adipiscing elit.
                       Sed vitae justo vel metus tincidunt eleifend.
                     </p>
-                    <button
-                      className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors duration-300 backdrop-blur-sm font-medium"
-                      onClick={() =>
-                        console.log("Navigate to project:", project.title)
-                      }
-                    >
-                      See More
-                    </button>
+                    {project.type === "gallery" && (
+                      <button
+                        className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors duration-300 backdrop-blur-sm font-medium"
+                        onClick={() =>
+                          console.log("Navigate to project:", project.title)
+                        }
+                      >
+                        See More
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

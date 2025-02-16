@@ -20,7 +20,6 @@ import {
   useLayoutEffect,
 } from "react";
 import { ScrollControls, useScroll } from "@react-three/drei";
-import CameraNew from "./Model";
 import Lights from "./Lights";
 import gsap from "gsap";
 import { useProjectState } from "../../state/general";
@@ -36,6 +35,7 @@ import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
 import ExploreButton from "../cta/ExploreButton";
 import { useLoadingState } from "@/src/state/loading";
+import { CameraNewTransformed } from "./ModelTransformed";
 
 export default function Scene({ onLoadingComplete }) {
   const { isExploring, setIsExploring } = useExploreState(
@@ -102,7 +102,7 @@ export default function Scene({ onLoadingComplete }) {
                 speed={2}
                 rotationIntensity={0.2}
               >
-                <CameraNew />
+                <CameraNewTransformed />
               </Float>
               <Lights />
               <BackgroundDistortion />
