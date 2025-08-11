@@ -10,11 +10,10 @@ import { useResponsiveCamera } from "@/src/hooks/useResponsiveCamera";
 import { useCameraState } from "@/src/state/camera";
 import { useShallow } from "zustand/react/shallow";
 import useExplore from "@/src/hooks/useExplore";
-import { ProjectPortals } from "./ProjectPortals";
-import gsap from "gsap";
 import * as THREE from "three";
+import { ProjectPortals } from "./ProjectPortals";
 
-export function CameraNewTransformed(props) {
+export function CameraNewTransformed({ cameraRef, ...props }) {
   const group = useRef();
   const portalMeshRef = useRef();
   const portalMaterialRef = useRef();
@@ -60,7 +59,10 @@ export function CameraNewTransformed(props) {
 
   return (
     <group
-      ref={group}
+      ref={(el) => {
+        group.current = el;
+        if (cameraRef) cameraRef.current = el;
+      }}
       {...props}
       dispose={null}
       scale={scale}

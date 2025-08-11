@@ -7,17 +7,33 @@ import { Observer } from "gsap/Observer";
 import { useGSAP } from "@gsap/react";
 import { useProjectState } from "@/src/state/general";
 import { useExploreState } from "@/src/state/explore";
+import { useCameraState } from "@/src/state/camera";
+import { useShallow } from "zustand/react/shallow";
+import { useThree } from "@react-three/fiber";
 
 export default function ProjectTitle() {
   const titleRef = useRef();
   const containerRef = useRef();
+  const cameraRef = useRef();
   const scroll = useScroll();
   const [currentIndex, setCurrentIndex] = useState(-1);
   const isAnimating = useRef(false);
   const sectionsRef = useRef([]);
-  const isExploring = useExploreState((state) => state.isExploring);
+  const group = useRef();
 
+  const isExploring = useExploreState((state) => state.isExploring);
   const projects = useProjectState((state) => state.projects);
+  const { setScale, setPosition, setRotation, animateToGallery } =
+    useCameraState(
+      useShallow((state) => ({
+        setScale: state.setScale,
+        setPosition: state.setPosition,
+        setRotation: state.setRotation,
+        animateToGallery: state.animateToGallery,
+      }))
+    );
+
+  const { camera } = useThree();
 
   useExplore(containerRef, {
     exploringProps: {
@@ -59,9 +75,10 @@ export default function ProjectTitle() {
                     {project.type === "gallery" && (
                       <button
                         className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors duration-300 backdrop-blur-sm font-medium"
-                        onClick={() =>
-                          console.log("Navigate to project:", project.title)
-                        }
+                        onClick={() => {
+                          animateToGallery();
+                          // Gallery transition will be handled by the flash effect
+                        }}
                       >
                         See More
                       </button>

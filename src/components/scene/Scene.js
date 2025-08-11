@@ -36,6 +36,9 @@ import * as THREE from "three";
 import ExploreButton from "../cta/ExploreButton";
 import { useLoadingState } from "@/src/state/loading";
 import { CameraNewTransformed } from "./ModelTransformed";
+import FlashTransition from "./FlashTransition";
+import { useRouter } from "next/navigation";
+import { useCameraState } from "@/src/state/camera";
 
 export default function Scene({ onLoadingComplete }) {
   const { isExploring, setIsExploring } = useExploreState(
@@ -50,6 +53,12 @@ export default function Scene({ onLoadingComplete }) {
     useShallow((state) => ({
       isLoading: state.isLoading,
       setIsLoading: state.setIsLoading,
+    }))
+  );
+  const router = useRouter();
+  const { shouldNavigateToGallery } = useCameraState(
+    useShallow((state) => ({
+      shouldNavigateToGallery: state.shouldNavigateToGallery,
     }))
   );
 
@@ -76,6 +85,15 @@ export default function Scene({ onLoadingComplete }) {
     return () => clearTimeout(timer);
   }, [onLoadingComplete, isLoading, setIsLoading]);
 
+  useEffect(() => {
+    if (shouldNavigateToGallery) {
+      const timer = setTimeout(() => {
+        router.push("/gallery");
+      }, 150); // Navigate when flash is at peak brightness
+      return () => clearTimeout(timer);
+    }
+  }, [shouldNavigateToGallery, router]);
+
   return (
     <>
       {isLoading && <LoadingScreen />}
@@ -95,6 +113,7 @@ export default function Scene({ onLoadingComplete }) {
               enabled={isExploring}
             >
               <ProjectTitle projects={projects} />
+              <FlashTransition />
               {/* <GaussianBlur3D /> */}
               <Float
                 ref={floatRef}

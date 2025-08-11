@@ -1,0 +1,7 @@
+/* Add any additional gallery-specific styles here */
+.gallery-image {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}

@@ -6,6 +6,8 @@ export const useCameraState = create((set, get) => ({
   scale: 10,
   mode: "portfolio", // 'portfolio', 'gallery', 'about'
   isShutterActive: false,
+  isAnimating: false,
+  shouldNavigateToGallery: false,
   setRotation: (rotation) => set({ rotation }),
   setPosition: (position) => set({ position }),
   setScale: (scale) => set({ scale }),
@@ -13,6 +15,12 @@ export const useCameraState = create((set, get) => ({
     set({ isShutterActive: true });
     setTimeout(() => {
       set({ mode, isShutterActive: false });
-    }, 300); // Duration of shutter animation
+    }, 300);
+  },
+  animateToGallery: () => {
+    set({ isAnimating: true, shouldNavigateToGallery: true });
+    setTimeout(() => {
+      set({ isAnimating: false, shouldNavigateToGallery: false });
+    }, 700); // Match flash transition duration
   },
 }));
