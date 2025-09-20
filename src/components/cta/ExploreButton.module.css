@@ -1,5 +1,5 @@
 .gradientBg {
-  background: linear-gradient(45deg, #ff00ff, #00ffff);
+  background: linear-gradient(45deg, #c31432, #240b36);
   filter: blur(20px);
   transform: translateZ(0);
   will-change: filter, transform, opacity;
@@ -21,10 +21,9 @@
 .button {
   --cut: 0.1em;
   --active: 0;
-  --bg: linear-gradient(45deg, 
-    hsl(300 100% 50% / var(--active)), 
-    hsl(180 100% 50% / var(--active))
-  ), hsl(250 calc(var(--active) * 97%) calc((var(--active) * 50%) + 12%));
+  --bg: linear-gradient(45deg,
+      hsl(350 73% 45% / var(--active)),
+      hsl(270 60% 13% / var(--active))), hsl(270 calc(var(--active) * 60%) calc((var(--active) * 35%) + 13%));
   background: var(--bg);
   font-size: 1.25rem;
   font-weight: 500;
@@ -105,10 +104,9 @@
   z-index: 1;
   position: relative;
   letter-spacing: 0.01ch;
-  background: linear-gradient(90deg, 
-    hsl(0 0% calc((var(--active) * 100%) + 65%)), 
-    hsl(0 0% calc((var(--active) * 100%) + 26%))
-  );
+  background: linear-gradient(90deg,
+      hsl(350 calc(var(--active) * 73%) calc((var(--active) * 40%) + 75%)),
+      hsl(270 calc(var(--active) * 60%) calc((var(--active) * 50%) + 50%)));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

@@ -21,6 +21,6 @@ export const useCameraState = create((set, get) => ({
     set({ isAnimating: true, shouldNavigateToGallery: true });
     setTimeout(() => {
       set({ isAnimating: false, shouldNavigateToGallery: false });
-    }, 700); // Match flash transition duration
+    }, 1800); // Match new flash transition duration
   },
 }));

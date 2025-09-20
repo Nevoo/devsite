@@ -33,7 +33,6 @@ import { useResponsiveFloor } from "../../hooks/useResponsiveCamera";
 import { useExploreState } from "@/src/state/explore";
 import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
-import ExploreButton from "../cta/ExploreButton";
 import { useLoadingState } from "@/src/state/loading";
 import { CameraNewTransformed } from "./ModelTransformed";
 import FlashTransition from "./FlashTransition";
@@ -89,7 +88,7 @@ export default function Scene({ onLoadingComplete }) {
     if (shouldNavigateToGallery) {
       const timer = setTimeout(() => {
         router.push("/gallery");
-      }, 150); // Navigate when flash is at peak brightness
+      }, 600); // Navigate after flash reaches full white (300ms fade + 300ms hold)
       return () => clearTimeout(timer);
     }
   }, [shouldNavigateToGallery, router]);
