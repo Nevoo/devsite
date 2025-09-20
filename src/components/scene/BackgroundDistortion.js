@@ -49,10 +49,10 @@ export default function BackgroundDistortion() {
       <boxGeometry args={[10, 10, 0.1]} position={[0, 0, -4]} />
       <MeshTransmissionMaterial
         ref={materialRef}
-        ior={1.2}
+        ior={1.3}
         thickness={1.5}
         anisotropy={0.1}
-        chromaticAberration={0.5}
+        chromaticAberration={0.6}
         distortion={0}
         distortionScale={0}
         temporalDistortion={0.01}
@@ -65,7 +65,7 @@ export default function BackgroundDistortion() {
             position={position}
             fontSize={2}
             font="fonts/Dirtyline-36daysoftype.otf"
-            color="white"
+            color="#e53170"
             anchorX="center"
             anchorY="middle"
             side={THREE.DoubleSide}

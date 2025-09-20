@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function GalleryPage() {
   return (
-    <main className="w-full h-screen bg-[#d8d7d7]">
+    <main className="w-full h-screen bg-black">
       <Suspense fallback={null}>
         <Gallery />
       </Suspense>

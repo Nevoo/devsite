@@ -65,12 +65,11 @@ export default function ProjectTitle() {
               <div className={`absolute left-32 text-white max-w-xl`}>
                 <div className="relative overflow-hidden rounded-3xl">
                   <div className="relative p-12 w-full">
-                    <h2 className="text-7xl font-['Dirtyline'] leading-tight title mb-6">
+                    <h2 className="text-7xl font-['PPMori'] font-bold leading-tight title mb-6">
                       {project.title}
                     </h2>
                     <p className="text-lg text-gray-300 mb-8 max-w-lg">
-                      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                      Sed vitae justo vel metus tincidunt eleifend.
+                      {project.description}
                     </p>
                     {project.type === "gallery" && (
                       <button
