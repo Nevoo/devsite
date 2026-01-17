@@ -1,58 +1,32 @@
 {
-  "name": "example",
-  "version": "0.1.0",
+  "name": "rouvens-portfolio",
+  "version": "1.0.0",
   "private": true,
-  "author": "Rouven Lührs",
-  "description": "My Personal Portfolio Website",
-  "dependencies": {
-    "@pmndrs/assets": "^1.6.0",
-    "@react-spring/three": "^9.7.3",
-    "@react-spring/web": "^9.7.3",
-    "@react-three/drei": "^9.97.0",
-    "@react-three/fiber": "8.15.12",
-    "@react-three/flex": "^1.0.1",
-    "@react-three/postprocessing": "2.15.11",
-    "@testing-library/jest-dom": "^5.16.5",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "@vercel/analytics": "^1.1.2",
-    "animejs": "^3.2.2",
-    "gsap": "^3.12.5",
-    "leva": "^0.9.34",
-    "maath": "^0.5.2",
-    "react": "18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.11.0",
-    "react-scripts": "^5.0.1",
-    "three": "0.159.0",
-    "zustand": "^4.4.7"
-  },
+  "type": "module",
+  "author": "Rouven Luhrs",
+  "description": "Personal portfolio showcasing photo and film work",
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "dev": "vinxi dev",
+    "build": "vinxi build",
+    "start": "vinxi start",
+    "preview": "vinxi build && vinxi start",
+    "typecheck": "tsc --noEmit"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+  "dependencies": {
+    "@gsap/react": "^2.1.1",
+    "@tanstack/react-router": "^1.95.1",
+    "@tanstack/start": "^1.95.1",
+    "gsap": "^3.12.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "vinxi": "^0.5.1",
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
-    "@babel/plugin-transform-private-property-in-object": "7.23.4",
-    "@types/three": "^0.147.1"
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite-tsconfig-paths": "^5.1.4"
   }
 }
