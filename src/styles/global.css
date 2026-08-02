@@ -1,0 +1,241 @@
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/Gilroy-ExtraBold.otf') format('opentype');
+  font-weight: 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  /* Neutral gallery charcoal — deliberately NOT tinted toward the accent any
+     more. The old base was brown (charcoal warmed toward the orange), and a
+     warm surround both muddied the mood and put a cast on how the
+     photographs read; a neutral surround is what photographs get hung on.
+     The accent is scarlet — Rouven's brand red — lifted a step off true
+     #ff2400, which sits dead on a dark screen. The type stays cream: warm
+     ink on neutral ground is the print register, scarlet + charcoal + cream. */
+  --bg: #101013;
+  --bg-soft: #18181c;
+  --text: #f4efe9;
+  --text-muted: #98938f;
+  --accent: #ff2d1a;
+  --accent-ink: #1c0605;
+  --line: rgba(244, 239, 233, 0.16);
+  --font-display: 'Gilroy', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  /* system stack, zero download: the data layer (slates, rails, timecodes) is
+     the one place the developer half of the site should be audible, and a
+     terminal face says it in a way tracked-out Inter cannot */
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+  --space-6: 3rem;
+  --space-8: 4rem;
+  --space-12: 6rem;
+  --space-16: 8rem;
+
+  --gutter: clamp(1.25rem, 4vw, 4.5rem);
+  --header-h: 4.5rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #36363c var(--bg);
+}
+
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* film grain over the whole experience */
+body::after {
+  content: '';
+  position: fixed;
+  inset: -100%;
+  z-index: 30;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.07;
+  animation: grain 0.9s steps(4) infinite;
+}
+
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2%, 3%); }
+  50% { transform: translate(3%, -2%); }
+  75% { transform: translate(-3%, -3%); }
+  100% { transform: translate(2%, 2%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    animation: none;
+  }
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 0.88;
+  letter-spacing: -0.03em;
+  text-transform: lowercase;
+}
+
+.display-xl {
+  font-size: clamp(3.6rem, 15vw, 13rem);
+}
+
+.display-lg {
+  font-size: clamp(2.4rem, 8vw, 6.5rem);
+}
+
+.display-md {
+  font-size: clamp(1.8rem, 5vw, 4rem);
+}
+
+/* hollow type — pairs with solid lines in the same lockup */
+.outline {
+  color: transparent;
+  -webkit-text-stroke: clamp(1px, 0.18vw, 2.5px) var(--text);
+}
+
+.outline-accent {
+  color: transparent;
+  -webkit-text-stroke: clamp(1px, 0.18vw, 2.5px) var(--accent);
+}
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* pill chip for counts / labels */
+.chip {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0.45em 0.9em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chip-accent {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.container {
+  padding-inline: var(--gutter);
+  width: 100%;
+}
+
+/* the shared WebGL canvas sits behind everything; DOM renders on top */
+.canvas-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+main {
+  position: relative;
+  z-index: 2;
+}
+
+/* a DOM element that a <View> tracks — reserves layout, WebGL draws inside it.
+   Must stay transparent: the shared canvas sits BEHIND main and shows through. */
+.gl-frame {
+  position: relative;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* drei View's own tracking div — must exactly cover the frame */
+.gl-frame .gl-view {
+  position: absolute;
+  inset: 0;
+}
+
+.gl-frame > .gl-frame-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+}
+
+/* when WebGL is unavailable, show the plain image instead */
+.no-webgl .gl-frame > .gl-frame-fallback {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

@@ -1,0 +1,2280 @@
+/* ---------- utilities ---------- */
+
+.accent {
+  color: var(--accent);
+}
+
+.outline-ink {
+  color: transparent;
+  -webkit-text-stroke: clamp(1px, 0.18vw, 2.5px) var(--accent-ink);
+}
+
+.star {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ---------- header ---------- */
+
+/* top-centered liquid-glass pill — dark tinted blur keeps the cream text
+   readable over any hero imagery, bright or dark */
+.site-header {
+  position: fixed;
+  top: clamp(0.9rem, 2vw, 1.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(1.1rem, 3vw, 2rem);
+  padding: 0.6rem 1.35rem;
+  border-radius: 999px;
+  background: rgba(15, 15, 18, 0.48);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  border: 1px solid rgba(244, 239, 233, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 239, 233, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .site-header {
+    background: rgba(15, 15, 18, 0.88);
+  }
+}
+
+.site-header-logo {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+}
+
+.site-header-nav {
+  display: flex;
+  gap: clamp(0.9rem, 2.5vw, 1.6rem);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .site-header {
+    gap: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .site-header-logo {
+    font-size: 0.92rem;
+  }
+
+  .site-header-nav {
+    gap: 0.8rem;
+    font-size: 0.8rem;
+  }
+}
+
+.site-header-nav a {
+  position: relative;
+  padding-block: 0.25rem;
+}
+
+.site-header-nav a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.site-header-nav a:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* ---------- cursor ---------- */
+
+/* Rests invisible: a permanent dot riding the pointer reads as an obstruction
+   over the photographs and the globe, so the cursor only exists while it has
+   a word to say ([data-mode]), growing from this seed size. */
+.cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 45;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    margin 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cursor-label {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--accent-ink);
+  opacity: 0;
+  transition: opacity 0.2s ease 0.05s;
+}
+
+/* one badge, one word per mode — see LABELS in Cursor.tsx */
+.cursor[data-mode] {
+  opacity: 1;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+}
+
+.cursor[data-mode] .cursor-label {
+  opacity: 1;
+}
+
+/* grade is a two-handed word and a bigger promise than "view", so it gets a
+   wider badge rather than a smaller typeface */
+.cursor[data-mode='grade'] {
+  width: 86px;
+  height: 86px;
+  margin: -43px 0 0 -43px;
+}
+
+/* ---------- shared bits ---------- */
+
+.page-heading {
+  padding-top: calc(var(--header-h) + var(--space-8));
+  padding-bottom: var(--space-8);
+}
+
+.page-heading-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+/* link with a sliding accent arrow */
+.arrow-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  text-transform: lowercase;
+}
+
+.arrow-link::after {
+  content: '→';
+  color: var(--accent);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.arrow-link:hover::after {
+  transform: translateX(0.35em);
+}
+
+.arrow-link-back::after {
+  content: none;
+}
+
+.arrow-link-back::before {
+  content: '←';
+  color: var(--accent);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.arrow-link-back:hover::before {
+  transform: translateX(-0.35em);
+}
+
+/* the instrument register — one recipe for every meta-scale index on the site
+   (Index.tsx). Brackets and slash are the muted chrome, the digits are the
+   reading; tabular figures so a counter ticking 09 → 10 doesn't shift. */
+.index-mark {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.index-mark-num {
+  color: var(--accent);
+}
+
+/* the same register in line form, for readouts that aren't an index — all of it
+   muted, because a date has no digit worth pulling out of the bracket */
+.instrument-line {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-heading .instrument-line {
+  margin-top: var(--space-3);
+}
+
+.big-link-text {
+  transition: letter-spacing 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.big-link:hover .big-link-text {
+  letter-spacing: 0.02em;
+}
+
+.work-heading-inner,
+.gallery-heading-inner,
+.about-heading-inner,
+.contact-heading-inner,
+.privacy-heading-inner {
+  display: inline-block;
+}
+
+/* the develop wipe on the work heading: the wrapper only exists to give the
+   travelling hairline a box the width of the word. At rest the hairline is
+   invisible, so no-JS and reduced motion both get the plain heading. */
+.work-heading {
+  position: relative;
+  display: inline-block;
+}
+
+.work-heading-front {
+  position: absolute;
+  /* past the line box at both ends — display type overshoots it, and a rule
+     that stops short of the glyphs reads as a seam rather than a front */
+  top: -0.08em;
+  bottom: -0.1em;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* overflow-hidden line wrapper for the yPercent title reveals.
+   The padding/negative-margin pair enlarges the clip box past the glyph ink
+   (tight line-height + negative tracking + outline strokes all overshoot the
+   layout box) without moving anything — otherwise letters get shaved off. */
+.page-heading h1 {
+  overflow: hidden;
+  padding: 0.14em 0.12em 0.18em;
+  margin: -0.14em -0.12em -0.18em;
+}
+
+/* ---------- loader + page transition ---------- */
+
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background: var(--bg);
+}
+
+.loading-screen-word {
+  font-family: var(--font-display);
+  font-weight: 800;
+}
+
+.page-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* the registered poster pull: orange underprint leads, charcoal poster face
+   catches it — the 80ms gap is registration, not parallax */
+.page-transition-accent,
+.page-transition-base {
+  position: absolute;
+  inset: 0;
+  transform: translateY(100%);
+  will-change: transform;
+}
+
+/* orange underprint / proof layer */
+.page-transition-accent {
+  background: var(--accent);
+}
+
+/* charcoal poster face — carries the printed destination */
+.page-transition-base {
+  background: var(--bg);
+}
+
+/* the lockup sits on the site grid, slightly below optical center —
+   a concert-poster composition, not a centered modal headline */
+.page-transition-lockup {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 54%;
+  transform: translateY(-50%);
+}
+
+/* destination word: ink printed on the passing sheet, line-masked.
+   spans miss the h1/h2/h3 display treatment, so restate it here */
+.page-transition-label {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  padding-bottom: 0.08em; /* keep descenders inside the mask */
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 0.88;
+  letter-spacing: -0.03em;
+  text-transform: lowercase;
+}
+
+.page-transition-label-inner {
+  display: block;
+  transform: translateY(120%);
+}
+
+/* orange under-pass: offset via left/top, NOT transform — GSAP owns the
+   transform channel, and a translate here would be parsed into it as pixels */
+.page-transition-label-under {
+  position: absolute;
+  inset: 0;
+  left: -2px;
+  top: 2px;
+  color: var(--accent);
+}
+
+/* main pass paints over the under-pass, leaving a 2px registration rim */
+.page-transition-label-main {
+  position: relative;
+}
+
+/* ---------- hero — the frame, and the transform run over it ---------- */
+
+/* The plate is a still lifted off an edit timeline, which is the one artefact
+   that belongs to both halves of what Rouven does: a frame is a photograph AND
+   a unit of a sequence. So it is shown as a frame — a 16:9 window, whole,
+   never cropped to the viewport — and it arrives the way a frame actually
+   arrives, log on one side of a colourist's wipe and graded on the other.
+
+   The type is NOT on the photograph, and that is the whole answer to why it
+   used to read as cheap. Cream display type over a landscape needs a scrim, a
+   keyline and an understroke to stay legible, and those three defences are
+   exactly what made it look pasted on. Two columns that never overlap: the
+   words on 1–5, the frame on 6–12. On solid charcoal the type needs nothing,
+   so it gets nothing. */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  /* the sphere is deliberately bigger than the section: the viewport is the
+     crop. Without this the planet's off-screen half becomes a scrollbar. */
+  overflow: clip;
+}
+
+/* The horizon. The planet stands at the bottom of the viewport, cut by its
+   lower edge — and the cut must not be a hard clip line against the next
+   section, so the sphere SETS: a gradient from nothing to the page colour,
+   painted over the globe (z 1, later in tree order) and under the byline
+   band (z 2). The WebGL sphere is drawn on the shared canvas, not inside
+   .hero-globe, so a mask on that element could never fade it — this overlay
+   fades canvas and DOM pins together. */
+.hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34svh;
+  background: linear-gradient(
+    to bottom,
+    rgba(16, 16, 19, 0) 0%,
+    rgba(16, 16, 19, 0.82) 58%,
+    var(--bg) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* The process beat, one screen below the globe. It inherits the old hero's
+   two-column geometry wholesale — words on 1–5, frame on 6–12, captions closing
+   both columns on one line — because that composition was never the problem.
+   The problem was that it was competing with nine other things for the job of
+   being the hero's subject. Down here it IS the subject of its own screen. */
+
+/* ---------- the log ---------- */
+
+/* Replaces the old four-poster featured section, which spent four full
+   viewports on four category covers; this spends one screen on eight real
+   outings and shows the photographs themselves rather than a poster standing
+   in for a gallery. */
+.log {
+  position: relative;
+  padding: clamp(5rem, 12vh, 9rem) 0 clamp(3rem, 7vh, 5rem);
+  /* OPAQUE, unlike most sections. The hero's sphere is drawn on the shared
+     fixed canvas, and its square hangs ~40% past the hero's bottom edge —
+     the hero's overflow:clip stops the DOM pins at the boundary but cannot
+     stop canvas pixels, so without a floor here the planet (dots, arcs)
+     kept rendering straight through this section as you scroll. The hero's
+     horizon gradient ends on exactly var(--bg), so the seam is invisible.
+     Sections that carry their own GL (the craft plate) must stay
+     transparent; this one is plain <img>s and can afford to be solid. */
+  background: var(--bg);
+}
+
+.log-inner {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: var(--space-2);
+  row-gap: var(--space-2);
+  padding: 0 var(--gutter);
+}
+
+/* matched to .craft-title, deliberately: two section labels at one scale read
+   as a pair of labels, where two different scales read as an argument */
+.log-title {
+  grid-area: 1 / 1 / 2 / 8;
+  align-self: end;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4.6vw, 4.4rem);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  overflow: hidden;
+}
+
+.log-title-inner {
+  display: inline-block;
+}
+
+.log-title-dot {
+  color: var(--accent);
+}
+
+.log-lead {
+  grid-area: 1 / 8 / 2 / -1;
+  align-self: end;
+  padding-bottom: 0.35em;
+  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.log-list {
+  grid-area: 2 / 1 / 3 / -1;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.6fr) 8fr;
+  gap: var(--space-2);
+  align-items: start;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.log-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+}
+
+/* the mark rides the meta line's own scale — .log-meta shrinks on narrow
+   screens and the index has to shrink with it */
+.log-meta .index-mark {
+  font-size: inherit;
+}
+
+.log-date {
+  color: var(--text);
+}
+
+.log-count,
+.log-place {
+  color: var(--text-muted);
+}
+
+/* The strip is a contact sheet: every frame from that outing, in capture order,
+   at one size, whichever gallery it is currently filed under. That last part is
+   the whole point of the section — `nature` and `travel` sit side by side here
+   because they were three minutes apart. */
+.log-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log-frame {
+  width: clamp(4.5rem, 7.5vw, 8rem);
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: rgba(244, 239, 233, 0.03);
+}
+
+.log-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.log-all {
+  grid-area: 3 / 1 / 4 / -1;
+  margin-top: clamp(2.5rem, 6vh, 4.5rem);
+}
+
+@media (max-width: 900px) {
+  .log-title {
+    grid-area: 1 / 1 / 2 / -1;
+    font-size: clamp(2rem, 13vw, 3.6rem);
+  }
+
+  .log-lead {
+    grid-area: 2 / 1 / 3 / -1;
+    padding-bottom: 0;
+    font-size: 0.86rem;
+  }
+
+  .log-list {
+    grid-area: 3 / 1 / 4 / -1;
+  }
+
+  .log-all {
+    grid-area: 4 / 1 / 5 / -1;
+  }
+
+  .log-row {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+
+  .log-meta {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.3em 1.2em;
+    font-size: 0.62rem;
+  }
+
+  .log-frame {
+    width: clamp(4rem, 21vw, 6rem);
+  }
+}
+
+
+
+.process {
+  position: relative;
+  padding: clamp(5rem, 12vh, 9rem) 0 clamp(4rem, 9vh, 7rem);
+
+  /* 0 = one ink (ungraded — all three words solid), 1 = `grade.` hollowed out.
+     GSAP drives this off the wipe; the CSS default of 1 is also the correct
+     static composition for reduced motion and for no-WebGL. */
+  --ink: 1;
+}
+
+/* Three rows, not two columns. With the lockup gone there is no second block to
+   balance the plate against, so the plate takes the full measure and the words
+   sit above and below it as its label and its slate. A 16:9 frame at container
+   width is the largest single object on the page after the globe, which is the
+   right weight for the one thing here you can operate. */
+.process-inner {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: auto auto auto;
+  column-gap: var(--space-2);
+  row-gap: var(--space-2);
+  align-items: end;
+  padding: 0 var(--gutter);
+}
+
+/* rail — sky — stage — rule — index. The stage row is the only flexible one
+   and it holds nothing at all: the globe is OUT of the grid, absolutely
+   positioned against the section and cropped by it, because a subject bigger
+   than the viewport cannot be a grid item without dictating the rows around
+   it. min-height (not height) on the section means a short viewport grows
+   the hero instead of clipping it. */
+.hero-inner {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: auto auto 1fr auto auto;
+  column-gap: var(--space-2);
+  padding: clamp(1.55rem, 2.9vw, 2.2rem) var(--gutter) var(--space-4);
+}
+
+/* the top rail rides the header pill's optical centre line, so the pill reads
+   as the middle item of a three-part top edge instead of floating alone.
+   Mono, because the site's second information layer is a data layer. */
+.hero-rail {
+  grid-area: 1 / 1 / 2 / -1;
+  position: relative;
+  z-index: 2; /* above the sphere, which bleeds behind the whole composition */
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  color: var(--text);
+  opacity: 0.72;
+}
+
+.hero-rail-sep {
+  color: var(--accent);
+}
+
+/* The sky. The planet's crop opened half a viewport of air, and the name
+   takes it at display scale — CENTRED, which is the decision that makes the
+   air work. The planet is a symmetric object standing on the viewport's
+   centre line; a top-left title put an asymmetric type system over a
+   symmetric subject and the unbalanced half read as a hole. On one shared
+   axis — pill, name, byline, planet apex — the composition is a poster, and
+   the air on either side becomes margin instead of void. The rail's two
+   mono labels stay in the top corners: they are the frame, not the subject.
+   pointer-events off: this sits over the sphere's upper arc on short
+   viewports and must never block a grab or a pickup. */
+.hero-sky {
+  grid-area: 2 / 1 / 3 / -1;
+  position: relative;
+  z-index: 2;
+  margin-top: clamp(1.6rem, 5vh, 3.6rem);
+  text-align: center;
+  pointer-events: none;
+}
+
+.hero-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 7vw, 7rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  overflow: hidden; /* the entrance rises out of this */
+}
+
+.hero-title-inner {
+  display: inline-block;
+}
+
+.hero-title-sub {
+  margin: 1em 0 0;
+  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* The subject, at planet scale: bottom centre, rising into the frame like a
+   planet seen from just off its surface. The square frame is bigger than the
+   viewport and pushed past its bottom edge, so what shows is the upper arc of
+   a sphere with the ground falling away below the fold — the crop plus the
+   .hero::after horizon is what makes the page feel stood ON something rather
+   than looking AT something. The tour presents places up this visible arc
+   (PRESENT_BIAS in Globe.tsx), because the sphere's true camera-front point
+   now sits under the horizon. Absolutely positioned against .hero (which
+   clips), because a subject this size cannot sit in the grid without
+   dictating every row around it. */
+.hero-globe {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  --globe-size: min(165svh, 150vw);
+  width: var(--globe-size);
+  aspect-ratio: 1;
+  /* 36% of the sphere's own height hangs below the viewport — raising the
+     horizon by ~10svh over the original 42% so more of the arc is in frame */
+  transform: translate(-50%, 36%);
+  z-index: 1;
+}
+
+/* The planet treatment is the SPHERE's, not the fallback's: the static list
+   is a readable document and gets normal document layout — back into the
+   grid, full column width, its own height. */
+.hero-inner .hero-globe:has(.globe-frame-static) {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  z-index: auto;
+  grid-area: 3 / 1 / 4 / -1;
+  align-self: center;
+  width: 100%;
+  aspect-ratio: auto;
+}
+
+.globe-frame-static {
+  height: auto;
+  max-height: 56svh;
+}
+
+/* The section heading. Display face, but nowhere near display scale: this is a
+   label on a demonstration, and the moment it competes for attention with the
+   globe two screens up we are back to two heroes.
+
+   The measure-based typesetting that used to live here is gone with the three
+   words it existed to align (git history has it, along with the three per-word
+   width constants). One line needs no shared measure. */
+.craft-title {
+  grid-area: 1 / 1 / 2 / 8;
+  align-self: end;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4.6vw, 4.4rem);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  overflow: hidden; /* the mask the entrance rises out of */
+}
+
+.craft-title-inner {
+  display: inline-block;
+}
+
+/* the accent as punctuation, same as it was on every line of the old lockup */
+.craft-title-dot {
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+  -webkit-text-stroke-width: 0;
+}
+
+/* `grade` hollows out as the wipe passes: at --ink 0 the word carries solid ink
+   (nothing has been graded yet), at 1 the fill is gone and the stroke alone
+   holds the letterform. The brand's outline/fill mixing given a job — the
+   hollow word is the verb the picture below it is performing, so which word is
+   outlined stops being a decorative choice.
+   The stroke is in em, not px: a px keyline that reads as a crisp hairline on a
+   2rem phone word is an invisible thread on a 70px desktop one. */
+.craft-title-ink {
+  -webkit-text-fill-color: color-mix(
+    in srgb,
+    var(--text) calc((1 - var(--ink)) * 100%),
+    transparent
+  );
+  -webkit-text-stroke: max(1.5px, 0.022em) var(--text);
+}
+
+/* the lead, set against the heading on the same baseline row */
+.craft-lead {
+  grid-area: 1 / 8 / 2 / -1;
+  align-self: end;
+  padding-bottom: 0.35em;
+  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* the window. aspect-ratio, not a viewport crop: the composition in this frame
+   was made at 16:9 and there is no version of cropping it to a phone screen
+   that is not vandalism. */
+.hero-frame {
+  grid-area: 2 / 1 / 3 / -1;
+  position: relative;
+  align-self: end;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: rgba(244, 239, 233, 0.03);
+}
+
+.hero-plate {
+  position: absolute;
+  inset: 0;
+}
+
+/* the slate: labelled fields attached to an image, which is a film slate and a
+   data record at the same time. Its top edge is the plate's bottom edge, so it
+   needs no rule of its own. */
+.hero-slate {
+  grid-area: 3 / 1 / 4 / -1;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4em 1.4em;
+  padding-top: calc(var(--space-2) + 1px); /* +1px matches the byline's border */
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.hero-slate-val {
+  color: var(--text);
+}
+
+.hero-slate-grade {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.hero-slate-arrow {
+  color: var(--accent);
+}
+
+/* the invitation to run the transform by hand. Hidden by default and shown
+   only where the gesture exists (a mouse), so a phone is never told to drag
+   something it cannot drag. Rides --ink so it arrives as the grade lands
+   rather than sitting on the slate through the entrance. */
+.hero-slate-drag {
+  display: none;
+  padding-left: 0.9em;
+  color: var(--accent);
+  opacity: calc(var(--ink) * 0.9);
+}
+
+@media (pointer: fine) {
+  .hero-slate-drag {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-slate-drag {
+    display: none;
+  }
+}
+
+/* the destination lights up as the grade lands — the same --ink the hollow word
+   rides, so the slate and the type change state on one beat and the little
+   transform on the right is visibly the one that just ran */
+.hero-slate-to {
+  color: var(--text);
+  opacity: calc(0.35 + var(--ink) * 0.65);
+}
+
+.hero-rule {
+  grid-area: 4 / 1 / 5 / -1;
+  position: relative;
+  z-index: 2;
+  height: 1px;
+  margin-top: var(--space-3);
+  background: var(--line);
+  transform-origin: left;
+}
+
+/* the bottom band is a working index, not a decoration: a cold visitor reads
+   what is below the fold and can go straight there */
+.hero-index {
+  grid-area: 5 / 1 / 6 / -1; /* the last row — one strip below the horizon rule */
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6em 1.1em;
+  margin-top: var(--space-2);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.hero-index-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55em 0.9em;
+  pointer-events: auto;
+}
+
+.hero-index-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9em;
+}
+
+.hero-index-link a {
+  position: relative;
+  transition: color 0.25s ease;
+}
+
+.hero-index-link a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -0.25em;
+  width: 100%;
+  height: 1px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hero-index-link a:hover {
+  color: var(--text);
+}
+
+.hero-index-link a:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.hero-index-star {
+  color: var(--accent);
+}
+
+.hero-index-scroll {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75em;
+  margin-left: auto;
+  color: var(--text);
+}
+
+/* a tick travelling down a fixed track, not a bar pumping left and right:
+   it points the way the page actually moves */
+.hero-scroll-line {
+  position: relative;
+  display: inline-block;
+  width: 1px;
+  height: 2.4rem;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.hero-scroll-line::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 45%;
+  background: var(--accent);
+  animation: scroll-tick 2.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes scroll-tick {
+  0% { transform: translateY(-100%); }
+  60%, 100% { transform: translateY(240%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-scroll-line::after {
+    animation: none;
+  }
+}
+
+/* ---------- globe ---------- */
+
+.globe-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible; /* pin cards ride outside the sphere's box */
+  touch-action: pan-y; /* a horizontal drag spins; a vertical one still scrolls */
+
+  /* Without this a drag across the globe is also a text selection, and once the
+     selection runs past the bottom of the viewport the browser auto-scrolls to
+     follow it — so pulling the globe down threw the visitor into the ticker
+     with half the page highlighted. Costs nothing: the pin labels are here to
+     be read, indexed and announced, not copied. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The no-WebGL / reduced-motion surface. Not a placeholder: it is the same ten
+   places in the same order, set as a list, because the globe was never carrying
+   information the DOM could not. Sized to the square the sphere would occupy so
+   the hero's grid does not reflow between the two states. */
+.globe-frame-static {
+  display: flex;
+  /* the list grew photographs: with frame strips on the placed rows it runs
+     taller than the sphere's square, and overflow:visible (inherited from
+     .globe-frame for the pin cards) let it flood the whole hero. The static
+     surface has no pin cards to spill, so it scrolls instead. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+/* centred while it fits, scrollable from the top once it does not —
+   `margin: auto` collapses to 0 on overflow where align-items:center would
+   clip the first rows off the top of the scroll area */
+.globe-frame-static .globe-log {
+  margin: auto 0;
+}
+
+.globe-log {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.globe-log-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.62em 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.globe-log-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* a placed row shows what was shot there — the projection panel must never be
+   the only surface the photographs exist on (GLOBE-V2.md T15) */
+.globe-log-frames {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.globe-log-frames img {
+  display: block;
+  height: 2.2rem;
+  width: auto;
+}
+
+.globe-log-place {
+  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.globe-log-meta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+/* The live frame is NOT the hit target — it spans most of the section now,
+   and letting it take pointer events would swallow every click on the byline,
+   the index links, everything the sphere bleeds behind. The grab circle below
+   carries the drag; the pickups carry their own clicks; events from both
+   bubble to the frame's handlers. */
+.globe-frame-live {
+  pointer-events: none;
+}
+
+/* the drag surface: the sphere itself, near enough. A circle inset to where
+   the dots actually are, so grabbing the planet works anywhere on the planet
+   and nowhere else. */
+.globe-grab {
+  position: absolute;
+  inset: 12.5%;
+  border-radius: 50%;
+  pointer-events: auto;
+  /* not inherited from the frame: a horizontal drag spins, a vertical one
+     still scrolls the page */
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.globe-grab:active {
+  cursor: grabbing;
+}
+
+/* The waypoint layer: flown-through cities as instrument-register labels.
+   Sits under the pins in the DOM and never takes pointer events — texture on
+   the map, not targets. Opacity and transform come from the rAF loop. */
+.globe-waypoints {
+  position: absolute;
+  inset: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.globe-waypoint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  /* the label hangs just right of its coordinate, clear of the dot itself */
+  margin: -0.55em 0 0 0.5em;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--text-muted);
+  opacity: 0;
+  will-change: transform, opacity;
+  /* the knockout plate: bone type over a bone dot field is unreadable at any
+     shadow strength, so the label erases the map under itself instead — the
+     same move a printed chart makes where a name crosses terrain */
+  background: rgba(16, 16, 19, 0.82);
+  padding: 0.18em 0.45em;
+  border-radius: 2px;
+}
+
+/* NO accent in this layer: the codes were competing with the arcs for the
+   same red, and eleven labels over europe turned the register into noise.
+   The city leads and carries the light; the code trails, dimmer and smaller —
+   annotation on the annotation. */
+.globe-waypoint-city {
+  color: var(--text);
+  opacity: 0.82;
+}
+
+.globe-waypoint-code {
+  font-size: 0.88em;
+  opacity: 0.6;
+}
+
+/* a city flown through once: present, but a whisper next to the hubs —
+   smaller, and its text steps down while the plate stays solid */
+.globe-waypoint-minor {
+  font-size: 0.52rem;
+}
+
+.globe-waypoint-minor .globe-waypoint-city {
+  opacity: 0.55;
+}
+
+.globe-waypoint-minor .globe-waypoint-code {
+  opacity: 0.4;
+}
+
+/* the anchor: a dot at the airport's actual coordinate, which the label
+   hangs off — the offsets undo the label's own margin and padding (above) */
+.globe-waypoint::before {
+  content: '';
+  position: absolute;
+  left: -0.5em;
+  top: 0.72em;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0.7;
+  transform: translate(-50%, -50%);
+}
+
+.globe-pins {
+  position: absolute;
+  inset: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Each pin is a zero-size anchor at the projected coordinate; the rAF loop
+   writes its transform (position + depth scale), opacity and z-index every
+   frame. will-change is deliberate: these are transformed every frame. */
+.globe-pin {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  will-change: transform, opacity;
+  transition: none;
+  /* Starts hidden, and this is load-bearing. The rAF loop writes both the
+     transform and the opacity, but it cannot write anything until the lazy 3D
+     chunk has mounted and reported a first projection. Defaulting to opacity 1
+     put all ten pins in the frame's top-left corner, stacked, for as long as
+     that took — which read as one stray dot floating beside the globe. */
+  opacity: 0;
+}
+
+.globe-pin-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(255, 45, 26, 0.18);
+}
+
+/* a place with no frames yet: a bare dot, centred on its anchor — visibly a
+   different kind of object from a pickup */
+.globe-pin-dot-bare {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+}
+
+/* ---------- the pickups ---------- */
+
+/* The pickup assembly — hand of cards, stalk, dot — anchored with the dot's
+   centre on the pin's projected coordinate and everything else standing up
+   from it. The CARDS inside are the buttons; this is just the mount. */
+.globe-pickup {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform: translate(-50%, 3.5px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* the bob rides its OWN wrapper: the li's transform belongs to the rAF loop,
+   and two writers on one transform means one of them loses */
+.globe-pickup-float {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: pickup-bob 3.4s ease-in-out infinite;
+}
+
+@keyframes pickup-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* the hand: the square every card of this place lives in, stacked at rest,
+   fanned when the place is selected */
+.globe-pickup-hand {
+  position: relative;
+  display: block;
+  width: 3.4rem;
+  height: 3.4rem;
+  transition: scale 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.globe-pickup:hover .globe-pickup-hand,
+.globe-pin-active .globe-pickup-hand {
+  scale: 1.12;
+}
+
+/* fanned, the cards do their own scaling — the hand stands still so hover
+   targets don't drift under the pointer */
+.globe-pin-selected .globe-pickup-hand {
+  scale: 1;
+}
+
+/* One card per frame. At rest they sit as a loose pile (the jitter angles,
+   top card straight); on selection each rotates out around a pivot well below
+   the card — the geometry of cards held in a hand — with a small stagger so
+   the spread reads as a deal, not a jump. Individual transform properties
+   (rotate / translate / scale) on purpose: the fan owns rotate, the hover pop
+   owns translate+scale, and they compose instead of overwriting each other. */
+.globe-pickup-card {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0.55rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  z-index: calc(var(--n) - var(--i));
+  transform-origin: 50% 240%;
+  rotate: calc(var(--jitter) * 1deg);
+  transition:
+    rotate 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    translate 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    scale 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--i) * 0.03s);
+}
+
+.globe-pickup-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  border: 1px solid rgba(244, 239, 233, 0.3);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    translate 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    scale 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none; /* the button is the hit target, not the image */
+}
+
+/* the tour presenting a place rings its top card; a selection rings the fan */
+.globe-pin-active .globe-pickup-card:first-child img {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px rgba(255, 45, 26, 0.35),
+    0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.globe-pin-selected .globe-pickup-card img {
+  border-color: rgba(255, 45, 26, 0.55);
+}
+
+/* THE FAN: selection spreads the pile into an arc centred on straight-up */
+.globe-pin-selected .globe-pickup-card {
+  rotate: calc((var(--i) - (var(--n) - 1) / 2) * 20deg);
+  scale: 1.15;
+}
+
+/* The pop rides the IMAGE, never the button. The image is pointer-events:
+   none, so the hit geometry under the pointer stays exactly where it was —
+   popping the button itself moved the target out from under the cursor,
+   hover dropped, the card fell back, hover re-entered: a flicker loop
+   between neighbouring cards. z-index on the button is safe (not geometry),
+   and it keeps the popped card above its overlapping neighbours. */
+.globe-pin-selected .globe-pickup-card:hover,
+.globe-pin-selected .globe-pickup-card:focus-visible {
+  z-index: 30;
+}
+
+.globe-pin-selected .globe-pickup-card:hover img,
+.globe-pin-selected .globe-pickup-card:focus-visible img {
+  translate: 0 -0.85rem;
+  scale: 1.3;
+  border-color: var(--accent);
+}
+
+/* the card that is currently popped out at viewer scale has LEFT the hand:
+   its slot goes empty rather than showing the same picture twice. visibility
+   (not opacity) so the slot also stops being a hover/click target while the
+   card is away; it snaps back the instant the pop lands. */
+.globe-pickup-card-lifted {
+  visibility: hidden;
+}
+
+/* pause the bob while fanned — a drifting hover target is a missed click */
+.globe-pin-selected .globe-pickup-float {
+  animation-play-state: paused;
+}
+
+/* the cards themselves are the count once they're spread */
+.globe-pin-selected .globe-pickup-count {
+  opacity: 0;
+}
+
+.globe-pickup-count {
+  position: absolute;
+  z-index: 20;
+  top: -0.45rem;
+  right: -0.45rem;
+  transition: opacity 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* the label hangs below the dot and only speaks when addressed: hovered,
+   presented by the tour, or tapped */
+.globe-pickup-label {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translate(-50%, -3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.globe-pickup:hover .globe-pickup-label,
+.globe-pin-active .globe-pickup-label,
+.globe-pin-selected .globe-pickup-label {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* a bare (frameless) place has no button to hover: its label is quiet but
+   always on, hanging under the bare dot */
+.globe-pickup-label-bare {
+  top: 0.5rem;
+  opacity: 0.75;
+  transform: translate(-50%, 0);
+}
+
+.globe-pickup-place {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--text);
+  text-shadow: 0 1px 8px rgba(12, 12, 15, 0.85);
+}
+
+.globe-pickup-meta {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  text-shadow: 0 1px 8px rgba(12, 12, 15, 0.85);
+}
+
+/* Shown until an outing has coordinates. The cameras have no GPS, so this is
+   the honest state rather than a failure state — the site refuses to draw a
+   world it cannot place anything on. */
+.globe-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: 100%;
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.globe-empty p {
+  max-width: 30ch;
+  line-height: 1.6;
+}
+
+.globe-empty code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text);
+}
+
+.globe-empty-mark {
+  width: clamp(7rem, 22svh, 12rem);
+  aspect-ratio: 1;
+  border: 1px dashed rgba(244, 239, 233, 0.18);
+  border-radius: 50%;
+}
+
+/* ---------- ticker ---------- */
+
+.ticker {
+  overflow: hidden;
+  padding-block: clamp(1.5rem, 4vw, 3rem);
+  border-block: 1px solid var(--line);
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 28s linear infinite;
+}
+
+.ticker-group {
+  display: flex;
+  align-items: center;
+  gap: clamp(1.2rem, 3vw, 2.5rem);
+  padding-right: clamp(1.2rem, 3vw, 2.5rem);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.8rem, 4.5vw, 3.6rem);
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.ticker-star {
+  color: var(--accent);
+  font-size: 0.5em;
+  width: 0.55em;
+  height: 0.55em;
+}
+
+/* the clock is the only part of the strip that changes while you read it, so it
+   gets tabular figures — a proportional 1 would make the whole rail breathe */
+.ticker-clock {
+  font-variant-numeric: tabular-nums;
+}
+
+/* status rail: the same strip, flipped to ink for the footer's accent drench.
+   Colour only — the geometry and the loop stay shared. */
+.ticker-ink {
+  color: var(--accent-ink);
+}
+
+.ticker-ink .ticker {
+  border-block-color: rgba(28, 6, 5, 0.22);
+}
+
+.ticker-ink .outline {
+  -webkit-text-stroke-color: var(--accent-ink);
+}
+
+.ticker-ink .ticker-star {
+  color: var(--accent-ink);
+}
+
+@keyframes ticker-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+}
+
+/* ---------- about teaser ---------- */
+
+.about-teaser {
+  padding-block: clamp(6rem, 14vw, 12rem);
+  max-width: 68rem;
+}
+
+.about-teaser-star {
+  color: var(--accent);
+  margin-bottom: var(--space-4);
+}
+
+.about-teaser-text {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: lowercase;
+  line-height: 1.02;
+  margin-bottom: var(--space-6);
+}
+
+/* ---------- work index ---------- */
+
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(3rem, 7vw, 7rem) clamp(1.5rem, 4vw, 4rem);
+  padding-bottom: var(--space-16);
+}
+
+.work-card {
+  display: block;
+}
+
+.work-card:nth-child(even) {
+  transform: translateY(clamp(2.5rem, 7vw, 7rem));
+}
+
+.work-card:nth-child(even) {
+  margin-bottom: clamp(2.5rem, 7vw, 7rem);
+}
+
+.work-card-media {
+  position: relative;
+  display: block;
+}
+
+.work-card-num {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.6rem;
+  z-index: 2;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.4rem, 6vw, 4.5rem);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.work-card-image {
+  max-height: 78vh;
+}
+
+.work-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: var(--space-2);
+}
+
+.work-card:hover h2 {
+  color: var(--accent);
+  transition: color 0.3s ease;
+}
+
+.work-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.work-card-tagline {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ---------- gallery ---------- */
+
+.gallery-back {
+  margin-bottom: var(--space-4);
+}
+
+.gallery-flow {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: clamp(4rem, 10vw, 9rem) var(--space-2);
+  padding-block: var(--space-8) var(--space-16);
+}
+
+.gallery-item {
+  position: relative;
+  display: block;
+  text-align: left;
+}
+
+.gallery-item-0 {
+  grid-column: 3 / 11;
+}
+
+.gallery-item-1 {
+  grid-column: 1 / 7;
+}
+
+.gallery-item-2 {
+  grid-column: 6 / 13;
+}
+
+/* placement only — the register comes from .index-mark */
+.gallery-item-num {
+  position: absolute;
+  bottom: -1.8rem;
+  right: 0;
+}
+
+.gallery-next {
+  padding-block: var(--space-8) var(--space-16);
+  border-top: 1px solid var(--line);
+}
+
+.gallery-next-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.gallery-next-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+}
+
+/* photo-in-type. The stroke layer is the real text and stays put; this is an
+   aria-hidden duplicate stacked exactly on top of it, carrying the next
+   category's cover clipped to the letterforms. Filling it solid on hover, the
+   way this used to, would have left nowhere for the picture to go. */
+.gallery-next-title {
+  position: relative;
+  display: inline-block;
+}
+
+.gallery-next-fill {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.gallery-next-link:hover .gallery-next-fill,
+.gallery-next-link:focus-visible .gallery-next-fill {
+  opacity: 1;
+}
+
+/* the touch fallback, scoped so it can only ever apply where hover doesn't */
+@media (hover: none) {
+  .gallery-next-fill.is-lit {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-next-fill {
+    transition: none;
+  }
+}
+
+/* ---------- about / contact / privacy ---------- */
+
+.about-body {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-4);
+  padding-bottom: var(--space-16);
+}
+
+/* the same two columns the hero runs on — copy on 1–5, frame on 6–12 — so the
+   about page reads as the same system rather than a differently-built page */
+.about-copy {
+  grid-column: 1 / 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+  line-height: 1.7;
+}
+
+.about-copy .arrow-link {
+  margin-top: var(--space-2);
+}
+
+.about-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: 2px;
+  transition: color 0.25s ease;
+}
+
+.about-link:hover {
+  color: var(--accent);
+}
+
+.about-portrait {
+  grid-column: 6 / -1;
+  aspect-ratio: 16 / 9;
+}
+
+.contact-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding-bottom: var(--space-16);
+}
+
+.contact-mail {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: lowercase;
+  border-bottom: 3px solid var(--accent);
+  transition:
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.contact-mail:hover {
+  color: var(--accent);
+}
+
+.contact-note {
+  color: var(--text-muted);
+}
+
+.contact-socials {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.3rem;
+}
+
+.contact-socials a:hover {
+  color: var(--accent);
+}
+
+/* The one page-scale colour event on the site — the safelight moment. Same
+   recipe as the footer (accent ground, ink type) so the two scarlet blocks read
+   as one decision; the section carries the background full-bleed and holds the
+   screen even when the copy doesn't fill it. */
+.contact-drench {
+  background: var(--accent);
+  color: var(--accent-ink);
+  min-height: 100svh;
+}
+
+/* the accent dot would disappear into its own background, so on this page the
+   mark flips to bone — it stays the loudest thing in the lockup */
+.contact-drench .accent {
+  color: var(--text);
+}
+
+.contact-drench .contact-mail {
+  border-bottom-color: var(--accent-ink);
+}
+
+.contact-drench .contact-mail:hover {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+.contact-drench .contact-socials a:hover {
+  color: var(--text);
+}
+
+/* muted grey has nothing to be muted against here; ink held off full strength
+   does the same job on scarlet */
+.contact-drench .contact-note {
+  color: var(--accent-ink);
+  opacity: 0.72;
+}
+
+/* --- while the drench is mounted (body.drench), set by Contact.tsx --- */
+
+/* the cursor badge is accent — invisible on its own colour */
+body.drench .cursor {
+  background: var(--accent-ink);
+}
+
+body.drench .cursor-label {
+  color: var(--text);
+}
+
+body.drench ::selection {
+  background: var(--text);
+  color: var(--accent-ink);
+}
+
+/* Page and footer are both scarlet now, so the seam has to be drawn. The status
+   rail's own top hairline is that line — it goes full ink here rather than the
+   footer growing a second border directly above it. */
+body.drench .site-footer .ticker {
+  border-top-color: var(--accent-ink);
+}
+
+.privacy-body {
+  max-width: 70ch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-16);
+  color: var(--text-muted);
+}
+
+.privacy-body h2 {
+  color: var(--text);
+  font-size: 1.4rem;
+  margin-top: var(--space-3);
+}
+
+.privacy-body a {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* ---------- the frame pop ---------- */
+
+/* A fanned card, picked up: it flies out of the hand to viewer scale in the
+   air above the planet, and a tap anywhere else slides it back down into its
+   slot — the mac-minimize gesture, not a modal. The page stays present
+   behind a light dim because the fan it came from IS the navigation and
+   should stay readable. Portaled to <body>: .hero-globe carries a transform,
+   and position:fixed inside a transformed ancestor pins to that ancestor,
+   not the viewport. Same z as the lightbox — the two are never up at once
+   (one belongs to the hero, one to the galleries). */
+.frame-pop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.frame-pop-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 12, 15, 0.45);
+}
+
+/* laid out at its final rect by JS; the flight in and out is pure transform
+   (FLIP), so this never animates layout. The perspective is for the skin's
+   vacuum pinch — rotating the skin back foreshortens its bottom edge. */
+.frame-pop-fig {
+  position: fixed;
+  margin: 0;
+  will-change: transform;
+  cursor: pointer;
+  perspective: 900px;
+}
+
+/* the suck's canvas: pitches around its top edge during the minimize so the
+   bottom tightens like something being vacuumed; flat whenever at rest */
+.frame-pop-skin {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 0%;
+  will-change: transform;
+}
+
+.frame-pop-fig img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(244, 239, 233, 0.35);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.frame-pop-caption {
+  position: absolute;
+  top: calc(100% + 0.9rem);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  opacity: 0; /* faded in by JS once the flight lands */
+}
+
+.frame-pop-sep {
+  color: var(--accent);
+}
+
+/* ---------- lightbox ---------- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(10, 10, 12, 0.97);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-image {
+  max-width: min(92vw, 1600px);
+  max-height: 86svh;
+  object-fit: contain;
+  animation: lightbox-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes lightbox-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+.lightbox-close,
+.lightbox-nav {
+  position: absolute;
+  z-index: 2;
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 1rem;
+  color: var(--text);
+  opacity: 0.7;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease;
+}
+
+.lightbox-close:hover,
+.lightbox-nav:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.lightbox-close {
+  top: 0.75rem;
+  right: 0.75rem;
+  font-size: 2rem;
+}
+
+.lightbox-prev {
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.lightbox-next {
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* placement only — the register comes from .index-mark */
+.lightbox-counter {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ---------- footer (accent drench) ---------- */
+
+.site-footer {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.site-footer-cta {
+  padding-block: clamp(5rem, 12vw, 10rem) var(--space-8);
+}
+
+.site-footer-star {
+  color: var(--accent-ink);
+  margin-bottom: var(--space-4);
+}
+
+.site-footer-cta-link {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: lowercase;
+  line-height: 0.88;
+}
+
+.site-footer-cta-link .outline-ink {
+  transition: color 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.site-footer-cta-link:hover .outline-ink {
+  color: var(--accent-ink);
+}
+
+.site-footer-mail {
+  display: inline-block;
+  margin-top: var(--space-4);
+  font-weight: 600;
+  font-size: clamp(1rem, 2vw, 1.3rem);
+}
+
+.site-footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  border-top: 1px solid rgba(26, 13, 5, 0.25);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.site-footer-links {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.site-footer-links a {
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.site-footer-links a:hover {
+  border-color: var(--accent-ink);
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 900px) {
+  .work-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .work-card:nth-child(even) {
+    transform: none;
+    margin-bottom: 0;
+  }
+
+  .gallery-item-0,
+  .gallery-item-1,
+  .gallery-item-2 {
+    grid-column: 1 / 13;
+  }
+
+  /* stacked, and the frame goes first for the same reason it does in the hero:
+     at this width the photograph should be the thing you meet, not the column
+     of text beside it */
+  .about-copy {
+    grid-column: 1 / 13;
+    order: 2;
+  }
+
+  .about-portrait {
+    grid-column: 1 / 13;
+    order: 1;
+  }
+
+  .lightbox-nav {
+    display: none; /* swipe instead */
+  }
+
+  /* Narrow: rail / sky / air / rule / index, with the planet standing at the
+     bottom exactly as on desktop — a portrait viewport is actually the
+     BETTER shape for a horizon, and keeping one composition means the
+     fan-and-pop ladder is the whole story on every device. The sphere runs
+     wider than the screen so the arc fills the bottom edge to edge. */
+  .hero-inner {
+    grid-template-rows: auto auto 1fr auto auto;
+  }
+
+  .hero-title {
+    font-size: clamp(2.4rem, 12vw, 3.4rem);
+  }
+
+  .hero-title-sub {
+    font-size: 0.82rem;
+  }
+
+  .hero-rail {
+    grid-area: 1 / 1 / 2 / -1;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+  }
+
+  .hero-globe {
+    /* taller than wide viewports carry the sphere higher: the hero often runs
+       past 100svh here (stacked byline/stats/index), which pushes an
+       absolutely-bottomed planet down with it — the smaller sink compensates
+       so the pickups stay clear of the byline band */
+    --globe-size: min(132svh, 360vw);
+    transform: translate(-50%, 36%);
+  }
+
+  .hero-inner .hero-globe:has(.globe-frame-static) {
+    grid-area: 3 / 1 / 4 / -1;
+    width: 100%;
+  }
+
+  /* a smaller sphere carries smaller pickups, or they collide */
+  .globe-pickup-hand {
+    width: 2.7rem;
+    height: 2.7rem;
+  }
+
+  .hero-rule {
+    grid-area: 4 / 1 / 5 / -1;
+    margin-top: var(--space-3);
+  }
+
+  .hero-index {
+    grid-area: 5 / 1 / 6 / -1;
+    font-size: 0.78rem;
+    gap: 0.7em 0.9em;
+  }
+
+  .globe-frame-static {
+    max-height: 42svh;
+  }
+
+  /* The craft beat unstacks in reading order: heading, frame, lead, slate. The
+     desktop layout already runs top to bottom, so this only has to unpick the
+     heading and the lead from sharing row 1. */
+  .process-inner {
+    grid-template-rows: auto auto auto auto;
+    row-gap: var(--space-2);
+  }
+
+  .craft-title {
+    grid-area: 1 / 1 / 2 / -1;
+    font-size: clamp(2rem, 13vw, 3.6rem);
+  }
+
+  .hero-frame {
+    grid-area: 2 / 1 / 3 / -1;
+  }
+
+  .craft-lead {
+    grid-area: 3 / 1 / 4 / -1;
+    padding-bottom: 0;
+    font-size: 0.86rem;
+  }
+
+  .hero-slate {
+    grid-area: 4 / 1 / 5 / -1;
+    font-size: 0.62rem;
+  }
+
+  .hero-scroll-line {
+    height: 1.6rem;
+  }
+}
+
+/* Phone: the top band and the category index both stop earning their space.
+   The header pill is wide enough at this width to run into the slug from both
+   sides (measured: the name disappears behind it and only the year survives),
+   and the pill already carries the wordmark. The category index goes for a
+   different reason — the ticker directly below the fold lists the same
+   categories, so on a screen this narrow it is the same information twice,
+   crushed onto one line with the scroll cue. */
+@media (max-width: 700px) {
+  .hero-rail {
+    display: none;
+  }
+
+  .hero-inner {
+    padding-top: calc(var(--header-h) + var(--space-2));
+  }
+
+  .hero-index-links {
+    display: none;
+  }
+
+  .hero-index-scroll {
+    margin-left: 0;
+  }
+
+  .cursor {
+    display: none;
+  }
+}
