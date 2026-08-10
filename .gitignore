@@ -13,3 +13,6 @@
 .env*.local
 
 npm-debug.log*
+
+# audit harness output (scripts/audit-baseline.json IS committed)
+/scripts/audit-out
