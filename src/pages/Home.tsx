@@ -62,17 +62,18 @@ function Hero() {
   useGSAP(
     () => {
       if (!revealed || prefersReducedMotion()) return
-      /* Same clock as before — the loader curtain lifts over 0.20 → 1.10s, so
-         nothing performs its entrance behind an opaque panel. The globe fades
-         rather than rises: it is already turning when it arrives, and a moving
-         object that also translates on entry reads as two motions fighting. */
+      /* Same clock as before — the loader veil lifts fast, so nothing
+         performs its entrance behind an opaque panel. The globe is NOT in
+         this timeline any more: its seed is already idling when the veil
+         lifts and it choreographs its own growth (Globe.tsx entrance) —
+         fading the frame here would fight that. This timeline carries only
+         the text layers. */
       const tl = gsap.timeline()
-      tl.from('.hero-globe', { opacity: 0, duration: 1.1, ease: 'power2.out' }, 0.5)
-        .from(
-          '.hero-rail > *',
-          { opacity: 0, y: -10, duration: 0.6, stagger: 0.08, ease: 'power3.out' },
-          0.75
-        )
+      tl.from(
+        '.hero-rail > *',
+        { opacity: 0, y: -10, duration: 0.6, stagger: 0.08, ease: 'power3.out' },
+        0.75
+      )
         .from('.hero-title-inner', { yPercent: 115, duration: 1.05, ease: 'power4.out' }, 0.85)
         .from('.hero-title-sub', { opacity: 0, y: 12, duration: 0.7, ease: 'power3.out' }, 1.1)
         .from('.hero-rule', { scaleX: 0, duration: 1, ease: 'power4.inOut' }, 1.12)
@@ -111,7 +112,7 @@ function Hero() {
         <div className="hero-sky">
           <h1 className="hero-title">
             <span className="hero-title-inner">
-              rouven lührs<span className="accent">.</span>
+              rouven<span className="accent">.</span>
             </span>
           </h1>
           <p className="hero-title-sub">photographer &amp; creative developer</p>

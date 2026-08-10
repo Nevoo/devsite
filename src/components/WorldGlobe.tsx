@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { webglAvailable } from '@/lib/webgl'
-import { prefersReducedMotion } from '@/motion/gsap'
-import { useUI } from '@/stores/ui'
+import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { FramePop } from '@/components/FramePop'
 import type { PinProjection } from '@/canvas/Globe'
 import { places, framesAt, firstAt, type Place } from '@/content/places'
@@ -27,6 +26,17 @@ const GlobeView = lazy(() => import('./GlobeView'))
 const nearAPlace = ([lat, lng]: [number, number]) =>
   places.some((p) => Math.hypot(p.coords[0] - lat, p.coords[1] - lng) < 2.5)
 const waypoints = waypointAirports.filter((a) => !nearAPlace(a.coords))
+
+/* Module scope, and that matters. These used to be built inline in the render
+   body, so every WorldGlobe render handed the canvas fresh array identities —
+   which re-ran Globe's seed pass and re-rolled the entrance's random tiebreaks.
+   Harmless in practice (the one render that lands mid-entrance is the reveal
+   flip, while the dots are still parked in the dust) but it is a live wire
+   under a sequence whose whole premise is that nothing is decided twice.
+   `places` and `waypoints` are module constants; so are these. */
+const pinCoords = places.map((p) => p.coords)
+const pinWeights = places.map((place) => framesAt(place).length)
+const waypointCoords = waypoints.map((a) => a.coords)
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
@@ -96,7 +106,6 @@ export function WorldGlobe({
   const pressRef = useRef<{ x: number; y: number } | null>(null)
   const lastXRef = useRef(0)
   const lastYRef = useRef(0)
-  const revealed = useUI((s) => s.revealed)
 
   /* the card currently popped out of its hand at viewer scale, or null. React
      state on purpose: it changes on taps, not per frame, and the fan below
@@ -107,18 +116,18 @@ export function WorldGlobe({
   const cardRefs = useRef(new Map<string, HTMLButtonElement>())
 
   const [has3D] = useState(() => webglAvailable() && !prefersReducedMotion())
-  const pins = places.map((p) => p.coords)
 
-  /* One rAF loop for every label, reading the positions the canvas wrote on its
+  /* One loop for every label, reading the positions the canvas wrote on its
      own frame. Writing transforms straight to the nodes keeps a turning globe
      at zero React renders — the alternative is setState sixty times a second
      for a dozen elements, which is how a 3D hero starts costing more than it
-     is worth. */
+     is worth. Rides the GSAP ticker rather than its own rAF: the ticker
+     already drives Lenis and every timeline (SmoothScroll), so the labels
+     update in the same frame as scroll-driven layout instead of racing it
+     on a second loop. */
   useEffect(() => {
     if (!has3D || places.length === 0) return
-    let raf = 0
     const tick = () => {
-      raf = requestAnimationFrame(tick)
       const frame = frameRef.current
       if (!frame) return
       const { top, width, height } = frame.getBoundingClientRect()
@@ -136,7 +145,12 @@ export function WorldGlobe({
         const limb = Math.max(0, Math.min(1, (projection.facing - 0.02) / 0.28))
         const screenY = top + projection.y * height
         const sink = Math.max(0, Math.min(1, (horizonY - screenY) / 60))
-        const visible = limb * sink
+        /* the entrance holds this pickup back until the ground under IT has
+           landed — per pin, not per globe. A single shared progress value
+           meant every label in the world arrived on the same frame, which is
+           most of what read as "and now the planet is here" (Globe.tsx, the
+           seed pass). 1 on a formed mount, so nothing waits on a remount. */
+        const visible = limb * sink * projection.form
         /* depth is drawn, not implied: a pickup near the limb shrinks as well
            as fades, and the stacking order follows facing so a front pickup
            always overlaps one further round the curve */
@@ -176,11 +190,13 @@ export function WorldGlobe({
         const cap = waypoints[i].legCount > 1 ? 1 : 0.9
         const scale = 0.7 + 0.3 * Math.max(0, Math.min(1, projection.facing))
         node.style.transform = `translate3d(${projection.x * width}px, ${projection.y * height}px, 0) scale(${scale.toFixed(3)})`
-        node.style.opacity = (limb * sink * cap).toFixed(3)
+        node.style.opacity = (limb * sink * cap * projection.form).toFixed(3)
       }
     }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    gsap.ticker.add(tick)
+    return () => {
+      gsap.ticker.remove(tick)
+    }
   }, [has3D, activeRef, selectedRef])
 
   /* A press is not yet a drag. The pickups are buttons INSIDE the drag
@@ -299,22 +315,23 @@ export function WorldGlobe({
           area, and its events bubble up to the frame's handlers above. */}
       <div className="globe-grab" data-cursor="spin" aria-hidden />
 
+      {/* mounted immediately, NOT gated on the reveal: the entrance's seed
+          must already be idling under the loader's veil when it lifts —
+          Globe.tsx waits for the reveal beat itself before growing */}
       {has3D && (
         <Suspense fallback={null}>
-          {revealed && (
-            <GlobeView
-              pins={pins}
-              weights={places.map((place) => framesAt(place).length)}
-              legs={flightArcs}
-              waypoints={waypoints.map((a) => a.coords)}
-              waypointProjectionRef={waypointProjectionRef}
-              projectionRef={projectionRef}
-              activeRef={activeRef}
-              selectedRef={selectedRef}
-              spinRef={spinRef}
-              tiltRef={tiltRef}
-            />
-          )}
+          <GlobeView
+            pins={pinCoords}
+            weights={pinWeights}
+            legs={flightArcs}
+            waypoints={waypointCoords}
+            waypointProjectionRef={waypointProjectionRef}
+            projectionRef={projectionRef}
+            activeRef={activeRef}
+            selectedRef={selectedRef}
+            spinRef={spinRef}
+            tiltRef={tiltRef}
+          />
         </Suspense>
       )}
 

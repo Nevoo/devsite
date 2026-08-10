@@ -13,6 +13,12 @@ export interface PinProjection {
   y: number
   /** 1 = facing the camera, 0 = edge on, <0 = round the back */
   facing: number
+  /**
+   * 0→1 as THIS label's own patch of map lands, 1 forever after. Per pin, not
+   * per globe: the entrance has no moment where "the labels come on", each one
+   * simply surfaces behind the sweep that built the ground under it.
+   */
+  form: number
 }
 
 interface GlobeProps {
@@ -125,6 +131,280 @@ const TILT_MAX = 1.35
 const TILT_MIN = -(Math.PI / 2) - PRESENT_BIAS
 
 /**
+ * The entrance. The page opens INSIDE a dust field: every one of the globe's
+ * dots starts as a particle in a deep volume around the camera, drifting
+ * slowly toward it — flying through space, parallaxing with the pointer.
+ * That field is the loading state (the charcoal veil lifts onto it).
+ *
+ * On the reveal beat the cloud collapses WITH ANGULAR MOMENTUM. The whole
+ * group is a flywheel: it spins through the entire gather and decelerates
+ * (SPIN_ARC, ease-in-out), so every particle — still drifting, mid-flight,
+ * or landed — shares one global rotation, and a dot's straight run at its
+ * home becomes a curved intercept because the home itself is turning. The
+ * already-formed map never sits frozen while stragglers rain in. Launch
+ * order is a SWEEP, not noise: dots leave by longitude (the reseed pass
+ * below), and the sweep OPENS on the face the camera ends on — the part of
+ * the planet the visitor keeps is built first and never touched again.
+ * Each dot rides at partial brightness as dust and DEVELOPS to full as it
+ * lands (aAlpha).
+ *
+ * ONE WAVE, NOT FOUR ARRIVALS. Nothing in this entrance fades in on a clock
+ * of its own. The land, the graticule, the route and the labels all order
+ * themselves by `sweepAt` — angular distance from the face the camera ends on
+ * — so they are not four layers that appear, they are one wave passing over
+ * one object. The graticule is dots in the same buffer family as the land.
+ * The route stays a stroke (it is the one continuous line in the composition,
+ * deliberately) but it develops per VERTEX with the ground under it rather
+ * than walking a draw range on a timer; its longitude sets the wave and its
+ * chronological index breaks ties inside a band, so the trip still establishes
+ * itself in the order it was flown. Each label waits LABEL_LAG behind its own
+ * ground and then develops. There is no beat at which "the planet shows up",
+ * because at no instant is the planet a thing that is absent.
+ *
+ * Occlusion is GEOMETRY, not choreography. One invisible sphere at the
+ * group origin occludes every dot, every frame, in the vertex shader (see
+ * patchDotAlpha): each dot tests its own camera ray against the sphere and
+ * fades over a small soft band behind the limb. The entrance owns exactly
+ * ONE scalar of it — the radius, which grows from 0 to the occluder's size
+ * during the gather (GROW beat). Dust in front stays; a dot whose path
+ * carries it behind the mass slides out of sight the way things pass behind
+ * solid bodies; far-side dots land into hiddenness. Because the test is
+ * evaluated live against the real camera and rotation, it is correct at
+ * every instant for ANY opening view, ANY camera move, ANY interruption —
+ * nothing is baked, so there is no seam to tune and re-tune. The body mesh
+ * gets no entrance of its own: its near-background tint creeps in from the
+ * gather's first frame, glacially, and it takes over depth duty only when
+ * fully opaque — a handoff the shader test makes pixel-equivalent by
+ * construction, and one that now costs nothing because only `depthWrite`
+ * moves. `transparent` must NOT be flipped: it feeds the `opaque` program
+ * parameter (WebGLPrograms), so changing it compiles a whole second shader
+ * on the main thread mid-gather. For the same reason the mesh is visible
+ * from frame one at zero opacity — projectObject skips invisible objects
+ * outright, so its program was not compiled until it appeared, which put a
+ * GLSL compile and link exactly on the beat the dots start flying. Two
+ * stalls, both inside the entrance, both invisible in the source.
+ *
+ * The handoff is momentum, not a cue: the flywheel parks SPIN_RESIDUAL
+ * short of the first stop's facing rotation, and the gather has already
+ * leaned the planet to that stop's presentation tilt — so the tour inherits
+ * a sphere still creeping in its own spin direction, already posed, and
+ * simply carries the motion to rest. No beat starts from stillness and no
+ * beat ends in a stop.
+ *
+ * Continuity is structural: one particle buffer from the first frame to the
+ * last, one wave ordering every layer, no crossfades between systems and no
+ * layer that is absent and then present. Any input once the gather is running
+ * skips to the end (never during the field — that IS the loading state).
+ * Plays once per page load: internal navigation back mounts the globe formed.
+ */
+/** field half-extent in x/y, group-local units — wide enough to fill the far frustum */
+const FIELD_SPREAD = 2.6
+/** field depth: from just in front of the camera (z 4.6) back past the origin */
+const FIELD_Z_NEAR = 4.3
+const FIELD_Z_FAR = -4
+/** units/s the dust drifts toward the camera — the flying-through feel */
+const FIELD_DRIFT = 0.35
+/**
+ * Seconds the field keeps streaming after the veil starts lifting. The veil
+ * fades over 0.4s (LoadingScreen), so this has to clear it by a real margin
+ * or the dust is glimpsed mid-fade and the collapse reads as a cut to a
+ * different picture rather than as the same dots moving. At 0.45 it did
+ * exactly that: fifty milliseconds of visible field.
+ */
+const FIELD_HOLD = 0.85
+/**
+ * ONE clock. Everything below is expressed in master progress p = t /
+ * GATHER_DUR, and p is deliberately NOT clamped — the labels' development
+ * runs past the last dot's landing, which is the only thing that happens
+ * after p = 1. Occlusion is per-dot alpha for the whole gather (see
+ * patchDotAlpha), so a mid-flight dot is never eaten in transit and no frame
+ * ever deletes a particle the visitor was looking at.
+ */
+/** seconds the dot flights span (sweep onsets + one flight) — p = 1 lands here */
+const GATHER_DUR = 1.9
+/** seconds: the occluding mass starts growing / has grown — the entrance's ONE
+    occlusion scalar. Leads the landing tail so late dots land into hiddenness.
+    Invisible in itself (it is a radius, not an opacity), so it costs no onset. */
+const GROW_DELAY = 0.35
+const GROW_DUR = 1.15
+/** the body's tint, in master progress: no delay, because an onset the eye can
+    catch is exactly what this entrance is trying not to have. Full by the time
+    the last dot lands, which is when it inherits depth duty. */
+const BODY_FULL = 1
+/** master progress a label waits after its own ground has landed, then develops
+    over. The lag keeps a name from surfacing onto dots that are still arriving;
+    the ramp is shared with the route, so cartography and annotation are one
+    gesture at two removes rather than two events. */
+const LABEL_LAG = 0.1
+const LABEL_RAMP = 0.28
+/** 2.62s — the last label finishing IS the end of the entrance now. With the
+    veil fade and the field hold, still inside a 3.5s opening. */
+const GATHER_TOTAL = GATHER_DUR * (1 + LABEL_LAG + LABEL_RAMP)
+/** radians the flywheel turns through the gather, ease-in-out, decelerating home */
+const SPIN_ARC = 1.15
+/** radians short of the first stop the flywheel parks — the tour finishes the motion */
+const SPIN_RESIDUAL = 0.12
+/** seconds the tour takes to reach full steering speed after the entrance */
+const WAKE = 1.2
+
+let entranceDone = false
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
+/* framerate-independent smoothing: damp converges identically at 30 and 144
+   fps, where the old hand-rolled `x += (target - x) * min(1, delta * k)`
+   factors drifted with the frame rate and clamped at low fps */
+const { damp } = THREE.MathUtils
+/** cubic ease-in-out — a real S-curve; smoothstep read as barely-not-linear */
+const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+
+/**
+ * THE WAVE. Where a point on the sphere falls in the longitude sweep: 0 on
+ * the face the camera ends on, 1 round the back. Every layer of the entrance
+ * orders itself by this one function — land dots, graticule dots, route
+ * vertices, pin labels, waypoint labels — which is the whole reason none of
+ * them needs a clock of its own, and why re-aiming the opening view re-aims
+ * all five with no retuning. `front` is the group-space angle presented at
+ * the end (see the seed pass).
+ */
+const sweepAt = (x: number, z: number, front: number) => {
+  const a = Math.atan2(z, x) - front
+  return Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) / Math.PI
+}
+
+/**
+ * Master progress at which a thing carrying this seed has finished landing —
+ * the inverse of formLayer's per-dot window, and the anchor everything that
+ * follows the ground (route, labels) hangs off. Keep the two in step.
+ */
+const landedAt = (seed: number) => seed * 0.55 + 0.45
+
+/** seed = mostly the wave, plus a little of whatever breaks ties inside a band */
+const seedFrom = (sweep: number, tiebreak: number) => clamp01(0.78 * sweep + 0.22 * tiebreak)
+
+/** one dot field: its geometry plus the arrays the entrance animates */
+interface DotLayer {
+  geometry: THREE.BufferGeometry
+  home: Float32Array
+  scatter: Float32Array
+  /** per-dot launch fraction, 0..1 — REWRITTEN by the sweep pass to follow longitude */
+  seeds: Float32Array
+  /** the aAlpha attribute's array — development brightness only; occlusion is the shader's */
+  alpha: Float32Array
+}
+
+/**
+ * One entrance frame for a layer: positions at master progress p, and the
+ * per-dot alpha. Each dot streams home over its own window of the master —
+ * the window ORDER is the longitude sweep written into `seeds` — easing OUT:
+ * a launch that spends most of its flight decelerating onto the surface.
+ * (The group is rotating underneath the whole time, so this straight run in
+ * group space is a curved intercept on screen; a small unwinding lead in the
+ * spin direction bends it a touch further.) Brightness is development, not a
+ * fade: dust rides dim and a dot reaches full weight as it lands. That is
+ * ALL this alpha carries — being hidden behind the mass is the shader's
+ * per-frame geometric test (patchDotAlpha), never CPU state.
+ */
+function formLayer(layer: DotLayer, p: number) {
+  const posAttr = layer.geometry.attributes.position as THREE.BufferAttribute
+  const alphaAttr = layer.geometry.getAttribute('aAlpha') as THREE.BufferAttribute
+  const pos = posAttr.array as Float32Array
+  const { home, scatter, seeds, alpha } = layer
+  for (let i = 0; i < seeds.length; i++) {
+    const x = clamp01((p - seeds[i] * 0.55) / 0.45)
+    const s = 1 - (1 - x) * (1 - x) * (1 - x)
+    const j = i * 3
+    // lead angle is negative and unwinds to zero: the target runs AHEAD in
+    // the flywheel's own direction, so path curvature and spin agree
+    const th = (s - 1) * (0.35 + 0.45 * ((seeds[i] * 17) % 1))
+    const c = Math.cos(th)
+    const n = Math.sin(th)
+    const hx = c * home[j] + n * home[j + 2]
+    const hz = c * home[j + 2] - n * home[j]
+    pos[j] = scatter[j] + (hx - scatter[j]) * s
+    pos[j + 1] = scatter[j + 1] + (home[j + 1] - scatter[j + 1]) * s
+    pos[j + 2] = scatter[j + 2] + (hz - scatter[j + 2]) * s
+    alpha[i] = 0.45 + 0.55 * s
+  }
+  posAttr.needsUpdate = true
+  alphaAttr.needsUpdate = true
+}
+
+/**
+ * advance the dust: drift every not-yet-gathered particle toward the camera,
+ * wrapping at the near plane so the field never empties however long the
+ * load takes. Mutates the scatter array only — formLayer owns the buffer.
+ */
+function driftLayer(layer: DotLayer, dz: number) {
+  const { scatter, seeds } = layer
+  const span = FIELD_Z_NEAR - FIELD_Z_FAR
+  for (let i = 0; i < seeds.length; i++) {
+    const j = i * 3 + 2
+    scatter[j] += dz
+    if (scatter[j] > FIELD_Z_NEAR) scatter[j] -= span
+  }
+}
+
+/**
+ * The occluding mass, as the dot shaders see it. Shared uniform handles —
+ * module-level like `entranceDone`, because there is one globe and every
+ * layer's material must agree on the same sphere. `radius` is the
+ * entrance's single occlusion scalar: 0 in the dust, grown to the
+ * occluder's size by the GROW beat, held there forever after.
+ */
+const OCC_RADIUS = { value: 0 }
+/** view-space depth of the soft band behind the limb — the edge reads as
+    shadow, not as a cut, and it is small enough that handing depth duty to
+    the opaque mesh later changes nothing perceptible */
+const OCC_SOFT = { value: 0.04 }
+
+/**
+ * Teach the stock points material a per-dot alpha AND live geometric
+ * occlusion. Injected with onBeforeCompile rather than a ShaderMaterial so
+ * size attenuation, tone mapping and color space keep coming from three.js;
+ * one shared function means one compiled program serves all three layers.
+ *
+ * The occlusion is the load-bearing part: each vertex intersects its own
+ * camera ray with a sphere of radius uOccR at the group origin and fades
+ * across uOccSoft of depth behind the entry point. Evaluated fresh every
+ * frame against the real modelView, it is exact for any rotation, camera or
+ * opening view — occlusion is never baked into per-dot data, which is what
+ * every previous version of this entrance got wrong, one tuned seam at a
+ * time.
+ */
+const patchDotAlpha = (shader: {
+  vertexShader: string
+  fragmentShader: string
+  uniforms: Record<string, { value: unknown }>
+}) => {
+  shader.uniforms.uOccR = OCC_RADIUS
+  shader.uniforms.uOccSoft = OCC_SOFT
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      '#include <common>',
+      'attribute float aAlpha;\nvarying float vAlpha;\nuniform float uOccR;\nuniform float uOccSoft;\n#include <common>'
+    )
+    .replace(
+      '#include <project_vertex>',
+      `#include <project_vertex>
+vAlpha = aAlpha;
+{
+	vec3 sphereC = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+	vec3 rayDir = normalize(mvPosition.xyz);
+	float along = dot(sphereC, rayDir);
+	float miss2 = dot(sphereC, sphereC) - along * along;
+	float r2 = uOccR * uOccR;
+	if (uOccR > 0.0 && along > 0.0 && miss2 < r2) {
+		float entry = along - sqrt(r2 - miss2);
+		vAlpha *= 1.0 - smoothstep(0.0, uOccSoft, length(mvPosition.xyz) - entry);
+	}
+}`
+    )
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', 'varying float vAlpha;\n#include <common>')
+    .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.a *= vAlpha;')
+}
+
+/**
  * Seconds of no input before the tour takes the globe back.
  *
  * The tour used to resume on HOLD, which meant that tilting up to look at the
@@ -160,6 +440,45 @@ function fibonacci(i: number, n: number) {
 }
 
 /**
+ * The graticule, as sample points: equator plus two tropics, three meridians.
+ * Enough to read as a globe and to make the rotation legible, few enough to
+ * stay a drawing.
+ *
+ * DOTS, not lineSegments, and that is the point. As lines it was a fourth
+ * system with a fourth clock — invisible through the whole gather, then an
+ * opacity ramp on the carto beat, arriving alongside the route and the labels
+ * as one obvious curtain-up. As points it goes through the same `build` as the
+ * land, rides the same wave, and inherits the same shader occlusion, so it is
+ * simply part of what the sweep assembles. Spacing is coarser than the land
+ * (~0.035 against ~0.019 at 36k samples), which is what keeps a ring reading
+ * as a ruled line rather than as terrain.
+ */
+function graticulePoints() {
+  const STEPS = 180
+  const points: number[] = []
+  const ring = (fn: (t: number) => THREE.Vector3) => {
+    for (let i = 0; i < STEPS; i++) {
+      const p = fn((i / STEPS) * Math.PI * 2)
+      points.push(p.x, p.y, p.z)
+    }
+  }
+  const r = RADIUS * 1.001
+  for (const lat of [-35, 0, 35]) {
+    const y = Math.sin((lat * Math.PI) / 180) * r
+    const rad = Math.cos((lat * Math.PI) / 180) * r
+    ring((t) => new THREE.Vector3(Math.cos(t) * rad, y, Math.sin(t) * rad))
+  }
+  for (const lng of [0, 60, 120]) {
+    const a = (lng * Math.PI) / 180
+    ring(
+      (t) =>
+        new THREE.Vector3(Math.cos(t) * r * Math.cos(a), Math.sin(t) * r, Math.cos(t) * r * Math.sin(a))
+    )
+  }
+  return points
+}
+
+/**
  * The globe. Dots on a sphere, distributed by the golden angle so there are no
  * seams or pole clumping, then filtered through a land mask so that the dense
  * ones only exist over ground. That last part is the whole difference between
@@ -190,6 +509,24 @@ export function Globe({
   const groupRef = useRef<THREE.Group>(null)
   const reduced = useMemo(() => prefersReducedMotion(), [])
 
+  /* whether THIS mount plays the entrance — decided once, so the geometry
+     memo below can seed its position buffers on the matching side */
+  const intro = useRef({
+    phase: (entranceDone || reduced ? 'done' : 'field') as 'field' | 'gather' | 'done',
+    t: 0,
+    hold: FIELD_HOLD,
+    skip: false,
+    /** seconds since the entrance finished — the tour's wake clock */
+    wake: 0,
+    /* where the field left the sphere. The gather drives tilt and parallax
+       POSITIONALLY from here, on the same eased curve as the yaw, so the two
+       axes start from rest together instead of one of them lurching. */
+    tilt0: 0.22,
+    pos0: new THREE.Vector3(),
+  })
+  /** pointer in [-1, 1] both axes — the dust field parallaxes toward it */
+  const pointer = useRef({ x: 0, y: 0 })
+
   /* Three fields off one distribution, and the split is what makes the map
      legible. A uniform halftone gives every land dot equal weight, so at
      planet scale the continents read as one smear with no edges — the
@@ -199,7 +536,7 @@ export function Globe({
      a touch larger, which traces actual continent outlines; the interior fill
      drops back; the sea keeps the sphere's mass at a fraction of either. Still
      a drawing — the hierarchy is dots, never a texture. */
-  const [coast, shell, sea] = useMemo(() => {
+  const [coast, shell, sea, grid] = useMemo(() => {
     const isCoast = (lat: number, lng: number) => {
       // longitude reach widens toward the poles so the probe distance stays
       // roughly metric; clamped so the poles don't wrap the whole ring
@@ -224,12 +561,34 @@ export function Globe({
       const p = fibonacci(i, SEA_POINTS)
       if (!isLand(p.lat, p.lng)) water.push(p.x * RADIUS, p.y * RADIUS, p.z * RADIUS)
     }
-    const build = (values: number[]) => {
+    const entering = intro.current.phase !== 'done'
+    const build = (values: number[]): DotLayer => {
+      const home = new Float32Array(values)
+      const n = home.length / 3
+      const scatter = new Float32Array(home.length)
+      const seeds = new Float32Array(n)
+      for (let i = 0; i < n; i++) {
+        const seed = Math.random()
+        seeds[i] = seed
+        /* the dust: every dot starts somewhere in a deep box around and in
+           front of the camera — no relation to its map position yet, that
+           is the whole point. driftLayer streams the box toward the camera
+           while the site loads; formLayer flies each dot home from wherever
+           it happens to be when the gather starts. */
+        const j = i * 3
+        scatter[j] = (Math.random() - 0.5) * 2 * FIELD_SPREAD
+        scatter[j + 1] = (Math.random() - 0.5) * 2 * FIELD_SPREAD
+        scatter[j + 2] = FIELD_Z_FAR + Math.random() * (FIELD_Z_NEAR - FIELD_Z_FAR)
+      }
       const g = new THREE.BufferGeometry()
-      g.setAttribute('position', new THREE.Float32BufferAttribute(values, 3))
-      return g
+      // the buffer gets its own copy: home/scatter stay pristine lerp sources
+      g.setAttribute('position', new THREE.BufferAttribute((entering ? scatter : home).slice(), 3))
+      // dust rides dim (see formLayer's development) — a formed mount is full
+      const alpha = new Float32Array(n).fill(entering ? 0.45 : 1)
+      g.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1))
+      return { geometry: g, home, scatter, seeds, alpha }
     }
-    return [build(edge), build(fill), build(water)]
+    return [build(edge), build(fill), build(water), build(graticulePoints())]
   }, [])
 
   /* The route, as great-circle arcs lifted off the surface.
@@ -265,37 +624,19 @@ export function Globe({
     }
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
-    return g
+    /* The route develops PER VERTEX, off the same wave as everything else —
+       no draw range, no clock. It used to walk setDrawRange up over its own
+       0.7s window starting at 1.9s, which is what made it one of three layers
+       that all appeared at once; the route arriving was most of what read as
+       "the planet showed up". The alpha here is the same attribute the dots
+       carry, consumed by the same shader patch, so the arcs also gain the
+       live ray-test occlusion they never had — which is the actual reason the
+       old code had to delay them until the body wrote depth. */
+    const n = points.length / 3
+    const alpha = new Float32Array(n).fill(intro.current.phase === 'done' ? 1 : 0)
+    g.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1))
+    return { geometry: g, seeds: new Float32Array(n), alpha }
   }, [legs])
-
-  // the graticule: equator plus two tropics, three meridians. Enough to read as
-  // a globe and to make the rotation legible, few enough to stay a drawing.
-  const graticule = useMemo(() => {
-    const segments = 128
-    const points: number[] = []
-    const ring = (fn: (t: number) => THREE.Vector3) => {
-      for (let i = 0; i < segments; i++) {
-        const a = fn((i / segments) * Math.PI * 2)
-        const b = fn(((i + 1) / segments) * Math.PI * 2)
-        points.push(a.x, a.y, a.z, b.x, b.y, b.z)
-      }
-    }
-    const r = RADIUS * 1.001
-    for (const lat of [-35, 0, 35]) {
-      const y = Math.sin((lat * Math.PI) / 180) * r
-      const rad = Math.cos((lat * Math.PI) / 180) * r
-      ring((t) => new THREE.Vector3(Math.cos(t) * rad, y, Math.sin(t) * rad))
-    }
-    for (const lng of [0, 60, 120]) {
-      const a = (lng * Math.PI) / 180
-      ring((t) =>
-        new THREE.Vector3(Math.cos(t) * r * Math.cos(a), Math.sin(t) * r, Math.cos(t) * r * Math.sin(a))
-      )
-    }
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
-    return geometry
-  }, [])
 
   /* The pins are NOT drawn in here. Each one already exists as a DOM node
      carrying its place name, so drawing a second marker in WebGL would mean two
@@ -313,14 +654,48 @@ export function Globe({
 
   useEffect(
     () => () => {
-      coast.dispose()
-      shell.dispose()
-      sea.dispose()
-      graticule.dispose()
-      arcs?.dispose()
+      coast.geometry.dispose()
+      shell.geometry.dispose()
+      sea.geometry.dispose()
+      grid.geometry.dispose()
+      arcs?.geometry.dispose()
     },
-    [coast, shell, sea, graticule, arcs]
+    [coast, shell, sea, grid, arcs]
   )
+
+  /* the entrance's one hand on the body: its tint. The mesh is visible and
+     depth-silent from the first frame — visible so its program compiles at
+     mount rather than mid-gather, depth-silent so no naked black sphere ever
+     sits in front of the dust. Only `depthWrite` moves at the seam. */
+  const occluderMatRef = useRef<THREE.MeshBasicMaterial>(null)
+
+  /* the entrance's senses: pointer position while the dust streams, and the
+     skip that any committed input fires once the gather is running. Never
+     during the field — the field IS the loading state, there is nothing to
+     skip to yet — and never on pointermove, which is how the field is
+     played with, not a decision. */
+  useEffect(() => {
+    if (intro.current.phase === 'done') return
+    const onMove = (e: PointerEvent) => {
+      pointer.current.x = (e.clientX / window.innerWidth) * 2 - 1
+      pointer.current.y = (e.clientY / window.innerHeight) * 2 - 1
+    }
+    const skip = () => {
+      if (intro.current.phase === 'gather') intro.current.skip = true
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerdown', skip)
+    window.addEventListener('keydown', skip)
+    window.addEventListener('wheel', skip)
+    window.addEventListener('touchstart', skip)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerdown', skip)
+      window.removeEventListener('keydown', skip)
+      window.removeEventListener('wheel', skip)
+      window.removeEventListener('touchstart', skip)
+    }
+  }, [])
 
   const world = useMemo(() => new THREE.Vector3(), [])
   const normal = useMemo(() => new THREE.Vector3(), [])
@@ -399,6 +774,76 @@ export function Globe({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinPoints])
 
+  /* Where the entrance ENDS: the first stop's presentation pose, minus the
+     residual the tour is left to carry. The flywheel decelerates INTO this —
+     forming the planet already leaned and aimed at its first place is what
+     lets the whole sequence run dust → planet → card without an intermediate
+     "now swing to the first pin" move ever happening. */
+  const entranceEnd = useMemo(
+    () =>
+      pinPoints.length === 0
+        ? { yaw: opening.rotation, tilt: 0.22 }
+        : {
+            yaw: facingRotations[opening.index] - SPIN_RESIDUAL,
+            tilt: facingTilts[opening.index],
+          },
+    [pinPoints, facingRotations, facingTilts, opening]
+  )
+
+  /* where each label sits in the wave — same units as a dot's seed, so the
+     one that fires last fires with the ground it stands on */
+  const pinSeeds = useMemo(() => new Float32Array(pinPoints.length), [pinPoints])
+  const waypointSeeds = useMemo(() => new Float32Array(waypointPoints.length), [waypointPoints])
+
+  /* THE SEED PASS: order only — occlusion is never seeded, it is the shader's
+     live geometry. A thing's start time is its angular distance from the face
+     the camera ends on (`sweepAt`), and the sweep OPENS there: the face the
+     visitor keeps is built first and stays; the further round the back it
+     sits, the later it leaves — and the growing mass has usually hidden the
+     far side by then, so the tail of the sweep lands out of sight. Derived
+     entirely from `entranceEnd`, so changing the opening view re-aims the
+     whole entrance with zero retuning.
+
+     This is now the ONLY place the entrance is sequenced. Five things pass
+     through it — land, graticule, route, pins, waypoints — and each gets a
+     position in one wave rather than a window on its own timeline. That is
+     what removed the "and now the cartography" beat: there is no beat, there
+     is a front moving across a sphere and things becoming visible behind it.
+
+     The tiebreak term is what keeps the front ragged enough to stay organic
+     (without any ordering at all, uniform random starts read as static
+     congealing rather than a wave). It is random for the fields, where
+     nothing distinguishes neighbouring dots — and CHRONOLOGICAL for the
+     route, which is the one layer that has a second story to tell: inside a
+     longitude band, the earlier flight draws first, so the trip still
+     establishes itself in the order it was flown. */
+  useMemo(() => {
+    if (intro.current.phase === 'done') return
+    const front = entranceEnd.yaw + Math.PI / 2 // group-space angle presented at the end
+    for (const layer of [coast, shell, sea, grid]) {
+      const { home, seeds } = layer
+      for (let i = 0; i < seeds.length; i++) {
+        seeds[i] = seedFrom(sweepAt(home[i * 3], home[i * 3 + 2], front), Math.random())
+      }
+    }
+    if (arcs) {
+      const pos = arcs.geometry.attributes.position.array as Float32Array
+      const n = arcs.seeds.length
+      for (let i = 0; i < n; i++) {
+        arcs.seeds[i] = seedFrom(sweepAt(pos[i * 3], pos[i * 3 + 2], front), i / n)
+      }
+    }
+    for (let i = 0; i < pinPoints.length; i++) {
+      pinSeeds[i] = seedFrom(sweepAt(pinPoints[i].x, pinPoints[i].z, front), Math.random())
+    }
+    for (let i = 0; i < waypointPoints.length; i++) {
+      waypointSeeds[i] = seedFrom(
+        sweepAt(waypointPoints[i].x, waypointPoints[i].z, front),
+        Math.random()
+      )
+    }
+  }, [coast, shell, sea, grid, arcs, entranceEnd, pinPoints, waypointPoints, pinSeeds, waypointSeeds])
+
   const tour = useRef({ index: 0, hold: 0, target: 0, seeded: false, grace: 0, lastSelected: -1 })
 
   /* THE CAMERA MUST COME FROM useThree, NOT from useFrame's state.
@@ -418,6 +863,140 @@ export function Globe({
     if (!group || !camera) return
 
     const state_ = tour.current
+
+    /* THE ENTRANCE, while it plays, owns the transform and the clock: the
+       tour is gated off below and every label is held back by its own place
+       in the wave (see labelP), but the projection loops further down keep
+       running so each one is already standing in the right place the moment
+       its ground lands under it. */
+    const introPhase = intro.current.phase
+    if (introPhase === 'field') {
+      const s = intro.current
+      s.t += delta
+      /* flying through the dust: every particle streams toward the camera
+         (wrapping, so the field survives any load time) and the whole field
+         parallaxes gently toward the pointer. Rotation is parked exactly one
+         SPIN_ARC before the entrance's end pose — the dust cloud has no
+         visible orientation, so this is free, and it means the flywheel
+         starts turning from here with zero discontinuity. */
+      group.rotation.y = entranceEnd.yaw - SPIN_ARC
+      group.rotation.x = damp(group.rotation.x, 0.22 + pointer.current.y * 0.06, 3, delta)
+      group.position.x = damp(group.position.x, pointer.current.x * 0.14, 3, delta)
+      group.position.y = damp(group.position.y, pointer.current.y * -0.1, 3, delta)
+      for (const layer of [coast, shell, sea, grid]) {
+        driftLayer(layer, delta * FIELD_DRIFT)
+        formLayer(layer, 0)
+      }
+      OCC_RADIUS.value = 0 // no mass yet — the field is dust all the way through
+      activeRef.current = -1
+      /* the gather waits for the site's reveal beat, then one more beat so
+         the field is SEEN streaming rather than glimpsed mid-fade */
+      if (useUI.getState().revealed && (s.hold -= delta) <= 0) {
+        s.phase = 'gather'
+        s.t = 0
+        // the gather's curves start from exactly where the field left the
+        // sphere, so neither axis has to catch up to anything
+        s.tilt0 = group.rotation.x
+        s.pos0.copy(group.position)
+      }
+    } else if (introPhase === 'gather') {
+      const s = intro.current
+      s.t = s.skip ? GATHER_TOTAL : s.t + delta
+      /* master progress. NOT clamped: formLayer clamps per dot, and the
+         labels' development deliberately runs past p = 1 (see LABEL_LAG). */
+      const p = s.t / GATHER_DUR
+      const u = clamp01(s.t / GATHER_TOTAL)
+      const e = ease(u)
+
+      /* THE FLYWHEEL. The one transform every particle shares: the group
+         spins up and decelerates through the whole gather, easing in from
+         the field's rest and out into the end pose. All three channels are
+         driven POSITIONALLY off the same curve, so a skip lands exactly and
+         the curve is the choreography.
+
+         The tilt used to be damped toward the end pose instead, and an
+         exponential approach has its maximum velocity on frame one — so the
+         sphere lurched into its lean the instant the gather began, from a
+         standstill, while the yaw beside it eased in properly. That was the
+         same bug the tour fixes with WAKE further down, and it was the one
+         piece of the entrance where a beat started from a stop. */
+      group.rotation.y = entranceEnd.yaw - SPIN_ARC * (1 - e)
+      group.rotation.x = s.tilt0 + (entranceEnd.tilt - s.tilt0) * e
+      group.position.copy(s.pos0).multiplyScalar(1 - e)
+
+      // dots that have not launched yet keep living as dust rather than
+      // freezing mid-air; the drift dies out as the map takes over
+      const dz = delta * FIELD_DRIFT * (1 - clamp01(p))
+      if (dz > 0) for (const layer of [coast, shell, sea, grid]) driftLayer(layer, dz)
+
+      /* the GROW beat — the entrance's one occlusion scalar. The invisible
+         mass swells inside the cloud and everything behind it slides out of
+         sight, evaluated per dot per frame in the shader. */
+      OCC_RADIUS.value = RADIUS * OCCLUDER * ease(clamp01((s.t - GROW_DELAY) / GROW_DUR))
+
+      /* the body's tint: no delay and no onset, creeping in from the gather's
+         first frame so slowly it cannot be caught arriving, and full by the
+         time the last dot lands. Only `depthWrite` moves at that point —
+         flipping `transparent` too (as this used to) changes the `opaque`
+         program parameter and compiles a second shader on the main thread,
+         mid-entrance, for a handoff the shader's ray test has already made
+         invisible. The mesh itself is visible from frame one at zero opacity
+         so its program is compiled at mount, under the veil, instead of on
+         the beat it first appeared. */
+      if (occluderMatRef.current) {
+        const bodyFade = ease(clamp01(p / BODY_FULL))
+        occluderMatRef.current.opacity = bodyFade
+        occluderMatRef.current.depthWrite = bodyFade >= 1
+      }
+
+      for (const layer of [coast, shell, sea, grid]) formLayer(layer, p)
+
+      /* THE ROUTE, per vertex, off the same wave — no draw range, no clock.
+         A vertex develops once the ground under it has landed, so the line
+         is never drawn over dots that are still in flight, and the scarlet
+         reaches a stretch of coast at the moment that coast exists. Inside a
+         longitude band the seed's tiebreak is chronological (see the seed
+         pass), so the trip still establishes itself in the order it was
+         flown. Alpha is interpolated along each segment, which means the
+         sweep front crosses a leg smoothly instead of snapping vertex to
+         vertex the way a draw range does. */
+      if (arcs) {
+        const { seeds, alpha } = arcs
+        for (let i = 0; i < seeds.length; i++) {
+          alpha[i] = clamp01((p - landedAt(seeds[i])) / LABEL_RAMP)
+        }
+        arcs.geometry.getAttribute('aAlpha').needsUpdate = true
+      }
+      activeRef.current = -1
+
+      if (s.t >= GATHER_TOTAL) {
+        /* no occlusion seam here — the shader's ray test has been the sole
+           authority all along and simply keeps running at full radius. No
+           transform seam either: with tilt and parallax driven positionally
+           off ease(u), u is exactly 1 here and both channels have already
+           landed on their end values, so this block does not have to snap
+           anything home the way it did when the tilt was damped. It is only
+           the end of the clocks: hand the tour its momentum. */
+        /* the momentum handoff: seed the tour ON the first stop, aimed the
+           SPIN_RESIDUAL further the flywheel deliberately left undone. The
+           tour's damped steering carries the sphere's dying spin the last
+           few degrees in the same direction — the entrance never stops and
+           the tour never starts; authority just changes hands mid-motion. */
+        if (pinPoints.length > 0) {
+          state_.index = opening.index
+          state_.target = facingRotations[opening.index]
+          state_.hold = HOLD
+          state_.seeded = true
+        }
+        s.phase = 'done'
+        entranceDone = true
+      }
+    } else {
+      // the wake clock only runs once the planet exists — see WAKE
+      intro.current.wake += delta
+      // formed forever after, including remounts and reduced-motion mounts
+      OCC_RADIUS.value = RADIUS * OCCLUDER
+    }
 
     /* THE HAND COMES FIRST, and it is applied before the tour reads the
        rotation, so both are looking at the same numbers on the same frame.
@@ -440,8 +1019,9 @@ export function Globe({
       dragged = true
     }
     // damped here rather than in the handler, so a flick keeps coasting after
-    // the pointer is up and comes to rest on its own
-    const decay = 1 - Math.min(1, delta * 6)
+    // the pointer is up and comes to rest on its own. Exponential, not the
+    // linear 1 − 6Δt, which hit zero outright on a slow frame.
+    const decay = Math.exp(-6 * delta)
     spinRef.current *= decay
     tiltRef.current *= decay
     if (Math.abs(spinRef.current) < 1e-5) spinRef.current = 0
@@ -480,6 +1060,15 @@ export function Globe({
     }
     const manual = state_.grace > 0
 
+    /* The tour wakes, it does not lunge. An exponential approach has its
+       maximum angular velocity on frame one, so the instant the route
+       finished drawing the sphere used to snap into its first swing-and-lean
+       — the last seam left in the entrance. Scaling the steering up from
+       zero over WAKE seconds gives the formed planet a breath of stillness
+       and then a lean that visibly accelerates from rest. Saturates at 1 and
+       stays there for the life of the mount. */
+    const wake = ease(clamp01(intro.current.wake / WAKE))
+
     /* THE TOUR. Turning on its own is what keeps this out of the 2021 camera's
        territory: a visitor who never touches the globe is still shown every
        place the work came from.
@@ -495,11 +1084,12 @@ export function Globe({
        Suspended entirely while the visitor has hold of it. Easing rotation.x
        toward the next pin's latitude on every frame regardless is what made a
        hand-tilt snap straight back. */
-    if (!reduced && pinPoints.length > 0 && !manual) {
+    if (!reduced && pinPoints.length > 0 && !manual && introPhase === 'done') {
       if (!state_.seeded) {
-        /* wake facing the archive's weighted centre (see `opening`), then let
-           the tour drift the short distance to its first stop — the heaviest
-           hand on the busy side — rather than snapping to the array's head */
+        /* REMOUNTS ONLY — a fresh entrance seeds itself at the seam, mid-
+           motion. Internal navigation back mounts the globe formed, waking
+           on the archive's weighted centre (see `opening`) and drifting the
+           short distance to its first stop. */
         state_.index = opening.index
         state_.target = facingRotations[opening.index]
         group.rotation.y = opening.rotation
@@ -511,7 +1101,7 @@ export function Globe({
       let diff = state_.target - group.rotation.y
       diff = Math.atan2(Math.sin(diff), Math.cos(diff))
 
-      group.rotation.x += (facingTilts[state_.index] - group.rotation.x) * Math.min(1, delta * 1.6)
+      group.rotation.x = damp(group.rotation.x, facingTilts[state_.index], 1.6 * wake, delta)
 
       /* The clock stops while a viewer is up — the Lightbox, or a card popped
          out of a hand at viewer scale. The visitor opened a stack off this
@@ -538,7 +1128,9 @@ export function Globe({
           state_.hold = HOLD
         }
       } else {
-        group.rotation.y += diff * Math.min(1, delta * 1.9)
+        // damp() on the raw angles would take the long way round the wrap, so
+        // the shortest-path diff keeps its form with damp's exact factor
+        group.rotation.y += diff * (1 - Math.exp(-1.9 * wake * delta))
       }
 
       /* The tour is the authority on which place is speaking, not a geometric
@@ -546,14 +1138,26 @@ export function Globe({
          locked the southern pin out. The card opens only once the swing has
          settled, so it never rides across the sphere mid-move. */
       activeRef.current = Math.abs(diff) < 0.06 && state_.hold < HOLD ? state_.index : -1
-    } else if (!reduced && pinPoints.length === 0 && !manual) {
-      group.rotation.y += delta * 0.075
+    } else if (!reduced && pinPoints.length === 0 && !manual && introPhase === 'done') {
+      group.rotation.y += delta * 0.075 * wake
     }
 
     group.updateMatrixWorld()
 
     let best = -1
     let bestFront = 0.88
+
+    /* Master progress as the LABELS read it, and the reason there is no
+       "and now the labels" moment left: each one develops behind its own
+       patch of ground rather than on a shared carto clock. The two infinities
+       are not a trick — they are the honest values. In the dust nothing has
+       landed, so every label is infinitely early; once formed everything has,
+       so every label is infinitely late. Both saturate through clamp01 with
+       no branch inside the loop. */
+    const labelP =
+      introPhase === 'done' ? Infinity : introPhase === 'gather' ? intro.current.t / GATHER_DUR : -Infinity
+    const formOf = (seed: number) =>
+      ease(clamp01((labelP - landedAt(seed) - LABEL_LAG) / LABEL_RAMP))
 
     for (let i = 0; i < pinPoints.length; i++) {
       world.copy(pinPoints[i]).applyMatrix4(group.matrixWorld)
@@ -571,6 +1175,7 @@ export function Globe({
         x: (world.x + 1) / 2,
         y: (-world.y + 1) / 2,
         facing: front,
+        form: formOf(pinSeeds[i]),
       }
 
       /* Under the hand the tour is not running, so it cannot say which place is
@@ -599,6 +1204,7 @@ export function Globe({
           x: (world.x + 1) / 2,
           y: (-world.y + 1) / 2,
           facing: front,
+          form: formOf(waypointSeeds[i]),
         }
       }
     }
@@ -629,14 +1235,55 @@ export function Globe({
             coastlines. The fill is barely off the page colour: enough to give
             the planet mass against the background, not enough to become a
             shape competing with the dots. */}
-        <mesh>
+        {/* during the entrance this mesh is NOT what occludes the dots — the
+            shader's growing ray-test sphere is (see patchDotAlpha), and this
+            mesh's radius is simply that sphere's final size. It fades in as
+            a depth-silent film carrying only its near-background tint, then
+            takes over depth duty once fully opaque — by which point the
+            shader already hides exactly what the depth buffer will. */}
+        {/* ALWAYS visible, ALWAYS transparent, and both are load-bearing.
+            projectObject early-returns on invisible objects, so a mesh that
+            appears mid-entrance has its shader compiled and linked mid-
+            entrance; and `transparent` feeds the `opaque` program parameter,
+            so flipping it later compiles a second one. Both stalls sat inside
+            the gather. Nothing here needs either: opacity 0 renders as
+            nothing, and the only state that has to move at the seam is
+            depthWrite, which is plain GL state and free. */}
+        {/* renderOrder -1: every layer here sits at the same distance (the
+            group origin), so the transparent sort falls through to object id
+            — which put the film OVER the dots, dimming the whole near
+            hemisphere with it. The film must draw first: back dots fade by
+            their own alpha, front dots stay lit on top of it. */}
+        <mesh renderOrder={-1}>
           <sphereGeometry args={[RADIUS * OCCLUDER, 96, 64]} />
-          <meshBasicMaterial color="#17171b" />
+          <meshBasicMaterial
+            ref={occluderMatRef}
+            color="#17171b"
+            transparent
+            opacity={intro.current.phase === 'done' ? 1 : 0}
+            depthWrite={intro.current.phase === 'done'}
+          />
         </mesh>
+
+        {/* the graticule — dots now, in the same buffer family as the land and
+            riding the same wave, so it is part of what the sweep assembles
+            rather than a line layer that fades up on a clock of its own. Dimmer
+            and smaller than the sea: it is a ruler laid over the drawing. */}
+        <points geometry={grid.geometry}>
+          <pointsMaterial
+            size={0.008}
+            color="#f4efe9"
+            sizeAttenuation
+            transparent
+            opacity={0.3}
+            depthWrite={false}
+            onBeforeCompile={patchDotAlpha}
+          />
+        </points>
 
         {/* opacity nudged up for the planet-scale hero: at half-viewport size
             0.16 read as texture, at full height the ocean read as a void */}
-        <points geometry={sea}>
+        <points geometry={sea.geometry}>
           <pointsMaterial
             size={0.011}
             color="#9a9189"
@@ -644,11 +1291,12 @@ export function Globe({
             transparent
             opacity={0.18}
             depthWrite={false}
+            onBeforeCompile={patchDotAlpha}
           />
         </points>
         {/* interior land: subordinate fill, so the shapes have body without
             every dot shouting at coastline volume */}
-        <points geometry={shell}>
+        <points geometry={shell.geometry}>
           <pointsMaterial
             size={0.012}
             color="#f4efe9"
@@ -656,11 +1304,12 @@ export function Globe({
             transparent
             opacity={0.62}
             depthWrite={false}
+            onBeforeCompile={patchDotAlpha}
           />
         </points>
         {/* the coastlines: full-brightness dots one row deep along every
             land/sea boundary — the layer that makes the continents readable */}
-        <points geometry={coast}>
+        <points geometry={coast.geometry}>
           <pointsMaterial
             size={0.014}
             color="#f4efe9"
@@ -668,14 +1317,26 @@ export function Globe({
             transparent
             opacity={1}
             depthWrite={false}
+            onBeforeCompile={patchDotAlpha}
           />
         </points>
-        <lineSegments geometry={graticule}>
-          <lineBasicMaterial color="#f4efe9" transparent opacity={0.1} depthWrite={false} />
-        </lineSegments>
+        {/* The route: the one continuous line in a composition made of dots,
+            and kept that way on purpose. LineBasicMaterial resolves to the
+            `basic` shader, which carries the same <common> and <project_vertex>
+            and <color_fragment> hooks the points shader does — so the exact
+            same patch gives the arcs per-vertex development AND the live
+            ray-test occlusion they never had. That second half is what let the
+            route stop waiting for the body to write depth, which is what let it
+            stop being a separate beat. */}
         {arcs && (
-          <lineSegments geometry={arcs}>
-            <lineBasicMaterial color="#ff2d1a" transparent opacity={0.75} depthWrite={false} />
+          <lineSegments geometry={arcs.geometry}>
+            <lineBasicMaterial
+              color="#ff2d1a"
+              transparent
+              opacity={0.75}
+              depthWrite={false}
+              onBeforeCompile={patchDotAlpha}
+            />
           </lineSegments>
         )}
       </group>
