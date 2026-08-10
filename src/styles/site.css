@@ -15,6 +15,25 @@
   flex-shrink: 0;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The class composes with Lenis' own stop/start lifecycle; an inline overflow
+   write could otherwise erase a body-level scroll policy it did not own. */
+body.lightbox-open {
+  overflow: hidden;
+}
+
 /* ---------- header ---------- */
 
 /* top-centered liquid-glass pill — dark tinted blur keeps the cream text
@@ -51,6 +70,8 @@
   font-weight: 800;
   font-size: 1.02rem;
   letter-spacing: -0.02em;
+  padding-block: 0.65rem;
+  margin-block: -0.65rem;
 }
 
 .site-header-nav {
@@ -78,14 +99,17 @@
 
 .site-header-nav a {
   position: relative;
-  padding-block: 0.25rem;
+  padding-block: 0.75rem;
+  margin-block: -0.5rem;
 }
 
 .site-header-nav a::after {
   content: '';
   position: absolute;
   left: 0;
-  bottom: 0;
+  /* The extra half-rem of touch padding is layout-neutral; offset it here so
+     the rule keeps its original distance from the glyphs. */
+  bottom: 0.5rem;
   height: 2px;
   width: 100%;
   background: currentColor;
@@ -2156,7 +2180,22 @@ body.drench .site-footer .ticker {
   }
 
   .lightbox-nav {
-    display: none; /* swipe instead */
+    /* Keep the desktop arrows as visible alternatives to swipe. Their edge
+       placement leaves the image's centre third clear in both orientations. */
+    display: block;
+    padding: 1rem;
+  }
+
+  .lightbox-close {
+    padding: 1rem;
+  }
+
+  .lightbox-prev {
+    left: 0.25rem;
+  }
+
+  .lightbox-next {
+    right: 0.25rem;
   }
 
   /* Narrow: rail / sky / air / rule / index, with the planet standing at the
