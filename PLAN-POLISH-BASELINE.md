@@ -30,8 +30,15 @@ Useful flags while iterating:
 | `--phases loadMetrics,sweeps,transitions,memory,cursor,reducedMotion` | run a subset |
 | `--routes /work,/work/nature` | restrict the matrix |
 | `--tcount 3 --mcount 6` | shorten the transition and memory probes |
-| `--build` | force a rebuild first |
+| `--no-build` | measure the existing `dist/` instead of rebuilding it |
 | `--promote` | also copy the result over `scripts/audit-baseline.json` |
+
+**`dist/` is rebuilt on every run** unless `--no-build` is passed. A run against
+a stale build silently measures code that's no longer in the tree, and every
+later gate inherits that. `--no-build` exists for measuring an existing build
+while `src/` is being edited underneath you; it refuses to run if `dist/` is
+missing rather than quietly building one. Each run JSON records which happened
+as `builtThisRun`, so a grader can tell whether the numbers match HEAD.
 
 `audit-diff.mjs` takes `--tolerance <pct>` (default 5), `--only regressions` and
 `--ignore-noisy`, prints a markdown table, and exits 1 if anything moved beyond
@@ -45,6 +52,14 @@ compared in absolute terms rather than in percent.
 
 `--ignore-noisy` excludes the metrics listed in §3 from the exit code. They're
 still printed and still marked, so nothing is hidden.
+
+A metric present in only one of the two files renders as `new metric` or
+`removed metric` and never gates. The frozen baseline predates any metric added
+to the harness later, and a harness improvement must not read as a site
+regression. As of this writing that applies to `headerMinTargetPx`,
+`headerMinFontSizePx`, `cursor.clearsOnPopOpen`,
+`cursor.clearsOnVisibilityHidden` and `cursor.popOpenReached`, which exist in
+new runs but not in `scripts/audit-baseline.json`.
 
 Output lives in `scripts/audit-out/` (gitignored). `scripts/audit-baseline.json`
 is the frozen comparison set and **is** committed.
@@ -78,7 +93,8 @@ carries a `throttled` flag, and `run.config` lists which phases are which.
 3. `transitions` — 10 scripted route changes driven by real trusted mouse
    clicks, phase-timed off the wipe overlay.
 4. `memory` — 20 route changes cycling all five routes, heap sampled every 5.
-5. `cursor` — lane β's acceptance instrument (§6).
+5. `cursor` — lane β's acceptance instrument, all six Definition-of-Done
+   triggers, one cold page each (§6).
 6. `reducedMotion` — one route change under `prefers-reduced-motion: reduce`.
 
 Tab order and focus rings come from real `Tab` key presses rather than
@@ -130,6 +146,15 @@ band, are the ones you'd expect:
   home globe's waypoint overlay is live, so which pins are on screen when the
   sweep fires differs between runs. Home's interactive-element geometry has the
   same ±1 wobble for the same reason. **Every other route sweeps identically.**
+
+Only three home counters are treated as noisy — `textNodesBelow14`,
+`interactiveCount` and `belowMinTarget44` — which leaves **24 of home's 33 sweep
+metrics gating**, including its height, its minimum font size, its focus-ring
+count and its overflow count. Across all three runs to date the only home
+metrics that ever moved are two of those three counters
+(`textNodesBelow14` 112 → 109, `belowMinTarget44` 31 → 30). Suppressing every
+`sweep./|…` key, as an earlier revision did, would have exempted the whole home
+page from the instrument.
 
 Those four groups are what `audit-diff.mjs` marks `(noisy)` and what
 `--ignore-noisy` drops from the exit code. Running the gate on the two accepted
@@ -216,6 +241,16 @@ That's a Wave 4 lever the review didn't name.
 | 320×568 | 86.6 × **23.5** | 30.1 × **28.5** | 35.4 × 28.5 | 46.7 × 28.5 | **12.8px** (logo 14.72) |
 
 Identical across both runs to the tenth of a pixel.
+
+α.2's gate reads straight off the diff table: every route × viewport emits
+`sweep.<route>|<viewport>.headerMinTargetPx`, the shortest of those four
+targets, plus `headerMinFontSizePx`. Baseline is **23.5px at 390 and 320**,
+26.1px at 1440, four targets found on every route. The criterion is ≥44 at
+every breakpoint with the font sizes unmoved, so `headerMinTargetPx` must rise
+to ≥44 while `headerMinFontSizePx` stays at 12.8 / 14.08.
+
+Both keys postdate the frozen baseline, so they show as `new metric` rows in a
+diff against it until someone rebaselines.
 
 ### 4.4 Transitions — 10 clicks, unthrottled, 1440×900
 
@@ -308,28 +343,54 @@ distinction matters — it moves the fix from Wave 2's frozen constants to Wave
 
 ## 6. Cursor lifecycle — lane β's instrument (expected to fail here)
 
-All four assertions run on a cold `/work/nature`, hover the first gallery card
-with a real trusted pointer move (confirmed landing on a `[data-cursor="view"]`
-target), then do one thing without moving the pointer again. Each assertion gets
-its own fresh page, so one failure can't poison the rest.
+Each assertion gets its own cold page, arms the badge with a real trusted
+pointer move onto a `[data-cursor]` target, then does one thing without moving
+the pointer again. Isolated pages mean one failure can't poison the rest.
 
-| assertion | baseline |
+| assertion | route, armed word | baseline |
+|---|---|---|
+| hover arms the badge | `/work/nature`, `view` | yes — probe is valid |
+| clears when the lightbox opens | `/work/nature`, `view` | **no** — still `view` |
+| clears on route change (checked after the reveal, on `/about`) | `/work/nature`, `view` | **no** — still `view` |
+| clears on window `blur` | `/work/nature`, `view` | **no** — still `view` |
+| clears on document `pointerleave` | `/work/nature`, `view` | **no** — still `view` |
+| clears when `popOpen` goes true | `/`, `grade` | **no** — still `grade` |
+| clears when the tab goes hidden | `/work/nature`, `view` | **no** — still `view` |
+| coarse pointer shows no custom cursor | `/work/nature` @390 | yes — `.cursor` computes to `display: none` |
+
+That's all six Definition-of-Done triggers. After lane β, the six `no` rows must
+read `yes` and the last row must not move.
+
+**How faithfully each trigger is produced**, because it changes what a pass
+means:
+
+| trigger | production |
 |---|---|
-| hover arms the badge (`data-mode="view"`, label "view") | yes — probe is valid |
-| clears when the lightbox opens | **no** — still `view` |
-| clears on route change (checked after the reveal, on `/about`) | **no** — still `view` |
-| clears on window `blur` | **no** — still `view` |
-| clears on document `pointerleave` | **no** — still `view` |
-| coarse pointer shows no custom cursor | yes — `.cursor` computes to `display: none` |
+| lightbox open | real — `.click()` on a gallery card mounts the Lightbox |
+| route change | real — `.click()` on a header link runs the whole wipe |
+| `popOpen` | real — two taps on a globe pickup card mount `FramePop`, which is the only thing that writes `popOpen` (`FramePop.tsx:104`) |
+| tab hidden | real — a sibling target is brought to the front and this one genuinely reports `visibilityState: "hidden"` |
+| window `blur` | **synthetic** — `window.dispatchEvent(new Event('blur'))`. A headless target can't lose OS focus. `isTrusted` is false |
+| `pointerleave` | **synthetic** — `document.dispatchEvent(new PointerEvent(…))`. A real one needs the pointer outside the viewport, which the CDP input domain can't express |
 
-Identical in both runs. This is exactly the defect `PLAN-POLISH.md` §β
-describes, and the coarse-pointer gate already holds. After lane β, the four
-`no` rows must read `yes` and the last row must not move.
+The store is not reachable from page scope in a production build — only `gsap`
+is exposed on `window`, and only in DEV (`gsap.ts:11`) — so `popOpen` has no
+shortcut and has to go through the real interaction. The probe confirms it
+arrived: `cursor.popOpenReached` is 1 when `FramePop` actually mounted. If that
+reads 0, the `clearsOnPopOpen` result is vacuous rather than passing. Baseline
+run: 28 pickup cards found, `FramePop` mounted, badge still `grade`.
 
-In the JSON these are `cursor.a_clearsOnLightboxOpen`,
-`cursor.b_clearsOnRouteChange`, `cursor.c_clearsOnBlur`,
-`cursor.d_clearsOnPointerLeave`, `cursor.coarse_noCustomCursor`, and in `flat`
-they're 0/1 so the diff flags any movement.
+The tab-hidden probe records which path it took as
+`cursor.visibilityHidden.extra.method`. Baseline: `real-target-switch`. If a
+future Chrome stops backgrounding headless targets it falls back to overriding
+`document.hidden` and `visibilityState` — the properties a listener reads, not
+just the event — and says so.
+
+In `flat` these are `cursor.clearsOnLightboxOpen`, `cursor.clearsOnRouteChange`,
+`cursor.clearsOnBlur`, `cursor.clearsOnPointerLeave`, `cursor.clearsOnPopOpen`,
+`cursor.clearsOnVisibilityHidden`, `cursor.popOpenReached` and
+`cursor.coarseNoCustomCursor`, all 0/1, so the diff flags any movement. The last
+three postdate the frozen baseline and show as `new metric` rows against it.
 
 ---
 
@@ -420,3 +481,20 @@ Written down so the next person doesn't rediscover them.
 - The transition and memory probes run with the HTTP cache enabled (a visitor
   clicking through a site has a warm cache) and unthrottled. Only `loadMetrics`
   is throttled.
+
+## 9. Addendum (leader, post-Gate 1): supplementary timing baseline
+
+Gate 1 proved the four environment-sensitive transition rows drifted at HEAD
+itself between the 14:07 freeze and 15:11 — `settleFromClickMs` +7.5%,
+`commitToRevealEndMs` +6.7%, `clickToWipeStartMs` −31%, and `maxTotalMs` +91%
+(the `/contact → /` globe-mount stall, PLAN-POLISH-BASELINE §5, now fires
+deterministically; it is Wave 4's target). A pristine-HEAD checkout measured
+interleaved with the Wave 1 tree was indistinguishable from it on every row, so
+the drift predates any lane and is not code.
+
+Ruling: `scripts/audit-baseline.json` stays frozen for geometry, sweeps, cursor,
+memory and the stable transition rows (`totalMs` +0.9%, `maskedMs` +1.3% — both
+still gate against it). The four drifted timing rows are graded from Gates 2–4
+against `scripts/audit-baseline-w1.json` — the Gate 1 verifier's own full run
+(`2026-08-10T15-06-33-gate1`, Wave 1 tree, `builtThisRun: true`). Both files are
+committed; nothing was regenerated or overwritten.

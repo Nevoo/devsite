@@ -742,6 +742,9 @@ async function phaseSweeps(cdp, origin, routes) {
         const media = await evaluate(cdp, s, () => window.__media())
 
         const small = elements.filter((e) => Math.min(e.w, e.h) < 44)
+        // α.2 reads its gate straight off this: the shortest of the four
+        // header targets (logo + three nav links) at this breakpoint
+        const header = elements.filter((e) => /header\.site-header/.test(e.selector))
         results[key] = {
           route,
           viewport: vp.label,
@@ -758,6 +761,10 @@ async function phaseSweeps(cdp, origin, routes) {
             belowMinTarget44: small.length,
             minTargetPx: elements.length ? round(Math.min(...elements.map((e) => Math.min(e.w, e.h)))) : null,
             minFontSizePx: elements.length ? Math.min(...elements.map((e) => e.fontSize)) : null,
+            headerTargetCount: header.length,
+            headerMinTargetPx: header.length ? round(Math.min(...header.map((e) => e.h))) : null,
+            headerMinFontSizePx: header.length ? Math.min(...header.map((e) => e.fontSize)) : null,
+            headerTargets: header.map((e) => ({ label: e.label, w: e.w, h: e.h, fontSize: e.fontSize })),
             elements,
           },
           text: fonts,
@@ -930,10 +937,45 @@ async function phaseMemory(cdp, origin, count = MEMORY_CLICKS) {
  * Contract read off Cursor.tsx: `.cursor` is the root, `data-mode` is set only
  * when the hovered [data-cursor] value has a word in LABELS ('view' | 'grade'),
  * and `.cursor-label` carries the word.
+ *
+ * FIDELITY OF EACH TRIGGER, so a grader knows what was actually exercised:
+ *
+ * | trigger        | how it is produced                                       |
+ * |----------------|----------------------------------------------------------|
+ * | lightbox open  | REAL — .click() on a gallery card mounts the Lightbox     |
+ * | route change   | REAL — .click() on a header link runs the whole wipe      |
+ * | popOpen        | REAL — two taps on a globe pickup card mount FramePop,    |
+ * |                |        which is the only thing that writes popOpen        |
+ * |                |        (FramePop.tsx:104). The store is NOT reachable     |
+ * |                |        from page scope in a production build, so there    |
+ * |                |        is no shortcut: only `gsap` is exposed on window,  |
+ * |                |        and only in DEV (gsap.ts:11).                      |
+ * | visibility     | REAL where the browser allows it — a sibling target is    |
+ * |                |        brought to the front so this one really goes        |
+ * |                |        hidden. Falls back to overriding document.hidden   |
+ * |                |        and visibilityState (not just dispatching the      |
+ * |                |        event) and records which path it took.             |
+ * | window blur    | SYNTHETIC — window.dispatchEvent(new Event('blur')).      |
+ * |                |        A headless target cannot lose OS focus, so this    |
+ * |                |        is a dispatch, not a real focus loss. isTrusted    |
+ * |                |        is false; a listener that checks it would not fire.|
+ * | pointerleave   | SYNTHETIC — document.dispatchEvent(new PointerEvent(…)).  |
+ * |                |        Same caveat. Producing a real one means moving the |
+ * |                |        pointer outside the viewport, which the CDP input  |
+ * |                |        domain cannot express.                             |
  */
 async function phaseCursor(cdp, origin) {
   const out = {}
   const vp = VIEWPORTS[0]
+
+  /** the element on each route that arms a labelled badge, and the word it arms */
+  const HOVER = {
+    '/work/nature': { selector: '.gallery-flow .gallery-item', mode: 'view' },
+    // the hero plate is the site's only `grade` surface (WebGLImage.tsx:197,
+    // gated on gradable + WebGL + fine pointer). It sits below the fold, so
+    // the pointer helper scrolls to it first.
+    '/': { selector: '.hero-plate', mode: 'grade' },
+  }
 
   /**
    * One cold page per assertion. Chaining them through wipe navigations made
@@ -942,25 +984,28 @@ async function phaseCursor(cdp, origin) {
    * one failure loses every later result. A fresh load costs ~4s and every
    * assertion starts from the same state.
    */
-  const probe = async (name, action) => {
+  const probe = async (name, action, route = '/work/nature') => {
     const page = await newPage(cdp, { viewport: vp, throttle: false, cacheDisabled: false })
     const s = page.sessionId
     const state = () => evaluate(cdp, s, () => window.__cursorState())
+    const hover = HOVER[route]
     try {
-      await loadRoute(cdp, page, origin + '/work/nature', '/work/nature')
+      await loadRoute(cdp, page, origin + route, route)
       await sleep(POST_SETTLE_MS)
-      const r = { media: await evaluate(cdp, s, () => window.__media()) }
-      r.hoverPoint = await moveMouseTo(cdp, s, '.gallery-flow .gallery-item')
+      const r = { probe: name, route, media: await evaluate(cdp, s, () => window.__media()) }
+      r.hoverPoint = await moveMouseTo(cdp, s, hover.selector)
       r.before = await state()
       // every "cleared" result below is a false pass if the hover never armed
-      r.probeArmed = r.before.mode === 'view'
+      r.probeArmed = r.before.mode === hover.mode
       r.extra = (await action(s, state)) ?? null
-      r.after = await state()
+      // a probe that has to read the badge mid-action (the tab is hidden, and
+      // restoring it could mask a correct clear) hands its own reading back
+      r.after = r.extra?.stateDuring ?? (await state())
       r.cleared = r.probeArmed ? r.after.mode == null : null
       r.diag = await evaluate(cdp, s, () => window.__diag())
       return r
     } catch (e) {
-      return { error: String(e.message) }
+      return { probe: name, route, error: String(e.message) }
     } finally {
       await page.close()
     }
@@ -979,20 +1024,74 @@ async function phaseCursor(cdp, origin) {
     return { path: await evaluate(cdp, s, () => location.pathname) }
   })
 
-  // (c) blur the window
+  // (c) blur the window — SYNTHETIC, see the table above
   out.windowBlur = await probe('blur', async (s) => {
     await evaluate(cdp, s, () => window.dispatchEvent(new Event('blur')))
     await sleep(400)
     return null
   })
 
-  // (d) pointer leaves the document
+  // (d) pointer leaves the document — SYNTHETIC, see the table above
   out.pointerLeave = await probe('pointerleave', async (s) => {
     await evaluate(cdp, s, () =>
       document.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }))
     )
     await sleep(400)
     return null
+  })
+
+  // (e) a globe pickup card pops out to viewer scale, without the pointer
+  // moving. Two taps: the first selects the place and spreads the fan, the
+  // second lifts that card and mounts FramePop (WorldGlobe.tsx:414-422).
+  out.popOpen = await probe(
+    'popOpen',
+    async (s) => {
+      const cards = await evaluate(cdp, s, () => document.querySelectorAll('.globe-pickup-card').length)
+      if (!cards) return { cards: 0, framePopMounted: false, note: 'no pickup cards on the globe' }
+      await evaluate(cdp, s, () => document.querySelector('.globe-pickup-card').click())
+      await sleep(800)
+      await evaluate(cdp, s, () => document.querySelector('.globe-pickup-card').click())
+      await sleep(1000)
+      return {
+        cards,
+        framePopMounted: await evaluate(cdp, s, () => !!document.querySelector('.frame-pop')),
+      }
+    },
+    '/'
+  )
+
+  // (f) the tab goes hidden
+  out.visibilityHidden = await probe('visibility', async (s, state) => {
+    const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' })
+    const { sessionId: sibling } = await cdp.send('Target.attachToTarget', {
+      targetId,
+      flatten: true,
+    })
+    await cdp.send('Page.bringToFront', {}, sibling).catch(() => {})
+    await sleep(700)
+    let visibilityState = await evaluate(cdp, s, () => document.visibilityState)
+    let method = 'real-target-switch'
+    if (visibilityState !== 'hidden') {
+      // headless didn't background the target. Fall back to overriding the
+      // properties a listener would read, not just firing the event — a clear
+      // that checks document.hidden has to see `true`.
+      method = 'property-override'
+      await evaluate(cdp, s, () => {
+        Object.defineProperty(document, 'visibilityState', {
+          configurable: true,
+          get: () => 'hidden',
+        })
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      visibilityState = await evaluate(cdp, s, () => document.visibilityState)
+    }
+    await sleep(400)
+    // read the badge while the page is still hidden: restoring focus first
+    // could hide a correct clear behind a re-arm
+    const stateDuring = await state()
+    await cdp.send('Target.closeTarget', { targetId }).catch(() => {})
+    return { method, visibilityState, stateDuring }
   })
 
   out.media = out.lightboxOpen.media ?? null
@@ -1002,8 +1101,20 @@ async function phaseCursor(cdp, origin) {
   out.b_clearsOnRouteChange = out.routeChange.cleared
   out.c_clearsOnBlur = out.windowBlur.cleared
   out.d_clearsOnPointerLeave = out.pointerLeave.cleared
-  out.errors = [out.lightboxOpen, out.routeChange, out.windowBlur, out.pointerLeave]
-    .map((p) => p.error)
+  out.e_clearsOnPopOpen = out.popOpen.cleared
+  out.f_clearsOnVisibilityHidden = out.visibilityHidden.cleared
+  // the popOpen assertion is only meaningful if FramePop actually mounted
+  out.popOpenReached = !!out.popOpen.extra?.framePopMounted
+  out.visibilityMethod = out.visibilityHidden.extra?.method ?? null
+  out.errors = [
+    out.lightboxOpen,
+    out.routeChange,
+    out.windowBlur,
+    out.pointerLeave,
+    out.popOpen,
+    out.visibilityHidden,
+  ]
+    .map((p) => (p.error ? `${p.probe}: ${p.error}` : null))
     .filter(Boolean)
 
   // coarse pointer: no custom cursor at all
@@ -1022,7 +1133,7 @@ async function phaseCursor(cdp, origin) {
     await mobile.close()
   }
   log(
-    `cursor: armed=${out.hoverProbeValid} clears lightbox=${out.a_clearsOnLightboxOpen} route=${out.b_clearsOnRouteChange} blur=${out.c_clearsOnBlur} pointerleave=${out.d_clearsOnPointerLeave} coarseDisplay=${out.coarse?.cursor?.display}${out.errors.length ? ' errors=' + JSON.stringify(out.errors) : ''}`
+    `cursor: armed=${out.hoverProbeValid} clears lightbox=${out.a_clearsOnLightboxOpen} route=${out.b_clearsOnRouteChange} blur=${out.c_clearsOnBlur} pointerleave=${out.d_clearsOnPointerLeave} popOpen=${out.e_clearsOnPopOpen} (reached=${out.popOpenReached}) hidden=${out.f_clearsOnVisibilityHidden} (${out.visibilityMethod}) coarseDisplay=${out.coarse?.cursor?.display}${out.errors.length ? ' errors=' + JSON.stringify(out.errors) : ''}`
   )
   return out
 }
@@ -1089,6 +1200,8 @@ function flatten(run) {
     f[`${p}.withFocusRing`] = r.interactive.withFocusRing
     f[`${p}.belowMinTarget44`] = r.interactive.belowMinTarget44
     f[`${p}.minTargetPx`] = r.interactive.minTargetPx
+    f[`${p}.headerMinTargetPx`] = r.interactive.headerMinTargetPx
+    f[`${p}.headerMinFontSizePx`] = r.interactive.headerMinFontSizePx
     f[`${p}.minFontSizePx`] = r.text.min
     f[`${p}.textNodesBelow14`] = r.text.below14.length
     f[`${p}.overflowUnintentional`] = r.overflow.unintentionalCount
@@ -1115,6 +1228,10 @@ function flatten(run) {
   f['cursor.clearsOnRouteChange'] = c.b_clearsOnRouteChange ? 1 : 0
   f['cursor.clearsOnBlur'] = c.c_clearsOnBlur ? 1 : 0
   f['cursor.clearsOnPointerLeave'] = c.d_clearsOnPointerLeave ? 1 : 0
+  f['cursor.clearsOnPopOpen'] = c.e_clearsOnPopOpen ? 1 : 0
+  f['cursor.clearsOnVisibilityHidden'] = c.f_clearsOnVisibilityHidden ? 1 : 0
+  // 0 here means the popOpen assertion above is vacuous, not that it passed
+  f['cursor.popOpenReached'] = c.popOpenReached ? 1 : 0
   f['cursor.coarseNoCustomCursor'] = c.coarse_noCustomCursor ? 1 : 0
   const rm = run.reducedMotion ?? {}
   f['reducedMotion.wipeOccurred'] = rm.wipeOccurred ? 1 : 0
@@ -1127,15 +1244,19 @@ function flatten(run) {
 const USAGE = `devsite audit harness — see PLAN-POLISH-BASELINE.md
 
   node scripts/audit.mjs [--label <name>] [--phases a,b] [--routes /a,/b]
-                         [--tcount N] [--mcount N] [--build] [--promote]
+                         [--tcount N] [--mcount N] [--no-build] [--promote]
 
   --label     names the output file (default: run)
   --phases    subset of loadMetrics,sweeps,transitions,memory,cursor,reducedMotion
   --routes    restrict the route matrix
   --tcount    transition probe click count (default 10)
   --mcount    memory probe click count (default 20)
-  --build     force npm run build first
+  --no-build  measure the existing dist/ instead of rebuilding it first
   --promote   also copy the result over scripts/audit-baseline.json
+
+dist/ is rebuilt on every run unless --no-build is passed, so a run can never
+quietly measure code that is no longer in the tree. The run JSON records which
+of the two happened as builtThisRun.
 
 Writes scripts/audit-out/<stamp>-<label>.json. A full run takes ~8 minutes.
 Diff two runs with: node scripts/audit-diff.mjs <a.json> <b.json>
@@ -1151,10 +1272,20 @@ async function main() {
   const wants = (p) => !only || only.includes(p)
   const routes = typeof arg('routes') === 'string' ? arg('routes').split(',') : ROUTES
 
-  if (!existsSync(join(DIST, 'index.html')) || arg('build')) {
-    log('dist/ missing — running npm run build')
+  // Rebuild by default. A run against a stale dist/ silently measures code
+  // that is no longer in the tree, and every later gate inherits that lie.
+  // `--no-build` is the escape hatch for measuring an existing build while
+  // src/ is being edited underneath you; it refuses rather than building.
+  const distExists = existsSync(join(DIST, 'index.html'))
+  let builtThisRun = false
+  if (arg('no-build')) {
+    if (!distExists) throw new Error('--no-build passed but dist/index.html is missing — build first')
+    log('--no-build: measuring the existing dist/, which may not match the working tree')
+  } else {
+    log('building dist/ (pass --no-build to measure the existing one)')
     const r = spawnSync('npm', ['run', 'build'], { cwd: ROOT, stdio: 'inherit' })
     if (r.status !== 0) throw new Error('npm run build failed')
+    builtThisRun = true
   }
 
   const started = Date.now()
@@ -1172,6 +1303,8 @@ async function main() {
     gitDirty: (spawnSync('git', ['status', '--porcelain'], { cwd: ROOT }).stdout?.toString().trim().length ?? 0) > 0,
     chrome: version.product,
     node: process.version,
+    /** false means dist/ was measured as found — the numbers may predate HEAD */
+    builtThisRun,
     config: {
       routes,
       viewports: VIEWPORTS,

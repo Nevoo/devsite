@@ -68,8 +68,16 @@ const ABSOLUTE = [
  * baseline (PLAN-POLISH-BASELINE.md §3). They are still flagged — hiding them
  * would be tuning the instrument — but they are marked, and `--ignore-noisy`
  * drops them from the exit code so a real regression isn't lost in them.
+ *
+ * The home-route entry is deliberately narrow. `/` runs a live globe overlay
+ * during the sweep, so which pins are on screen moves these three counters by
+ * ±1–3 between identical runs. Everything else on home — its height, its
+ * minimum font size, its header targets — is bit-stable across runs and MUST
+ * gate. An earlier revision suppressed every `sweep./|…` key, which quietly
+ * exempted the home page from the whole instrument.
  */
-const NOISY = /longestTaskMs|\.cls$|reducedMotion\.navToSettledMs|^sweep\.\/\|/
+const NOISY =
+  /longestTaskMs|\.cls$|reducedMotion\.navToSettledMs|^sweep\.\/\|[^.]*\.(textNodesBelow14|interactiveCount|belowMinTarget44)$/
 
 const tolerance = Number(flag('tolerance', 5))
 const onlyRegressions = flag('only') === 'regressions'
@@ -79,13 +87,21 @@ const keys = [...new Set([...Object.keys(A.flat ?? {}), ...Object.keys(B.flat ??
 const rows = []
 let regressions = 0
 let improvements = 0
+let added = 0
+let removed = 0
 
 for (const key of keys) {
   const a = A.flat?.[key]
   const b = B.flat?.[key]
   if (a == null && b == null) continue
+  // A metric present on only one side is informational and never gates. The
+  // frozen baseline predates any metric added later, and a harness improvement
+  // must not read as a site regression.
   if (a == null || b == null) {
-    rows.push({ key, a: a ?? '—', b: b ?? '—', delta: '—', pct: '—', flag: 'new/missing' })
+    const flag = a == null ? 'new metric' : 'removed metric'
+    if (a == null) added++
+    else removed++
+    rows.push({ key, a: a ?? '—', b: b ?? '—', delta: '—', pct: '—', flag })
     continue
   }
   const delta = b - a
@@ -133,6 +149,11 @@ out.push(`- B: \`${files[1]}\` — ${B.startedAt} — ${B.chrome} — git ${Stri
 out.push(
   `- tolerance: ${tolerance}% · metrics: ${rows.length} · flagged: ${regressions} · improved: ${improvements} · on known-noisy metrics: ${noisyFlagged}${ignoreNoisy ? ' (excluded from the exit code)' : ''}`
 )
+if (added || removed) {
+  out.push(
+    `- ${added} metric(s) only in B, ${removed} only in A — informational, never gated (the frozen baseline predates later harness additions)`
+  )
+}
 out.push('')
 out.push('| metric | A | B | Δ | % | |')
 out.push('|---|---:|---:|---:|---:|---|')
