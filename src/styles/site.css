@@ -506,7 +506,7 @@ body.lightbox-open {
   grid-area: 1 / 8 / 2 / -1;
   align-self: end;
   padding-bottom: 0.35em;
-  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  font-size: clamp(0.9rem, 1vw, 0.98rem);
   font-weight: 500;
   line-height: 1.5;
   color: var(--text-muted);
@@ -595,7 +595,7 @@ body.lightbox-open {
   .log-lead {
     grid-area: 2 / 1 / 3 / -1;
     padding-bottom: 0;
-    font-size: 0.86rem;
+    font-size: 0.9rem;
   }
 
   .log-list {
@@ -723,7 +723,7 @@ body.lightbox-open {
 
 .hero-title-sub {
   margin: 1em 0 0;
-  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  font-size: clamp(0.9rem, 1vw, 0.98rem);
   font-weight: 500;
   line-height: 1.4;
   color: var(--text-muted);
@@ -823,7 +823,7 @@ body.lightbox-open {
   grid-area: 1 / 8 / 2 / -1;
   align-self: end;
   padding-bottom: 0.35em;
-  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  font-size: clamp(0.9rem, 1vw, 0.98rem);
   font-weight: 500;
   line-height: 1.5;
   color: var(--text-muted);
@@ -930,7 +930,7 @@ body.lightbox-open {
   flex-wrap: wrap;
   gap: 0.6em 1.1em;
   margin-top: var(--space-2);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.45;
   color: var(--text-muted);
@@ -1102,7 +1102,7 @@ body.lightbox-open {
 }
 
 .globe-log-place {
-  font-size: clamp(0.82rem, 1vw, 0.98rem);
+  font-size: clamp(0.9rem, 1vw, 0.98rem);
   font-weight: 500;
   color: var(--text);
 }
@@ -1688,7 +1688,7 @@ body.lightbox-open {
 .gallery-flow {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: clamp(4rem, 10vw, 9rem) var(--space-2);
+  gap: clamp(4rem, 8vw, 7.2rem) var(--space-2);
   padding-block: var(--space-8) var(--space-16);
 }
 
@@ -1718,12 +1718,12 @@ body.lightbox-open {
 }
 
 .gallery-next {
-  padding-block: var(--space-8) var(--space-16);
+  padding-block: var(--space-6) var(--space-16);
   border-top: 1px solid var(--line);
 }
 
 .gallery-next-label {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--accent);
 }
@@ -2130,7 +2130,7 @@ body.drench .site-footer .ticker {
   gap: var(--space-2);
   padding-block: var(--space-3);
   border-top: 1px solid rgba(26, 13, 5, 0.25);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
@@ -2212,7 +2212,7 @@ body.drench .site-footer .ticker {
   }
 
   .hero-title-sub {
-    font-size: 0.82rem;
+    font-size: 0.9rem;
   }
 
   .hero-rail {
@@ -2276,7 +2276,7 @@ body.drench .site-footer .ticker {
   .craft-lead {
     grid-area: 3 / 1 / 4 / -1;
     padding-bottom: 0;
-    font-size: 0.86rem;
+    font-size: 0.9rem;
   }
 
   .hero-slate {

@@ -285,6 +285,17 @@ The blank space is the art direction. Tune, do not normalise.
 `audit.mjs` element sweep; no overflow at 320px; mobile never shows more than one
 viewport of empty space between consecutive frames.
 
+*Leader amendment (Wave 3):* the 6,000–6,600 band is mathematically unreachable
+under this wave's own guardrails — the six nature images sum to ~5,000px of
+scale-protected height, flooring the page at ~6,900px even with zero gaps. The
+guardrails outrank the number (same hierarchy as D1). Revised CSS acceptance:
+−160px at 1440 (7,823 → 7,663) with floors, asymmetry and image scales intact.
+The remaining distance to ≈7 viewports belongs to the D2 photo cuts — removing
+the two flagged near-duplicate nature frames lands ≈6,250px, inside the
+original band. The 14px criterion carries the standing exemptions: nav fonts
+(α.2 guardrail), the `[ 01 ]` index treatment, `span.chip` (flagged to Rouven
+as taste), and the mono instrument-register family (globe/hero/log HUD).
+
 ### ζ Content (leader-owned)
 
 - **Photo edit:** produce a contact sheet of all 28 across 6 categories, plus the
