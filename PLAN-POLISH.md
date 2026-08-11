@@ -242,6 +242,18 @@ back/forward produce the same
 phase-timing signature as a click within 10%; heap after 20 transitions within
 15% of after 2; reduced-motion run shows no wipe and a bounded fade.
 
+*Leader amendments (Gate 2):* timing rows are graded against contemporaneous
+pristine-HEAD runs, interleaved, per PLAN-POLISH-BASELINE §9 — the unfreeze must
+be scheduled inside the hold so the reveal still starts at `REVEAL_AT_MS` and
+maskedMs carries no structural drift. On POP the commit precedes the cover by
+construction (BrowserRouter applies it before any code can mask it), so the
+"same signature" criterion is `totalMs` within 10% of the click path plus an
+identical reveal shape; commit→reveal-end is exempt on POP. The POP cover is a
+snap, not the animated storyboard — the destination never paints uncovered
+(verified same-frame at Gate 2); the shape goes to Rouven with the Wave 5
+recordings. Heap: growth over 20 navigations must not exceed contemporaneous
+HEAD's beyond the environmental band.
+
 **Gate 2:** verifier runs the transition probe 3× and confirms no variance
 between click-nav and popstate paths. Manual: 10 rapid double-clicks on nav.
 
@@ -315,6 +327,16 @@ size the texture request to the plane. Biggest single LCP lever available.
 the canvas is offscreen; audit `Globe.tsx` (1,347 lines) for React state writes
 inside the frame loop; confirm geometry/material reuse and texture disposal
 across route changes.
+
+*Transferred from Wave 2 (leader ruling):* the transition freeze
+(`FreezeGate` → `setFrameloop('never'/'always')`) retains ~1MB extra heap over
+20 navigations (+80% growth vs +64% at HEAD). δ's bisection pinned the
+mechanism — a no-op FreezeGate closes ~90% of the gap, and bypassing
+`setFrameloop`'s clock reset changes nothing, so the leak rides on actually
+stopping/restarting the render loop, with the allocation site in the canvas
+tree (`View.Port`/`WebGLImage`/`GlobeView` behaviour around a paused loop).
+η owns the fix; the freeze itself stays (it guarantees the zero-tearing
+result). Wave 4's heap gate must land growth back inside the HEAD band.
 
 **Accessibility.** Full keyboard pass; visible focus on every interactive
 element; heading hierarchy per route; descriptive alts (currently

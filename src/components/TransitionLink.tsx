@@ -35,6 +35,45 @@ const nextPaint = () =>
 const delay = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms))
 
+interface TransitionElements {
+  overlay: HTMLElement
+  underprint: Element
+  face: Element
+  wordUnder: Element
+  wordMain: Element
+  words: NodeListOf<Element>
+}
+
+const getTransitionElements = (): TransitionElements | null => {
+  const overlay = document.getElementById('page-transition')
+  const underprint = overlay?.querySelector('.page-transition-accent')
+  const face = overlay?.querySelector('.page-transition-base')
+  const wordPasses = overlay?.querySelectorAll('.page-transition-label-inner')
+  const words = overlay?.querySelectorAll('.page-transition-word')
+
+  if (
+    !overlay ||
+    !underprint ||
+    !face ||
+    !wordPasses ||
+    wordPasses.length < 2 ||
+    !words ||
+    words.length < 2
+  ) {
+    return null
+  }
+
+  return {
+    overlay,
+    underprint,
+    face,
+    // wordPasses[0] is the orange under-pass, [1] the cream main pass
+    wordUnder: wordPasses[0],
+    wordMain: wordPasses[1],
+    words,
+  }
+}
+
 /**
  * Storyboard — the registered poster pull. Absolute seconds; cover times run
  * from transition start, reveal times from reveal start. The metaphor the
@@ -61,6 +100,53 @@ const REVEAL = {
   underprint: { at: 0.12, dur: 0.56 },
 }
 
+async function runPostCommitTransition(
+  elements: TransitionElements,
+  start: number,
+  syncScroll: () => void
+) {
+  const { underprint, face, wordUnder, wordMain } = elements
+
+  syncScroll()
+  await nextPaint()
+  ScrollTrigger.refresh()
+
+  // hold the registered sheet until the reveal beat — a stable reading
+  // interval for the word even when the route paints instantly
+  const remaining = REVEAL_AT_MS - (performance.now() - start)
+  if (remaining > 45) await delay(remaining - 40)
+
+  useUI.getState().setCanvasFrozen(false)
+  // The canvas needs one frame containing the new route's planes before the
+  // reveal exposes it. The existing hold budget pays for this; the storyboard
+  // timing above is deliberately not extended.
+  await nextPaint()
+
+  const holdRemaining = REVEAL_AT_MS - (performance.now() - start)
+  if (holdRemaining > 0) await delay(holdRemaining)
+  useUI.setState({ revealed: true })
+
+  // the sheet continues through the frame: word exits with it, face lifts,
+  // underprint trails as the departing registration rim
+  await gsap
+    .timeline()
+    .to(
+      [wordUnder, wordMain],
+      { yPercent: -120, duration: REVEAL.wordOut.dur, ease: 'power3.in' },
+      REVEAL.wordOut.at
+    )
+    .to(
+      face,
+      { yPercent: -100, duration: REVEAL.face.dur, ease: 'power4.out' },
+      REVEAL.face.at
+    )
+    .to(
+      underprint,
+      { yPercent: -100, duration: REVEAL.underprint.dur, ease: 'power4.out' },
+      REVEAL.underprint.at
+    )
+}
+
 /**
  * The wipe: nothing is on a timer it doesn't own. Cover (await) → swap route
  * + hard scroll reset while hidden → wait for paint → refresh triggers → hold
@@ -68,28 +154,27 @@ const REVEAL = {
  * → reveal (await). Lenis is frozen for the whole ride.
  */
 async function runTransition(navigate: NavigateFunction, to: string) {
-  const overlay = document.getElementById('page-transition')
-  const underprint = overlay?.querySelector('.page-transition-accent')
-  const face = overlay?.querySelector('.page-transition-base')
-  const wordPasses = overlay?.querySelectorAll('.page-transition-label-inner')
-  const words = overlay?.querySelectorAll('.page-transition-word')
-  if (!overlay || !underprint || !face || !wordPasses?.length || !words?.length) {
-    navigate(to)
-    window.scrollTo(0, 0)
-    return
-  }
-  // wordPasses[0] is the orange under-pass, [1] the cream main pass
-  const wordUnder = wordPasses[0]
-  const wordMain = wordPasses[1]
-
+  useUI.getState().closeLightbox()
   transitioning = true
   const start = performance.now()
   const lenis = lenisRef.current
   lenis?.stop()
   useUI.setState({ revealed: false })
-  words.forEach((w) => (w.textContent = labelFor(to)))
+  const elements = getTransitionElements()
 
   try {
+    if (!elements) {
+      navigate(to)
+      lenis?.scrollTo(0, { immediate: true, force: true })
+      window.scrollTo(0, 0)
+      useUI.setState({ revealed: true })
+      return
+    }
+
+    const { overlay, underprint, face, wordUnder, wordMain, words } = elements
+    overlay.style.pointerEvents = 'all'
+    words.forEach((w) => (w.textContent = labelFor(to)))
+
     // the sheet feeds up: underprint leads, face catches it, the word prints
     // in two registered passes, then absolute stillness.
     // y: 0 is load-bearing — the CSS resting state is translateY(100%), which
@@ -98,7 +183,6 @@ async function runTransition(navigate: NavigateFunction, to: string) {
     // the curtain sweeps entirely below the visible screen.
     await gsap
       .timeline()
-      .set(overlay, { pointerEvents: 'all' })
       .fromTo(
         underprint,
         { y: 0, yPercent: 100 },
@@ -125,46 +209,116 @@ async function runTransition(navigate: NavigateFunction, to: string) {
       )
       .to({}, { duration: 0.05 }, COVER.still - 0.05)
 
+    useUI.getState().setCanvasFrozen(true)
     navigate(to)
-    // reset scroll while the screen is hidden — instant, and force past stop()
-    lenis?.scrollTo(0, { immediate: true, force: true })
-    window.scrollTo(0, 0)
-
-    await nextPaint()
-    ScrollTrigger.refresh()
-
-    // hold the registered sheet until the reveal beat — a stable reading
-    // interval for the word even when the route paints instantly
-    const remaining = REVEAL_AT_MS - (performance.now() - start)
-    if (remaining > 0) await delay(remaining)
-
-    useUI.setState({ revealed: true })
-
-    // the sheet continues through the frame: word exits with it, face lifts,
-    // underprint trails as the departing registration rim
-    await gsap
-      .timeline()
-      .to(
-        [wordUnder, wordMain],
-        { yPercent: -120, duration: REVEAL.wordOut.dur, ease: 'power3.in' },
-        REVEAL.wordOut.at
-      )
-      .to(
-        face,
-        { yPercent: -100, duration: REVEAL.face.dur, ease: 'power4.out' },
-        REVEAL.face.at
-      )
-      .to(
-        underprint,
-        { yPercent: -100, duration: REVEAL.underprint.dur, ease: 'power4.out' },
-        REVEAL.underprint.at
-      )
+    await runPostCommitTransition(elements, start, () => {
+      // reset scroll while the screen is hidden — instant, and force past stop()
+      lenis?.scrollTo(0, { immediate: true, force: true })
+      window.scrollTo(0, 0)
+    })
+  } catch (err) {
+    console.error('Page transition failed; falling back to a full navigation.', err)
+    window.location.assign(to)
   } finally {
     transitioning = false
+    if (useUI.getState().canvasFrozen) useUI.getState().setCanvasFrozen(false)
     lenis?.start()
-    gsap.set(overlay, { pointerEvents: 'none' })
-    gsap.set([underprint, face], { yPercent: 100 })
-    gsap.set([wordUnder, wordMain], { yPercent: 120 })
+    if (elements) {
+      const { overlay, underprint, face, wordUnder, wordMain } = elements
+      gsap.set(overlay, { pointerEvents: 'none' })
+      gsap.set([underprint, face], { yPercent: 100 })
+      gsap.set([wordUnder, wordMain], { yPercent: 120 })
+    }
+  }
+}
+
+/** Completes the transition lifecycle after BrowserRouter has committed a POP. */
+export async function runPopstateTransition(pathname: string) {
+  transitioning = true
+  const start = performance.now()
+  const lenis = lenisRef.current
+  lenis?.stop()
+  useUI.setState({ revealed: false })
+  useUI.getState().closeLightbox()
+  const elements = getTransitionElements()
+
+  try {
+    if (!elements) {
+      lenis?.scrollTo(window.scrollY, { immediate: true, force: true })
+      ScrollTrigger.refresh()
+      useUI.setState({ revealed: true })
+      return
+    }
+
+    const { overlay, underprint, face, wordUnder, wordMain, words } = elements
+    overlay.style.pointerEvents = 'all'
+    words.forEach((w) => (w.textContent = labelFor(pathname)))
+
+    // BrowserRouter has already committed the POP, so cover synchronously:
+    // there is no outgoing route left to animate away gracefully.
+    gsap.set([underprint, face], { y: 0, yPercent: 0 })
+    gsap.set([wordUnder, wordMain], { y: 0, yPercent: 0 })
+    useUI.getState().setCanvasFrozen(true)
+
+    await runPostCommitTransition(elements, start, () => {
+      // Preserve native POP restoration and align Lenis with its landing point.
+      lenis?.scrollTo(window.scrollY, { immediate: true, force: true })
+    })
+  } catch (err) {
+    console.error('Popstate transition failed; falling back to a full navigation.', err)
+    window.location.assign(pathname)
+  } finally {
+    transitioning = false
+    if (useUI.getState().canvasFrozen) useUI.getState().setCanvasFrozen(false)
+    lenis?.start()
+    if (elements) {
+      const { overlay, underprint, face, wordUnder, wordMain } = elements
+      gsap.set(overlay, { pointerEvents: 'none' })
+      gsap.set([underprint, face], { yPercent: 100 })
+      gsap.set([wordUnder, wordMain], { yPercent: 120 })
+    }
+  }
+}
+
+async function runReducedMotionTransition(navigate: NavigateFunction, to: string) {
+  useUI.getState().closeLightbox()
+  transitioning = true
+  useUI.setState({ revealed: false })
+  const lenis = lenisRef.current
+  const overlay = document.getElementById('page-transition')
+  const face = overlay?.querySelector('.page-transition-base')
+
+  try {
+    if (!overlay || !face) {
+      navigate(to)
+      lenis?.scrollTo(0, { immediate: true, force: true })
+      window.scrollTo(0, 0)
+      useUI.setState({ revealed: true })
+      return
+    }
+
+    overlay.style.pointerEvents = 'all'
+    gsap.set(face, { y: 0, yPercent: 0, opacity: 0 })
+    await gsap.to(face, { opacity: 1, duration: 0.1, ease: 'power1.inOut' })
+
+    navigate(to)
+    lenis?.scrollTo(0, { immediate: true, force: true })
+    window.scrollTo(0, 0)
+    await nextPaint()
+    ScrollTrigger.refresh()
+    useUI.setState({ revealed: true })
+
+    await gsap.to(face, { opacity: 0, duration: 0.1, ease: 'power1.inOut' })
+  } catch (err) {
+    console.error(
+      'Reduced-motion page transition failed; falling back to a full navigation.',
+      err
+    )
+    window.location.assign(to)
+  } finally {
+    transitioning = false
+    if (overlay) overlay.style.pointerEvents = 'none'
+    if (face) gsap.set(face, { yPercent: 100, opacity: 1 })
   }
 }
 
@@ -176,9 +330,7 @@ export function useTransitionNavigate() {
     if (transitioning || to === location.pathname) return
 
     if (prefersReducedMotion()) {
-      navigate(to)
-      lenisRef.current?.scrollTo(0, { immediate: true, force: true })
-      window.scrollTo(0, 0)
+      void runReducedMotionTransition(navigate, to)
       return
     }
 

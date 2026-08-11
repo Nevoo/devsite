@@ -1,5 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import {
+  BrowserRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigationType,
+} from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import { SmoothScroll } from '@/motion/SmoothScroll'
 import { ScrollTrigger } from '@/motion/gsap'
@@ -8,7 +14,11 @@ import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { Lightbox } from '@/components/Lightbox'
-import { isTransitioning, PageTransitionOverlay } from '@/components/TransitionLink'
+import {
+  isTransitioning,
+  PageTransitionOverlay,
+  runPopstateTransition,
+} from '@/components/TransitionLink'
 import { webglAvailable } from '@/lib/webgl'
 import { Home } from '@/pages/Home'
 import { Work } from '@/pages/Work'
@@ -21,13 +31,30 @@ import { Privacy } from '@/pages/Privacy'
 const CanvasRoot = lazy(() => import('@/canvas/CanvasRoot'))
 
 function RouteChangeEffects() {
-  const { pathname } = useLocation()
+  const { key, pathname } = useLocation()
+  const navigationType = useNavigationType()
+  const mountedRef = useRef(false)
+  const previousLocationKeyRef = useRef(key)
 
   useEffect(() => {
+    const isInitialRun = !mountedRef.current
+    const locationChanged = previousLocationKeyRef.current !== key
+    mountedRef.current = true
+    previousLocationKeyRef.current = key
+
+    if (navigationType === 'POP' && !isInitialRun && locationChanged) {
+      // A POP during an active wipe has already committed. Let the in-flight
+      // transition settle instead of double-firing and corrupting its state.
+      if (isTransitioning()) return
+      void runPopstateTransition(pathname)
+      return
+    }
+
     // the wipe refreshes at the right moment itself (after paint, while the
-    // screen is covered) — this only handles popstate / non-wipe navigation
+    // screen is covered). The initial entry is tagged POP, but still takes this
+    // plain refresh branch so it cannot cover over the LoadingScreen.
     if (!isTransitioning()) ScrollTrigger.refresh()
-  }, [pathname])
+  }, [key, navigationType, pathname])
 
   return null
 }

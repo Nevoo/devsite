@@ -23,6 +23,14 @@ interface UIState {
   revealed: boolean
   setRevealed: (v: boolean) => void
 
+  /**
+   * true while React swaps routes behind the transition cover. The WebGL
+   * canvas owns an independent rAF loop, so without this freeze it can render
+   * a torn frame containing the outgoing planes and the incoming route's DOM.
+   */
+  canvasFrozen: boolean
+  setCanvasFrozen: (v: boolean) => void
+
   /** current smooth-scroll velocity, written by SmoothScroll every frame, read transiently in useFrame */
   scrollVelocity: number
 
@@ -45,6 +53,9 @@ interface UIState {
 export const useUI = create<UIState>((set) => ({
   revealed: false,
   setRevealed: (v) => set({ revealed: v }),
+
+  canvasFrozen: false,
+  setCanvasFrozen: (v) => set({ canvasFrozen: v }),
 
   scrollVelocity: 0,
 

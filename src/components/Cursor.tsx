@@ -97,6 +97,7 @@ export function Cursor() {
     const unsubscribe = useUI.subscribe((state, prev) => {
       if (state.lightbox && !prev.lightbox) clear()
       if (state.popOpen && !prev.popOpen) clear()
+      if (!state.revealed && prev.revealed) clear()
     })
 
     return () => {

@@ -498,3 +498,12 @@ still gate against it). The four drifted timing rows are graded from Gates 2–4
 against `scripts/audit-baseline-w1.json` — the Gate 1 verifier's own full run
 (`2026-08-10T15-06-33-gate1`, Wave 1 tree, `builtThisRun: true`). Both files are
 committed; nothing was regenerated or overwritten.
+
+### 9.1 Expected diff flips after Wave 2 (leader note)
+
+`reducedMotion.wipeOccurred` 0 → 1 and `overlayMoveSamples` 0 → 1 against both
+committed baselines are the reduced-motion acknowledgement fade LANDING, not a
+break: the metric derives from `yPct < 99.5` and cannot tell a sweep from a
+cut. Gate 2b's transform census proved exactly two discrete transform values
+(cut in, cut out) with an opacity-only tween between — no sweep. Future gates
+read this row as expected-changed.
