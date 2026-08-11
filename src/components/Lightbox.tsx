@@ -152,7 +152,7 @@ export function Lightbox() {
         key={photo.src}
         className="lightbox-image"
         src={photo.src}
-        alt={`${lightbox.label} photo ${lightbox.index + 1}`}
+        alt={photo.alt ?? `${lightbox.label} photo ${lightbox.index + 1}`}
         onClick={(e) => e.stopPropagation()}
       />
 

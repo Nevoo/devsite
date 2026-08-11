@@ -80,7 +80,7 @@ export function Gallery() {
           >
             <WebGLImage
               photo={photo}
-              alt={`${category.title} photo ${i + 1}`}
+              alt={photo.alt ?? `${category.title} photo ${i + 1}`}
               style={{ aspectRatio: `${photo.width} / ${photo.height}` }}
             />
             <span className="gallery-item-num">

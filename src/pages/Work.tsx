@@ -91,7 +91,7 @@ export function Work() {
               </span>
               <WebGLImage
                 photo={category.cover}
-                alt={`${category.title} cover photo`}
+                alt={category.cover.alt ?? `${category.title} cover photo`}
                 className="work-card-image"
                 style={{
                   aspectRatio: `${category.cover.width} / ${category.cover.height}`,

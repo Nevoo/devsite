@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { OrthographicCamera, useTexture } from '@react-three/drei'
+import { OrthographicCamera } from '@react-three/drei'
 import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { useUI } from '@/stores/ui'
 import type { Photo } from '@/content/categories'
@@ -37,6 +37,117 @@ interface ImagePlaneProps {
    *  on the GPU, not when the page decided it was ready. The DOM half hangs
    *  the ink registration off this so the two can't drift apart. */
   onDevelopStart?: () => void
+}
+
+const TEXTURE_WIDTHS = [640, 1024, 1600]
+const MAX_DPR = 1.75
+const RESIZE_SETTLE_MS = 180
+
+const derivativeSrc = (src: string, width: number) =>
+  src.replace(/\.(jpe?g)$/i, `-${width}.webp`)
+
+/** Smallest generated texture that covers the rendered pixels. The original
+ * remains the last resort when the source is narrower than 640px or the plane
+ * genuinely needs more pixels than the largest non-upscaled derivative. */
+function textureSource(photo: Photo, planeWidth: number) {
+  if (!/\.(jpe?g)$/i.test(photo.src)) return photo.src
+  const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
+  const requested = Math.ceil(Math.max(planeWidth, 1) * dpr)
+  const width = TEXTURE_WIDTHS.find(
+    (candidate) => candidate >= requested && candidate <= photo.width
+  )
+  return width ? derivativeSrc(photo.src, width) : photo.src
+}
+
+const disposeTexture = (texture: THREE.Texture | null) => {
+  if (!texture) return
+  texture.dispose()
+  const image = texture.image as { close?: () => void } | undefined
+  image?.close?.()
+}
+
+async function decodeTexture(src: string, signal: AbortSignal) {
+  if ('createImageBitmap' in window) {
+    const response = await fetch(src, { signal })
+    if (!response.ok) throw new Error(`image request failed: ${response.status}`)
+    const bitmap = await createImageBitmap(await response.blob(), {
+      imageOrientation: 'flipY',
+      premultiplyAlpha: 'none',
+      colorSpaceConversion: 'none',
+    })
+    const texture = new THREE.Texture(bitmap)
+    texture.flipY = false
+    texture.colorSpace = THREE.SRGBColorSpace
+    texture.anisotropy = 4
+    texture.needsUpdate = true
+    return texture
+  }
+
+  return await new Promise<THREE.Texture>((resolve, reject) => {
+    new THREE.TextureLoader().load(
+      src,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace
+        texture.anisotropy = 4
+        resolve(texture)
+      },
+      undefined,
+      reject
+    )
+  })
+}
+
+/** Per-plane ownership avoids drei/useLoader's permanent URL cache. Decoding
+ * goes through createImageBitmap off the main thread where the browser supports
+ * it; old textures stay live until their replacement is ready, then are closed
+ * and disposed explicitly. */
+function useDecodedTexture(src: string, fallbackSrc: string) {
+  const activeRef = useRef<THREE.Texture | null>(null)
+  const [texture, setTexture] = useState<THREE.Texture | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let stale = false
+
+    const load = async () => {
+      let next: THREE.Texture
+      try {
+        next = await decodeTexture(src, controller.signal)
+      } catch {
+        if (controller.signal.aborted || src === fallbackSrc) return
+        try {
+          next = await decodeTexture(fallbackSrc, controller.signal)
+        } catch {
+          return
+        }
+      }
+
+      if (stale) {
+        disposeTexture(next)
+        return
+      }
+      const previous = activeRef.current
+      activeRef.current = next
+      setTexture(next)
+      disposeTexture(previous)
+    }
+
+    void load()
+    return () => {
+      stale = true
+      controller.abort()
+    }
+  }, [src, fallbackSrc])
+
+  useEffect(
+    () => () => {
+      disposeTexture(activeRef.current)
+      activeRef.current = null
+    },
+    []
+  )
+
+  return texture
 }
 
 
@@ -154,22 +265,28 @@ export function ImagePlane({
 }: ImagePlaneProps) {
   // held so a pointer grab can cancel it mid-flight (see the useFrame below)
   const developTween = useRef<ReturnType<typeof gsap.to> | null>(null)
-  // colorSpace must be set before the first GPU upload, hence the load callback
-  const texture = useTexture(photo.src, (t) => {
-    t.colorSpace = THREE.SRGBColorSpace
-    t.anisotropy = 4
-  })
+  const desiredTextureSrc = useMemo(
+    () => textureSource(photo, planeSize[0]),
+    [photo, planeSize]
+  )
+  const [selectedTextureSrc, setSelectedTextureSrc] = useState(desiredTextureSrc)
+
+  // ResizeObserver can fire several times while a grid settles. Keep the
+  // current GPU resource through that burst and switch once, after 180ms.
   useEffect(() => {
-    if (texture.colorSpace !== THREE.SRGBColorSpace) {
-      texture.colorSpace = THREE.SRGBColorSpace
-      texture.anisotropy = 4
-      texture.needsUpdate = true
-    }
-  }, [texture])
+    const timer = window.setTimeout(
+      () => setSelectedTextureSrc(desiredTextureSrc),
+      RESIZE_SETTLE_MS
+    )
+    return () => window.clearTimeout(timer)
+  }, [desiredTextureSrc])
+
+  const texture = useDecodedTexture(selectedTextureSrc, photo.src)
+  const textureReady = texture !== null
 
   const uniforms = useMemo(
     () => ({
-      uMap: { value: texture },
+      uMap: { value: null as THREE.Texture | null },
       uPlaneSize: { value: new THREE.Vector2(1, 1) },
       uImageSize: { value: new THREE.Vector2(photo.width, photo.height) },
       uBg: { value: new THREE.Color('#101013') },
@@ -236,7 +353,7 @@ export function ImagePlane({
   }, [photo, clip, uniforms])
 
   useEffect(() => {
-    if (!visible) return
+    if (!visible || !textureReady) return
     if (prefersReducedMotion()) {
       uniforms.uReveal.value = 1
       uniforms.uDevelop.value = 1
@@ -274,7 +391,7 @@ export function ImagePlane({
       tween.kill()
     }
     // onDevelopStart must be referentially stable, or the develop restarts
-  }, [visible, develop, uniforms, onDevelopStart])
+  }, [visible, develop, uniforms, onDevelopStart, textureReady])
 
   useEffect(() => {
     uniforms.uEdgeFade.value = edgeFade

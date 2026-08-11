@@ -507,3 +507,26 @@ break: the metric derives from `yPct < 99.5` and cannot tell a sweep from a
 cut. Gate 2b's transform census proved exactly two discrete transform values
 (cut in, cut out) with an opacity-only tween between — no sweep. Future gates
 read this row as expected-changed.
+
+### 9.2 Gate 4 record corrections (leader)
+
+- **The images were never the LCP lever.** The plan called the 12MB of JPEG
+  "the biggest single LCP lever available"; Gate 4 measured LCP within ±40ms of
+  baseline on every route because the LCP element is a text node
+  (`span.hero-title-inner` and friends) on all 15 route × viewport pairs. The
+  derivative work pays in bytes over the wire and in the veil lift, not in
+  LCP. Veil attribution: 44.8s is the Wave 0 harness settle figure on the
+  pre-sprint tree (γ's instrument, §4.1); on the final tree the same settle
+  metric reads 19.2s (font-floor-bound — it waits on Inter's 785KB face) while
+  the FELT veil lift, measured at the display flip by Gate 4, is ~3.1s. Two
+  instruments, both quoted, not interchangeable. Desktop home LCP (~3.17s
+  throttled) is font-bound and stays a recorded known limit.
+- **The transition freeze produces no draw-call gap.** Gate 4's GL instrumentation
+  found draws continuing through the covered interval on this tree AND on HEAD —
+  `frameloop: 'never'` does not stop drei View invalidate-driven renders. The
+  visibility pause (0 draws while hidden vs 100 on HEAD) works; the transition
+  freeze's "mandatory for tear-free swap" claim in CanvasRoot.tsx is unevidenced
+  (tearing is clean regardless, z-index stacking prevents mask-bleed). Follow-up:
+  evidence it on hardware at Wave 5 or soften the comment.
+- **`<Preload all />` removal** from CanvasRoot (unlogged by the lane) is
+  accepted: coherent with ShaderProgramWarmup, no measured consequence.

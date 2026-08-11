@@ -17,7 +17,8 @@ const GLView = lazy(() => import('./GLView'))
 
 interface WebGLImageProps {
   photo: Photo
-  alt: string
+  /** explicit context-specific alt wins; category photos fall back to photo.alt */
+  alt?: string
   className?: string
   style?: CSSProperties
   /** reveal immediately on mount instead of waiting for scroll-into-view */
@@ -41,6 +42,33 @@ interface WebGLImageProps {
   /** the live 0..1 wipe position during a drag, for DOM that has to change
    *  state on the same beat (the hollow word in the hero) */
   onGrade?: (value: number) => void
+}
+
+const RESPONSIVE_WIDTHS = [640, 1024, 1600] as const
+
+const derivativeSrc = (src: string, width: number) =>
+  src.replace(/\.(jpe?g)$/i, `-${width}.webp`)
+
+const responsiveWidths = (photo: Photo) =>
+  /\.(jpe?g)$/i.test(photo.src)
+    ? RESPONSIVE_WIDTHS.filter((width) => width <= photo.width)
+    : []
+
+const responsiveSrcSet = (photo: Photo) => {
+  const widths = responsiveWidths(photo)
+  if (widths.length === 0) return undefined
+  const candidates = widths.map((width) => `${derivativeSrc(photo.src, width)} ${width}w`)
+  if (!widths.includes(photo.width as (typeof RESPONSIVE_WIDTHS)[number])) {
+    candidates.push(`${photo.src} ${photo.width}w`)
+  }
+  return candidates.join(', ')
+}
+
+const responsiveSizes = (className: string | undefined) => {
+  if (className?.includes('hero-plate')) return '(max-width: 1152px) calc(100vw - 4rem), 1088px'
+  if (className?.includes('about-portrait')) return '(max-width: 760px) calc(100vw - 2rem), 635px'
+  if (className?.includes('work-card-image')) return '(max-width: 640px) calc(100vw - 2rem), 500px'
+  return '(max-width: 640px) calc(100vw - 2rem), 730px'
 }
 
 /**
@@ -79,7 +107,7 @@ export function WebGLImage({
   // develop-wipe waits for the curtain (loader or page wipe) to start lifting,
   // otherwise it plays behind the overlay and the photo is just *there*
   const revealed = useUI((s) => s.revealed)
-  const [planeSize, setPlaneSize] = useState<[number, number]>([1, 1])
+  const [planeSize, setPlaneSize] = useState<[number, number]>([0, 0])
 
   // scroll progress for the edge dissolve. Measured on the parent section,
   // NOT the frame: the frame overshoots the section for parallax bleed, so
@@ -189,6 +217,10 @@ export function WebGLImage({
       }
     : null
 
+  const resolvedAlt = alt ?? photo.alt ?? ''
+  const canMountView =
+    webglAvailable() && (eager || visible) && planeSize[0] > 1 && planeSize[1] > 1
+
   return (
     <div
       ref={frameRef}
@@ -199,8 +231,18 @@ export function WebGLImage({
       onPointerLeave={() => setHovered(false)}
       {...gradeHandlers}
     >
-      <img className="gl-frame-fallback" src={photo.src} alt={alt} loading="lazy" />
-      {webglAvailable() && (
+      <img
+        className="gl-frame-fallback"
+        src={photo.src}
+        srcSet={responsiveSrcSet(photo)}
+        sizes={responsiveSizes(className)}
+        width={photo.width}
+        height={photo.height}
+        alt={resolvedAlt}
+        loading="lazy"
+        decoding="async"
+      />
+      {canMountView && (
         <Suspense fallback={null}>
           <GLView
             photo={photo}

@@ -5,6 +5,7 @@ import { PerspectiveCamera } from '@react-three/drei'
 import { prefersReducedMotion } from '@/motion/gsap'
 import { isLand } from '@/content/land-mask'
 import { useUI } from '@/stores/ui'
+import { OCC_RADIUS, patchDotAlpha } from './shaders/globe'
 
 /** live projected state of one pin, written every frame, read by the DOM half */
 export interface PinProjection {
@@ -278,6 +279,10 @@ const sweepAt = (x: number, z: number, front: number) => {
  */
 const landedAt = (seed: number) => seed * 0.55 + 0.45
 
+/** Label development without allocating a closure in the render loop. */
+const labelFormAt = (seed: number, progress: number) =>
+  ease(clamp01((progress - landedAt(seed) - LABEL_LAG) / LABEL_RAMP))
+
 /** seed = mostly the wave, plus a little of whatever breaks ties inside a band */
 const seedFrom = (sweep: number, tiebreak: number) => clamp01(0.78 * sweep + 0.22 * tiebreak)
 
@@ -342,66 +347,6 @@ function driftLayer(layer: DotLayer, dz: number) {
     scatter[j] += dz
     if (scatter[j] > FIELD_Z_NEAR) scatter[j] -= span
   }
-}
-
-/**
- * The occluding mass, as the dot shaders see it. Shared uniform handles —
- * module-level like `entranceDone`, because there is one globe and every
- * layer's material must agree on the same sphere. `radius` is the
- * entrance's single occlusion scalar: 0 in the dust, grown to the
- * occluder's size by the GROW beat, held there forever after.
- */
-const OCC_RADIUS = { value: 0 }
-/** view-space depth of the soft band behind the limb — the edge reads as
-    shadow, not as a cut, and it is small enough that handing depth duty to
-    the opaque mesh later changes nothing perceptible */
-const OCC_SOFT = { value: 0.04 }
-
-/**
- * Teach the stock points material a per-dot alpha AND live geometric
- * occlusion. Injected with onBeforeCompile rather than a ShaderMaterial so
- * size attenuation, tone mapping and color space keep coming from three.js;
- * one shared function means one compiled program serves all three layers.
- *
- * The occlusion is the load-bearing part: each vertex intersects its own
- * camera ray with a sphere of radius uOccR at the group origin and fades
- * across uOccSoft of depth behind the entry point. Evaluated fresh every
- * frame against the real modelView, it is exact for any rotation, camera or
- * opening view — occlusion is never baked into per-dot data, which is what
- * every previous version of this entrance got wrong, one tuned seam at a
- * time.
- */
-const patchDotAlpha = (shader: {
-  vertexShader: string
-  fragmentShader: string
-  uniforms: Record<string, { value: unknown }>
-}) => {
-  shader.uniforms.uOccR = OCC_RADIUS
-  shader.uniforms.uOccSoft = OCC_SOFT
-  shader.vertexShader = shader.vertexShader
-    .replace(
-      '#include <common>',
-      'attribute float aAlpha;\nvarying float vAlpha;\nuniform float uOccR;\nuniform float uOccSoft;\n#include <common>'
-    )
-    .replace(
-      '#include <project_vertex>',
-      `#include <project_vertex>
-vAlpha = aAlpha;
-{
-	vec3 sphereC = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-	vec3 rayDir = normalize(mvPosition.xyz);
-	float along = dot(sphereC, rayDir);
-	float miss2 = dot(sphereC, sphereC) - along * along;
-	float r2 = uOccR * uOccR;
-	if (uOccR > 0.0 && along > 0.0 && miss2 < r2) {
-		float entry = along - sqrt(r2 - miss2);
-		vAlpha *= 1.0 - smoothstep(0.0, uOccSoft, length(mvPosition.xyz) - entry);
-	}
-}`
-    )
-  shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', 'varying float vAlpha;\n#include <common>')
-    .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.a *= vAlpha;')
 }
 
 /**
@@ -590,6 +535,7 @@ export function Globe({
     }
     return [build(edge), build(fill), build(water), build(graticulePoints())]
   }, [])
+  const layers = useMemo(() => [coast, shell, sea, grid] as const, [coast, shell, sea, grid])
 
   /* The route, as great-circle arcs lifted off the surface.
      Slerp gives the shortest path over the sphere, which is the line a flight
@@ -820,7 +766,7 @@ export function Globe({
   useMemo(() => {
     if (intro.current.phase === 'done') return
     const front = entranceEnd.yaw + Math.PI / 2 // group-space angle presented at the end
-    for (const layer of [coast, shell, sea, grid]) {
+    for (const layer of layers) {
       const { home, seeds } = layer
       for (let i = 0; i < seeds.length; i++) {
         seeds[i] = seedFrom(sweepAt(home[i * 3], home[i * 3 + 2], front), Math.random())
@@ -842,7 +788,7 @@ export function Globe({
         Math.random()
       )
     }
-  }, [coast, shell, sea, grid, arcs, entranceEnd, pinPoints, waypointPoints, pinSeeds, waypointSeeds])
+  }, [layers, arcs, entranceEnd, pinPoints, waypointPoints, pinSeeds, waypointSeeds])
 
   const tour = useRef({ index: 0, hold: 0, target: 0, seeded: false, grace: 0, lastSelected: -1 })
 
@@ -883,7 +829,7 @@ export function Globe({
       group.rotation.x = damp(group.rotation.x, 0.22 + pointer.current.y * 0.06, 3, delta)
       group.position.x = damp(group.position.x, pointer.current.x * 0.14, 3, delta)
       group.position.y = damp(group.position.y, pointer.current.y * -0.1, 3, delta)
-      for (const layer of [coast, shell, sea, grid]) {
+      for (const layer of layers) {
         driftLayer(layer, delta * FIELD_DRIFT)
         formLayer(layer, 0)
       }
@@ -927,7 +873,7 @@ export function Globe({
       // dots that have not launched yet keep living as dust rather than
       // freezing mid-air; the drift dies out as the map takes over
       const dz = delta * FIELD_DRIFT * (1 - clamp01(p))
-      if (dz > 0) for (const layer of [coast, shell, sea, grid]) driftLayer(layer, dz)
+      if (dz > 0) for (const layer of layers) driftLayer(layer, dz)
 
       /* the GROW beat — the entrance's one occlusion scalar. The invisible
          mass swells inside the cloud and everything behind it slides out of
@@ -949,7 +895,7 @@ export function Globe({
         occluderMatRef.current.depthWrite = bodyFade >= 1
       }
 
-      for (const layer of [coast, shell, sea, grid]) formLayer(layer, p)
+      for (const layer of layers) formLayer(layer, p)
 
       /* THE ROUTE, per vertex, off the same wave — no draw range, no clock.
          A vertex develops once the ground under it has landed, so the line
@@ -1156,9 +1102,6 @@ export function Globe({
        no branch inside the loop. */
     const labelP =
       introPhase === 'done' ? Infinity : introPhase === 'gather' ? intro.current.t / GATHER_DUR : -Infinity
-    const formOf = (seed: number) =>
-      ease(clamp01((labelP - landedAt(seed) - LABEL_LAG) / LABEL_RAMP))
-
     for (let i = 0; i < pinPoints.length; i++) {
       world.copy(pinPoints[i]).applyMatrix4(group.matrixWorld)
 
@@ -1171,12 +1114,12 @@ export function Globe({
       const front = normal.dot(toCam)
 
       world.project(camera)
-      projectionRef.current[i] = {
-        x: (world.x + 1) / 2,
-        y: (-world.y + 1) / 2,
-        facing: front,
-        form: formOf(pinSeeds[i]),
-      }
+      const projection = projectionRef.current[i] ?? { x: 0, y: 0, facing: 0, form: 0 }
+      projection.x = (world.x + 1) / 2
+      projection.y = (-world.y + 1) / 2
+      projection.facing = front
+      projection.form = labelFormAt(pinSeeds[i], labelP)
+      projectionRef.current[i] = projection
 
       /* Under the hand the tour is not running, so it cannot say which place is
          being presented and the geometry has to answer instead: whichever pin
@@ -1200,12 +1143,17 @@ export function Globe({
         toCam.copy(camera.position).sub(world).normalize()
         const front = normal.dot(toCam)
         world.project(camera)
-        waypointProjectionRef.current[i] = {
-          x: (world.x + 1) / 2,
-          y: (-world.y + 1) / 2,
-          facing: front,
-          form: formOf(waypointSeeds[i]),
+        const projection = waypointProjectionRef.current[i] ?? {
+          x: 0,
+          y: 0,
+          facing: 0,
+          form: 0,
         }
+        projection.x = (world.x + 1) / 2
+        projection.y = (-world.y + 1) / 2
+        projection.facing = front
+        projection.form = labelFormAt(waypointSeeds[i], labelP)
+        waypointProjectionRef.current[i] = projection
       }
     }
 

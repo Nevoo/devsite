@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { useUI } from '@/stores/ui'
 import { heroPhoto } from '@/content/hero'
@@ -13,6 +14,9 @@ const MIN_SHOW_MS = 400
 const preloadImage = (src: string) =>
   new Promise<void>((resolve) => {
     const img = new Image()
+    img.decoding = 'async'
+    // This plate is below the fold; never let its warm-up compete with type.
+    img.fetchPriority = 'low'
     img.onload = () => resolve()
     img.onerror = () => resolve()
     img.src = src
@@ -30,6 +34,8 @@ const preloadImage = (src: string) =>
  */
 export function LoadingScreen() {
   const rootRef = useRef<HTMLDivElement>(null)
+  const { pathname } = useLocation()
+  const initialPathname = useRef(pathname).current
   const revealed = useUI((s) => s.revealed)
   const setRevealed = useUI((s) => s.setRevealed)
   const [mode] = useState<'veil' | 'word' | 'reduced'>(() =>
@@ -40,12 +46,20 @@ export function LoadingScreen() {
     const start = performance.now()
     let cancelled = false
 
-    Promise.all([
-      document.fonts?.ready ?? Promise.resolve(),
-      // same source of truth as the hero, so swapping the picture can't
-      // silently leave this preloading the wrong file
-      preloadImage(heroPhoto.src),
-    ]).then(() => {
+    // Every route opens on a Gilroy heading. Waiting for document.fonts.ready
+    // also held the veil for the 785KB Inter variable face (~16s on Slow 4G),
+    // even though Inter already has font-display: swap and can arrive safely
+    // after the page is usable.
+    const displayFace = document.fonts?.load('800 1em Gilroy') ?? Promise.resolve()
+    const readiness: Promise<unknown>[] = [displayFace]
+    if (initialPathname === '/') {
+      // The plate sits several viewports below the home LCP. Warm only its
+      // smallest generated source without holding the veil for a below-fold
+      // asset; non-home routes never request it at all.
+      void preloadImage(heroPhoto.src.replace(/\.(jpe?g)$/i, '-640.webp'))
+    }
+
+    Promise.all(readiness).then(() => {
       if (cancelled) return
       const wait = Math.max(MIN_SHOW_MS - (performance.now() - start), 0)
       setTimeout(() => {
@@ -56,7 +70,7 @@ export function LoadingScreen() {
     return () => {
       cancelled = true
     }
-  }, [setRevealed])
+  }, [initialPathname, setRevealed])
 
   useEffect(() => {
     if (!revealed || !rootRef.current) return
