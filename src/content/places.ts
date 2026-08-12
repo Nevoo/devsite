@@ -30,7 +30,7 @@ import type { Photo } from './categories'
  * `22:36` into the `05:36` dawn it actually was. Times are only converted where
  * precision is better than 'region' — a timezone off by one is a confident lie.
  */
-export type PlacePrecision = 'venue' | 'town' | 'island' | 'region'
+export type PlacePrecision = 'venue' | 'town' | 'island' | 'fiord' | 'country' | 'region'
 
 export interface Place {
   slug: string
@@ -47,29 +47,194 @@ export interface Place {
 }
 
 const src = (category: string, id: string) => `/images/categories/${category}/gallery/DSC${id}.jpeg`
+const stillSrc = (category: string, name: string) =>
+  `/images/categories/${category}/gallery/${name}.jpeg`
 
 /**
- * ⚠ EVERY FRAME-TO-PLACE ASSIGNMENT BELOW IS MOCK DATA. Rouven's call
- * (2026-07-26): "mock the places for now, the content gets switched out
- * anyway — just add the pictures to the existing locations around asia."
- * So all ten sittings ride the ten route stops, and no invented place exists
- * anywhere. The sittings themselves (the frame groupings) are real — grouped
- * by capture gap off the EXIF. Only the WHERE is fiction.
+ * THE MOCK ERA IS OVER (2026-08-12). Every frame-to-place assignment in this
+ * file is now real, from two sources:
  *
- * The standard at the top of this file still holds for the real pass: when
- * the archive is refreshed, every entry either gets a place he can state
- * without hedging or gets no entry at all.
+ * DSC photo frames (`src(...)`): placed by Rouven's own recall — "the old
+ * images are basically almost all in germany, some in portugal/lisbon, a few
+ * in bali" — refined against what is visibly in frame (the Cabo da Roca
+ * lighthouse, the warung signage on the bali shopfront street, the
+ * Votivkirche's twin spires behind the tram wires — which is why the feb 2024
+ * street walk pins to vienna, not germany).
  *
- * Sittings with their own place later (a wedding venue, a gig venue) move up
- * here — the front of this array is the first thing the tour presents, which
- * makes the ordering editorial (GLOBE-V2.md §8.5).
+ * Video-still frames (`stillSrc(...)`, imported 2026-08 from the footage
+ * archive): placed from Rouven's folder labels confirmed against what is in
+ * frame and against the flight record in flights.ts. Stills carry no capture
+ * EXIF — they are frames pulled from video — so they never print a clock time
+ * and are absent from outings.ts on purpose.
+ *
+ * The standard at the top of this file holds: a frame whose place could only
+ * be guessed got NO pin (the frankfurt platform still and the java volcano
+ * still live in their galleries unplaced).
+ *
+ * The front of this array is the first thing the tour presents, which makes
+ * the ordering editorial (GLOBE-V2.md §8.5) — germany leads because that is
+ * where the bookable work (the wedding, the gig) lives.
  */
-const photographed: Place[] = []
+const photographed: Place[] = [
+  {
+    // home base — the wedding, the gig, the orchard evening, both dogs.
+    // 'country' because that is the precision actually stated ("basically
+    // almost all in germany"); the single-zone country makes the tz exact
+    // even so, which is why clock times may still print here.
+    slug: 'germany',
+    label: 'germany, de',
+    coords: [51.0, 10.2],
+    precision: 'country',
+    tz: 'Europe/Berlin',
+    frames: [
+      src('weddings', '02597'),
+      src('weddings', '02640'),
+      src('weddings', '02729'),
+      src('weddings', '02799'),
+      src('weddings', '02847'),
+      src('weddings', '02936'),
+      src('concerts', '04137'),
+      src('concerts', '04159'),
+      src('concerts', '04230'),
+      src('concerts', '04248'),
+      src('concerts', '04330'),
+      src('concerts', '04360'),
+      src('nature', '03588'),
+      src('animals', '00880'),
+      src('animals', '8270'),
+    ],
+  },
+  {
+    // the feb 2024 street walk. The church through the tram wires is the
+    // Votivkirche — vienna, not germany. Two frames, one sitting.
+    slug: 'vienna',
+    label: 'vienna, at',
+    coords: [48.21, 16.37],
+    precision: 'town',
+    tz: 'Europe/Vienna',
+    frames: [src('street', '05299'), src('street', '05320')],
+  },
+  {
+    // the oct 2021 afternoon–sunset: the fog-bank spire and the lighthouse
+    // are the same clifftop, and the lighthouse IS cabo da roca — the one
+    // place in the archive known to the venue.
+    slug: 'cabo-da-roca',
+    label: 'cabo da roca, pt',
+    coords: [38.78, -9.5],
+    precision: 'venue',
+    tz: 'Europe/Lisbon',
+    frames: [src('travel', '8251'), src('nature', '8162')],
+  },
+  {
+    slug: 'milford-sound',
+    label: 'milford sound, nz',
+    coords: [-44.63, 167.9],
+    // 'region' on purpose: two of these frames are from the Milford Road
+    // valleys (Eglinton, Monkey Creek), a good 40km before the fiord itself
+    precision: 'region',
+    tz: 'Pacific/Auckland',
+    frames: [
+      stillSrc('travel', 'still-milford-mitre-peak'),
+      stillSrc('nature', 'still-milford-stirling-falls'),
+      stillSrc('travel', 'still-milford-ship'),
+      stillSrc('nature', 'still-milford-bowen-falls'),
+      stillSrc('nature', 'still-milford-monkey-creek'),
+      stillSrc('travel', 'still-milford-eglinton'),
+    ],
+  },
+  {
+    slug: 'doubtful-sound',
+    label: 'doubtful sound, nz',
+    coords: [-45.32, 167.01],
+    precision: 'fiord',
+    tz: 'Pacific/Auckland',
+    frames: [
+      stillSrc('nature', 'still-doubtful-dawn-peaks'),
+      stillSrc('travel', 'still-doubtful-sunrise-wake'),
+      stillSrc('nature', 'still-doubtful-mirror-arm'),
+      stillSrc('travel', 'still-doubtful-stern'),
+    ],
+  },
+  {
+    slug: 'koh-phangan',
+    label: 'koh phangan, th',
+    coords: [9.73, 100.01],
+    precision: 'island',
+    tz: 'Asia/Bangkok',
+    frames: [
+      stillSrc('travel', 'still-phangan-beach'),
+      stillSrc('travel', 'still-phangan-scooter'),
+      stillSrc('nature', 'still-phangan-valley'),
+    ],
+  },
+  {
+    // the south island road trips beyond queenstown — wanaka, the mackenzie
+    // lakes, the remarkables. One honest region pin instead of five guessed
+    // town pins: the footage says south island, the exact shore is recalled
+    // loosely, so 'region' is what is actually known.
+    slug: 'south-island',
+    label: 'south island, nz',
+    coords: [-44.7, 169.2],
+    precision: 'region',
+    tz: 'Pacific/Auckland',
+    frames: [
+      stillSrc('travel', 'still-nz-peters-lookout'),
+      stillSrc('nature', 'still-nz-misty-lake'),
+      stillSrc('travel', 'still-nz-paddock-run'),
+      stillSrc('travel', 'still-nz-wanaka-boulder'),
+      stillSrc('nature', 'still-nz-roys-bay'),
+      stillSrc('travel', 'still-nz-wanaka-dusk'),
+      stillSrc('travel', 'still-nz-lake-swim'),
+      stillSrc('travel', 'still-nz-boots'),
+      stillSrc('travel', 'still-nz-bluff'),
+      stillSrc('travel', 'still-nz-alpine-stream'),
+      stillSrc('travel', 'still-nz-fiord-stern'),
+      stillSrc('nature', 'still-nz-creek-pool'),
+    ],
+  },
+  {
+    // summer 2025, before the one-way east — val di funes, passo sella,
+    // cinque torri, carezza. One massif, one pin.
+    slug: 'dolomites',
+    label: 'dolomites, it',
+    coords: [46.5, 11.75],
+    precision: 'region',
+    tz: 'Europe/Rome',
+    frames: [
+      stillSrc('travel', 'still-dolomites-cinque-torri'),
+      stillSrc('travel', 'still-dolomites-funes'),
+      stillSrc('travel', 'still-dolomites-summit'),
+      stillSrc('nature', 'still-dolomites-sella-fence'),
+      stillSrc('travel', 'still-dolomites-pasture'),
+      stillSrc('nature', 'still-dolomites-latemar'),
+      stillSrc('nature', 'still-dolomites-larch-ridge'),
+      stillSrc('travel', 'still-dolomites-carezza'),
+      stillSrc('animals', 'still-dolomites-bees'),
+    ],
+  },
+  {
+    // early 2025 — the unlogged BER→DOH→CPT legs in flights.ts
+    slug: 'cape-town',
+    label: 'cape town, za',
+    coords: [-33.95, 18.38],
+    precision: 'town',
+    tz: 'Africa/Johannesburg',
+    frames: [stillSrc('travel', 'still-cape-town-camps-bay')],
+  },
+  {
+    // sep 2025, the BER→BCN hop
+    slug: 'barcelona',
+    label: 'barcelona, es',
+    coords: [41.39, 2.17],
+    precision: 'town',
+    tz: 'Europe/Madrid',
+    frames: [stillSrc('travel', 'still-barcelona-sagrada')],
+  },
+]
 
 /**
- * The nomad route — real places, no frames imported yet. Moved here verbatim
- * from outings.ts, where they sat as frameless pseudo-outings. Newest first,
- * because the globe's tour opens on the front of the array.
+ * The nomad route — the vol. 02 stops, newest first, because the globe's
+ * tour opens on the front of the array.
  *
  * Coordinates are rough city centres, to about a kilometre — far finer than
  * the globe can resolve (one degree of latitude is under a pixel at rendered
@@ -77,10 +242,10 @@ const photographed: Place[] = []
  * 'town', bali is an island, and a label spanning two cities is a 'region'.
  * Timezones are facts of the coordinates, not recollections.
  *
- * Every stop carries a sitting (MOCK, see above) so the whole loop is
- * exercised: pin thumbnails, dated meta lines, the projection panel, and the
- * moment this layer was designed for — a route stop gaining photographs
- * without a line of code changing.
+ * Frames here are real (see the provenance note above photographed). Stops
+ * whose photographs are not imported yet carry an empty list and render as
+ * 'frames to come' — the moment this layer was designed for is a stop
+ * gaining photographs without a line of code changing.
  */
 const route: Place[] = [
   {
@@ -89,8 +254,18 @@ const route: Place[] = [
     coords: [35.68, 139.65],
     precision: 'town',
     tz: 'Asia/Tokyo',
-    // the feb 2024 street walk
-    frames: [src('street', '05299'), src('street', '05320')],
+    // the apr–may 2026 stay, all pulled from the footage
+    frames: [
+      stillSrc('travel', 'still-tokyo-sensoji-pagoda'),
+      stillSrc('street', 'still-tokyo-asakusa-station'),
+      stillSrc('travel', 'still-tokyo-tower'),
+      stillSrc('street', 'still-tokyo-denboin-dori'),
+      stillSrc('travel', 'still-tokyo-pagoda-below'),
+      stillSrc('street', 'still-tokyo-fugu-corner'),
+      stillSrc('street', 'still-tokyo-side-street'),
+      stillSrc('travel', 'still-tokyo-sumida'),
+      stillSrc('nature', 'still-tokyo-blossom'),
+    ],
   },
   {
     slug: 'queenstown',
@@ -98,8 +273,12 @@ const route: Place[] = [
     coords: [-45.03, 168.66],
     precision: 'town',
     tz: 'Pacific/Auckland',
-    // the sep 2023 evening
-    frames: [src('nature', '03588')],
+    // the mar 2026 lakefront — the two frames where lake wakatipu is
+    // unmistakably in frame
+    frames: [
+      stillSrc('travel', 'still-nz-wakatipu-tussock'),
+      stillSrc('travel', 'still-nz-wakatipu-cairn'),
+    ],
   },
   {
     slug: 'sydney',
@@ -107,14 +286,15 @@ const route: Place[] = [
     coords: [-33.87, 151.21],
     precision: 'town',
     tz: 'Australia/Sydney',
-    // the aug 2023 wedding afternoon
+    // the feb–mar 2026 harbour and bondi frames
     frames: [
-      src('weddings', '02597'),
-      src('weddings', '02640'),
-      src('weddings', '02729'),
-      src('weddings', '02799'),
-      src('weddings', '02847'),
-      src('weddings', '02936'),
+      stillSrc('travel', 'still-sydney-opera-ferry'),
+      stillSrc('nature', 'still-sydney-lightning'),
+      stillSrc('travel', 'still-sydney-bridge-portrait'),
+      stillSrc('travel', 'still-bondi-steps'),
+      stillSrc('travel', 'still-bondi-coastal-walk'),
+      stillSrc('travel', 'still-bondi-lookout'),
+      stillSrc('travel', 'still-bondi-rock-ramp'),
     ],
   },
   {
@@ -123,9 +303,12 @@ const route: Place[] = [
     coords: [-27.47, 153.03],
     precision: 'region',
     tz: 'Australia/Brisbane',
-    // jan 2023, one animal frame. region precision on purpose: it exercises
-    // the honest branch where no clock time is ever printed.
-    frames: [src('animals', '00880')],
+    // the feb 2026 riverside. Region precision on purpose: it exercises the
+    // honest branch where no clock time is ever printed.
+    frames: [
+      stillSrc('travel', 'still-brisbane-river'),
+      stillSrc('travel', 'still-brisbane-south-bank'),
+    ],
   },
   {
     slug: 'da-nang',
@@ -133,8 +316,8 @@ const route: Place[] = [
     coords: [16.05, 108.21],
     precision: 'town',
     tz: 'Asia/Ho_Chi_Minh',
-    // oct 2021, one animal frame
-    frames: [src('animals', '8270')],
+    // travelled dec 2025 + jan 2026, photographs not imported yet
+    frames: [],
   },
   {
     slug: 'bangkok',
@@ -142,14 +325,11 @@ const route: Place[] = [
     coords: [13.76, 100.5],
     precision: 'town',
     tz: 'Asia/Bangkok',
-    // the dec 2023 gig
+    // the 2026 street frames
     frames: [
-      src('concerts', '04137'),
-      src('concerts', '04159'),
-      src('concerts', '04230'),
-      src('concerts', '04248'),
-      src('concerts', '04330'),
-      src('concerts', '04360'),
+      stillSrc('street', 'still-bangkok-lazada-rider'),
+      stillSrc('street', 'still-bangkok-cables'),
+      stillSrc('street', 'still-bangkok-soi'),
     ],
   },
   {
@@ -158,8 +338,8 @@ const route: Place[] = [
     coords: [18.79, 98.98],
     precision: 'town',
     tz: 'Asia/Bangkok',
-    // the oct 2023 19th morning
-    frames: [src('nature', '03694'), src('travel', '03700'), src('travel', '03743')],
+    // travelled dec 2025 – jan 2026, photographs not imported yet
+    frames: [],
   },
   {
     slug: 'hanoi',
@@ -167,8 +347,12 @@ const route: Place[] = [
     coords: [21.03, 105.85],
     precision: 'town',
     tz: 'Asia/Ho_Chi_Minh',
-    // the oct 2023 16th, one street frame
-    frames: [src('street', '03647')],
+    // the dec 2025 stay — the incense yard is quang phu cau,
+    // administratively hanoi
+    frames: [
+      stillSrc('travel', 'still-hanoi-incense'),
+      stillSrc('street', 'still-hanoi-pomelo'),
+    ],
   },
   {
     slug: 'bromo',
@@ -176,8 +360,9 @@ const route: Place[] = [
     coords: [-7.94, 112.95],
     precision: 'region',
     tz: 'Asia/Jakarta',
-    // the oct 2021 day out
-    frames: [src('nature', '8162'), src('travel', '8251')],
+    // the dec 2025 overland leg (flights.ts: SUB→DPS was the flight back),
+    // photographs not imported yet
+    frames: [],
   },
   {
     slug: 'bali',
@@ -185,14 +370,22 @@ const route: Place[] = [
     coords: [-8.41, 115.19],
     precision: 'island',
     tz: 'Asia/Makassar',
-    // the oct 2023 22nd dawn — the frames outings.ts:21-27 always said were a
-    // sunrise. with the island's tz they finally print as one: 05:36–06:29.
+    // the whole oct 2023 trip — the shopfront street (warung signage, rupiah
+    // prices), the jungle waterfall morning, and the 22nd's dawn: the frames
+    // outings.ts:21-27 always said were a sunrise, and with the island's tz
+    // they finally print as one, 05:36–06:29. Plus the van window frame from
+    // the 2025–26 stays.
     frames: [
+      src('street', '03647'),
+      src('nature', '03694'),
+      src('travel', '03700'),
+      src('travel', '03743'),
       src('travel', '03816'),
       src('nature', '03828'),
       src('nature', '03830'),
       src('nature', '03855'),
       src('travel', '03862'),
+      stillSrc('travel', 'still-bali-van'),
     ],
   },
 ]
@@ -241,7 +434,9 @@ export const precisionWord = (p: PlacePrecision) => `to the ${p}`
  * place's own wall time — the conversion outings.ts:21-27 parked "until a stop
  * is placed". Only runs where the place is known well enough that the zone is
  * certain; at 'region' precision a time off by a whole hour would print with
- * more authority than the date it came from (GLOBE-V2.md §8.8).
+ * more authority than the date it came from (GLOBE-V2.md §8.8). 'country'
+ * passes only because the one country entry (germany) has a single zone — a
+ * multi-zone country must use 'region' instead.
  */
 export const localTime = (at: string, place: Place): string | null => {
   if (place.precision === 'region') return null

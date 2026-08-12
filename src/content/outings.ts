@@ -148,7 +148,17 @@ export const outings: Outing[] = [
   },
 ]
 
-/* One published photograph is missing from this list on purpose:
+/* The video stills (the `still-*` frames in categories.ts, imported 2026-08)
+   are absent from this list on purpose, all of them. This file's contract is
+   EXIF fact — DateTimeOriginal read off camera files — and a frame pulled
+   from footage in the edit suite has no capture EXIF at all; its filename
+   carries the date it was GRABBED, months of timeline away from the date it
+   was shot. An outing invented from a grab date would be exactly the inferred
+   data this file promises not to hold. Stills get their WHERE in places.ts
+   (real, from Rouven's folder labels); their WHEN stays unrecorded until a
+   source of capture dates exists.
+
+   One published photograph is missing from this list on purpose:
    images/categories/events/gallery/DSC09296.jpeg (2022-05-18). The folder
    exists on disk but no `events` category is declared in categories.ts, so the
    frame is not reachable anywhere on the site. It gets an outing the moment it
