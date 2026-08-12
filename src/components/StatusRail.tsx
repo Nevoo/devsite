@@ -45,7 +45,6 @@ export function StatusRail() {
           <Clock />,
           'vol. 02',
           `${frames} frames in the archive`,
-          'open for bookings',
         ]}
       />
     </div>
