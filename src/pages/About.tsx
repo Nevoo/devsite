@@ -53,8 +53,9 @@ export function About() {
             planning a week difficult for years.
           </p>
           <p>
-            eight years a developer, most of them at a startup, building apps and products
-            until i was the one leading the teams building them.
+            eight years a developer, most of them at bytabo, where i went from trainee to
+            leading teams of six to twelve. the longest run was two and a half years and
+            twelve people, turning paper medication leaflets into an app.
           </p>
           <p>
             for the past year it's been just me.{' '}
@@ -66,7 +67,9 @@ export function About() {
             >
               arlou
             </a>{' '}
-            is my one-person studio: ai agents, apps, and pages like this one.
+            is my one-person studio: ai agents, apps, and pages like this one. the one i
+            care most about is onkobutler, a companion app for cancer patients i've been
+            building since 2019. it's still running, and i still ship it.
           </p>
           <p>
             the camera turned up somewhere in the middle of all that and never left. i
