@@ -8,6 +8,7 @@ import { useUI } from '@/stores/ui'
 import { FLAT_OCC, MORPH, OCC_RADIUS, patchDotAlpha } from './shaders/globe'
 import type { Vec3 } from './plate'
 import type { Terrain } from '@/content/terrain'
+import type { PlacePrecision } from '@/content/places'
 
 /** live projected state of one pin, written every frame, read by the DOM half */
 export interface PinProjection {
@@ -45,6 +46,8 @@ export interface GlobeCluster {
 interface GlobeProps {
   /** [lat, lng] per pin, in the same order as the DOM labels */
   pins: [number, number][]
+  /** declared spatial authority per pin; the plate renders exactly this, never more */
+  precisions: PlacePrecision[]
   /**
    * frames placed at each pin. Not drawn — this is the opening-view weighting:
    * the sphere wakes facing the side of the world that actually holds the
@@ -126,7 +129,14 @@ const OCCLUDER = 0.9985
 /** S4 plate vocabulary. All timing is positional off one dive clock. */
 const PLATE_POINTS = 24000
 const PLATE_GRID_POINTS = 1800
-const SPREAD = 2.2
+/** S4's scale remains the floor: no plate gets smaller than the shipped peel. */
+const MIN_SPREAD = 2.2
+/** A cap edge lands 0.72 units from centre, filling over half this camera's stage. */
+const TARGET_PLATE_RADIUS = 0.72
+/** Tiny coordinate gaps may enlarge a plate, but never into an unbounded map. */
+const SPREAD_MAX = 12.5
+/** Pickup anchors need this much table between them before cards can read apart. */
+const MIN_PIN_SEPARATION = 0.11
 const PLATE_EXTENT = 0.35
 const EXAGGERATION = 8
 const ELEVATION_UNIT = 0.012
@@ -143,6 +153,23 @@ const DEVELOP_DUR = ENTER_DUR * (1 - DEVELOP_AT)
 const CAP_PADDING = 0.065
 const MIN_CAP_RADIUS = 0.12
 const MAX_CAP_RADIUS = 0.24
+
+/** Eight kilometres is a town-sized claim, small enough to remain an outline. */
+const TOWN_RING_RADIUS = 8 / 6371
+/** One rendered dot across keeps the town mark a ring instead of a filled disc. */
+const TOWN_RING_HALF_WIDTH = 0.006
+/** Venue authority earns a tight knot, dense enough to exist despite random fill. */
+const VENUE_POINT_COUNT = 24
+/** About eight kilometres of jitter makes a visible knot without implying a district. */
+const VENUE_JITTER = 0.0012
+/** Natural terrain inside this short reach joins the seeded venue knot. */
+const VENUE_REACH = 0.0024
+/** Islands keep a broader soft footprint because their declared object is area. */
+const ISLAND_REACH = 0.045
+/** Fiords stay tighter so the tint follows their own coastal land, not the region. */
+const FIORD_REACH = 0.03
+/** The low end of the proposed wash keeps broad precision from reading as alarm red. */
+const BROAD_PRECISION_TINT = 0.12
 
 /** seconds a place stays front-and-centre with its card open before the next */
 const HOLD = 2.6
@@ -359,6 +386,10 @@ interface PlateLayer extends DotLayer {
   elevation: Float32Array
   /** 0 terrain fill, 1 local graticule */
   kind: Uint8Array
+  /** precision authority decided once per dive, before the live develop mirror */
+  targetTint: Float32Array
+  /** the aTint attribute's live array, rewritten beside aAlpha and nothing else */
+  tint: Float32Array
   /** active plate normal, rewritten once per enter */
   normal: Float32Array
 }
@@ -384,8 +415,9 @@ const angularDistance = (ax: number, ay: number, az: number, bx: number, by: num
 function formPlateLayer(layer: PlateLayer, develop: number, returning: boolean) {
   const posAttr = layer.geometry.getAttribute('position') as THREE.BufferAttribute
   const alphaAttr = layer.geometry.getAttribute('aAlpha') as THREE.BufferAttribute
+  const tintAttr = layer.geometry.getAttribute('aTint') as THREE.BufferAttribute
   const pos = posAttr.array as Float32Array
-  const { flat, scatter, seeds, alpha, elevation, kind, normal } = layer
+  const { flat, scatter, seeds, alpha, elevation, kind, targetTint, tint, normal } = layer
   const returnFront = returning ? develop : 0
 
   for (let i = 0; i < seeds.length; i++) {
@@ -412,9 +444,16 @@ function formPlateLayer(layer: PlateLayer, develop: number, returning: boolean) 
       : clamp01(1 - sinceFront / Math.max(0.001, FLARE_TAIL / DEVELOP_DUR))
     const settled = kind[i] === 1 ? 0.22 : 0.7 + elevation[i] * 0.3
     alpha[i] = clamp01(local * (settled + flare * 0.65))
+    const tintArrive = returning
+      ? local
+      : ease(clamp01((develop - seeds[i] * 0.62 - LABEL_LAG) / 0.38))
+    // The scan front borrows only a trace of scarlet, then resolves to the
+    // precision target one label-lag behind the terrain it just exposed.
+    tint[i] = clamp01(local * (targetTint[i] * tintArrive + flare * 0.16))
   }
   posAttr.needsUpdate = true
   alphaAttr.needsUpdate = true
+  tintAttr.needsUpdate = true
 }
 
 function formWorldPlate(layers: readonly DotLayer[], morph: number) {
@@ -573,6 +612,7 @@ function graticulePoints() {
  */
 export function Globe({
   pins,
+  precisions,
   weights,
   legs = [],
   waypoints = [],
@@ -696,12 +736,13 @@ export function Globe({
     const home = new Float32Array(PLATE_POINTS * 3)
     const position = new Float32Array(PLATE_POINTS * 3)
     const alpha = new Float32Array(PLATE_POINTS)
+    const tint = new Float32Array(PLATE_POINTS)
     const geometry = new THREE.BufferGeometry()
     const positionAttribute = new THREE.BufferAttribute(position, 3)
     geometry.setAttribute('position', positionAttribute)
     geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1))
     geometry.setAttribute('aPlate', positionAttribute)
-    geometry.setAttribute('aTint', new THREE.BufferAttribute(new Float32Array(PLATE_POINTS), 1))
+    geometry.setAttribute('aTint', new THREE.BufferAttribute(tint, 1))
     return {
       geometry,
       home,
@@ -713,6 +754,8 @@ export function Globe({
       flat: new Float32Array(PLATE_POINTS * 3),
       elevation: new Float32Array(PLATE_POINTS),
       kind: new Uint8Array(PLATE_POINTS),
+      targetTint: new Float32Array(PLATE_POINTS),
+      tint,
       normal: new Float32Array(3),
     }
   }, [])
@@ -1023,6 +1066,7 @@ export function Globe({
     sphereTilt: 0,
     plateTilt: 0,
     capRadius: MIN_CAP_RADIUS,
+    spread: MIN_SPREAD,
     panYaw: 0,
     panTilt: 0,
     returnFromMorph: 1,
@@ -1069,13 +1113,55 @@ export function Globe({
     let capRadius = MIN_CAP_RADIUS
     for (let i = 0; i < cluster.memberIndices.length; i++) {
       const point = pinPoints[cluster.memberIndices[i]]
+      const pointLength = point.length() || 1
       capRadius = Math.max(
         capRadius,
-        angularDistance(point.x, point.y, point.z, c[0], c[1], c[2]) + CAP_PADDING
+        angularDistance(
+          point.x / pointLength,
+          point.y / pointLength,
+          point.z / pointLength,
+          c[0],
+          c[1],
+          c[2]
+        ) + CAP_PADDING
       )
     }
     capRadius = THREE.MathUtils.clamp(capRadius, MIN_CAP_RADIUS, MAX_CAP_RADIUS)
     dive.current.capRadius = capRadius
+
+    let spread = THREE.MathUtils.clamp(
+      TARGET_PLATE_RADIUS / capRadius,
+      MIN_SPREAD,
+      SPREAD_MAX
+    )
+    if (cluster.memberIndices.length >= 2) {
+      let minPairwiseDistance = Infinity
+      for (let a = 0; a < cluster.memberIndices.length; a++) {
+        const pointA = pinPoints[cluster.memberIndices[a]]
+        const lengthA = pointA.length() || 1
+        for (let b = a + 1; b < cluster.memberIndices.length; b++) {
+          const pointB = pinPoints[cluster.memberIndices[b]]
+          const lengthB = pointB.length() || 1
+          minPairwiseDistance = Math.min(
+            minPairwiseDistance,
+            angularDistance(
+              pointA.x / lengthA,
+              pointA.y / lengthA,
+              pointA.z / lengthA,
+              pointB.x / lengthB,
+              pointB.y / lengthB,
+              pointB.z / lengthB
+            )
+          )
+        }
+      }
+      if (minPairwiseDistance * spread < MIN_PIN_SEPARATION) {
+        spread = minPairwiseDistance > 1e-6
+          ? Math.min(SPREAD_MAX, MIN_PIN_SEPARATION / minPairwiseDistance)
+          : SPREAD_MAX
+      }
+    }
+    dive.current.spread = spread
     plateLayer.normal[0] = c[0]
     plateLayer.normal[1] = c[1]
     plateLayer.normal[2] = c[2]
@@ -1087,7 +1173,7 @@ export function Globe({
         const projected = plateModule.plateProject(
           [home[j], home[j + 1], home[j + 2]],
           c,
-          SPREAD
+          spread
         )
         plate[j] = projected[0]
         plate[j + 1] = projected[1]
@@ -1111,13 +1197,21 @@ export function Globe({
     for (let i = 0; i < cluster.memberIndices.length; i++) {
       const memberIndex = cluster.memberIndices[i]
       const point = pinPoints[memberIndex]
-      const projected = plateModule.plateProject([point.x, point.y, point.z], c, SPREAD)
+      const projected = plateModule.plateProject([point.x, point.y, point.z], c, spread)
       const j = memberIndex * 3
       pinPlate[j] = projected[0] + c[0] * 0.012
       pinPlate[j + 1] = projected[1] + c[1] * 0.012
       pinPlate[j + 2] = projected[2] + c[2] * 0.012
+      const pointLength = point.length() || 1
       pinPlateSeeds[memberIndex] = clamp01(
-        angularDistance(point.x, point.y, point.z, c[0], c[1], c[2]) / capRadius
+        angularDistance(
+          point.x / pointLength,
+          point.y / pointLength,
+          point.z / pointLength,
+          c[0],
+          c[1],
+          c[2]
+        ) / capRadius
       )
       activeMembers[memberIndex] = 1
     }
@@ -1133,12 +1227,47 @@ export function Globe({
     const fillCount = PLATE_POINTS - PLATE_GRID_POINTS
     const capDegrees = (capRadius * 180) / Math.PI
     const gridStep = Math.max(1, capDegrees / 3)
+    const memberDirections = new Float32Array(cluster.memberIndices.length * 3)
+    const memberPrecisions: PlacePrecision[] = []
+    const venueMembers: number[] = []
+    let broadPrecision = false
+    for (let i = 0; i < cluster.memberIndices.length; i++) {
+      const memberIndex = cluster.memberIndices[i]
+      const direction = plateModule.latLngToVec3(pins[memberIndex])
+      const j = i * 3
+      memberDirections[j] = direction[0]
+      memberDirections[j + 1] = direction[1]
+      memberDirections[j + 2] = direction[2]
+      const precision = precisions[memberIndex]
+      memberPrecisions.push(precision)
+      if (precision === 'venue') venueMembers.push(i)
+      else if (precision === 'country' || precision === 'region') broadPrecision = true
+    }
+    const venuePointBudget = Math.min(fillCount, venueMembers.length * VENUE_POINT_COUNT)
 
     for (let i = 0; i < PLATE_POINTS; ) {
       const gridPoint = i >= fillCount
-      let lat = bounds.minLat + random() * (bounds.maxLat - bounds.minLat)
-      const range = bounds.lngRanges[Math.min(bounds.lngRanges.length - 1, Math.floor(random() * bounds.lngRanges.length))]
-      let lng = range[0] + random() * (range[1] - range[0])
+      const venuePoint = !gridPoint && i < venuePointBudget
+      let lat: number
+      let lng: number
+      if (venuePoint) {
+        const venueSlot = venueMembers[Math.floor(i / VENUE_POINT_COUNT)]
+        const memberIndex = cluster.memberIndices[venueSlot]
+        const coordinate = pins[memberIndex]
+        const pointInKnot = i % VENUE_POINT_COUNT
+        const radius = pointInKnot === 0 ? 0 : VENUE_JITTER * Math.sqrt(random())
+        const angle = random() * Math.PI * 2
+        lat = coordinate[0] + radius * Math.cos(angle) * (180 / Math.PI)
+        lng = coordinate[1] +
+          radius * Math.sin(angle) * (180 / Math.PI) /
+            Math.max(0.2, Math.cos((coordinate[0] * Math.PI) / 180))
+      } else {
+        lat = bounds.minLat + random() * (bounds.maxLat - bounds.minLat)
+        const range = bounds.lngRanges[
+          Math.min(bounds.lngRanges.length - 1, Math.floor(random() * bounds.lngRanges.length))
+        ]
+        lng = range[0] + random() * (range[1] - range[0])
+      }
       if (gridPoint) {
         if (i % 2 === 0) lat = Math.round(lat / gridStep) * gridStep
         else lng = Math.round(lng / gridStep) * gridStep
@@ -1152,9 +1281,9 @@ export function Globe({
         c[1],
         c[2]
       )
-      if (distance > capRadius || (!gridPoint && !terrain.landAt(lat, lng))) continue
+      if (distance > capRadius || (!gridPoint && !venuePoint && !terrain.landAt(lat, lng))) continue
 
-      const projected = plateModule.plateProject(direction, c, SPREAD)
+      const projected = plateModule.plateProject(direction, c, spread)
       const j = i * 3
       plateLayer.scatter[j] = direction[0] * 1.001
       plateLayer.scatter[j + 1] = direction[1] * 1.001
@@ -1174,10 +1303,39 @@ export function Globe({
       plateLayer.elevation[i] = gridPoint ? 0 : terrain.elevationAt(lat, lng)
       plateLayer.kind[i] = gridPoint ? 1 : 0
       plateLayer.alpha[i] = 0
+      let targetTint = !gridPoint && broadPrecision ? BROAD_PRECISION_TINT : 0
+      if (!gridPoint) {
+        for (let member = 0; member < memberPrecisions.length; member++) {
+          const j = member * 3
+          const memberDistance = angularDistance(
+            direction[0],
+            direction[1],
+            direction[2],
+            memberDirections[j],
+            memberDirections[j + 1],
+            memberDirections[j + 2]
+          )
+          const precision = memberPrecisions[member]
+          let featureTint = 0
+          if (precision === 'venue' && memberDistance <= VENUE_REACH) {
+            featureTint = 1
+          } else if (precision === 'town') {
+            const ringDistance = Math.abs(memberDistance - TOWN_RING_RADIUS) * spread
+            featureTint = 1 - smoothstep(0, TOWN_RING_HALF_WIDTH, ringDistance)
+          } else if (precision === 'island' || precision === 'fiord') {
+            const reach = precision === 'island' ? ISLAND_REACH : FIORD_REACH
+            featureTint = 1 - smoothstep(0, reach, memberDistance)
+          }
+          targetTint = Math.max(targetTint, featureTint)
+        }
+      }
+      plateLayer.targetTint[i] = targetTint
+      plateLayer.tint[i] = 0
       i++
     }
     plateLayer.geometry.getAttribute('position').needsUpdate = true
     plateLayer.geometry.getAttribute('aAlpha').needsUpdate = true
+    plateLayer.geometry.getAttribute('aTint').needsUpdate = true
     return true
   }
 
@@ -1486,6 +1644,9 @@ export function Globe({
       d.panYaw += spinRef.current
       d.panTilt += tiltRef.current
       const panDistance = Math.hypot(d.panYaw, d.panTilt)
+      // Pan re-aims the source cap in angular units; spread only changes where
+      // that cap is drawn. Scaling this clamp would rotate beyond the declared
+      // geography and trade a larger plate for an empty, steeply tilted table.
       if (panDistance > d.capRadius) {
         const clampScale = d.capRadius / panDistance
         d.panYaw *= clampScale

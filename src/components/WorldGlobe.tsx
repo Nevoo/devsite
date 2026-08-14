@@ -36,6 +36,7 @@ const waypoints = waypointAirports.filter((a) => !nearAPlace(a.coords))
    under a sequence whose whole premise is that nothing is decided twice.
    `places` and `waypoints` are module constants; so are these. */
 const pinCoords = places.map((p) => p.coords)
+const pinPrecisions = places.map((place) => place.precision)
 const pinWeights = places.map((place) => framesAt(place).length)
 const waypointCoords = waypoints.map((a) => a.coords)
 
@@ -486,6 +487,7 @@ export function WorldGlobe({
         <Suspense fallback={null}>
           <GlobeView
             pins={pinCoords}
+            precisions={pinPrecisions}
             weights={pinWeights}
             legs={flightArcs}
             waypoints={waypointCoords}
@@ -586,6 +588,7 @@ export function WorldGlobe({
                 pinRefs.current[i] = node
               }}
               className="globe-pin"
+              data-place-slug={place.slug}
             >
               {frames.length > 0 ? (
                 <span className="globe-pickup">

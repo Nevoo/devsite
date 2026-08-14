@@ -6,9 +6,11 @@ import {
   type PinProjection,
   type ScaleState,
 } from '@/canvas/Globe'
+import type { PlacePrecision } from '@/content/places'
 
 interface GlobeViewProps {
   pins: [number, number][]
+  precisions: PlacePrecision[]
   /** frames placed at each pin — the opening view faces their weighted centre */
   weights: number[]
   legs: [[number, number], [number, number]][]
@@ -37,6 +39,7 @@ interface GlobeViewProps {
  */
 export default function GlobeView({
   pins,
+  precisions,
   weights,
   legs,
   waypoints,
@@ -57,6 +60,7 @@ export default function GlobeView({
       <Suspense fallback={null}>
         <Globe
           pins={pins}
+          precisions={precisions}
           weights={weights}
           legs={legs}
           waypoints={waypoints}

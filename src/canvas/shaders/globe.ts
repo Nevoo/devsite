@@ -1,3 +1,5 @@
+import * as THREE from 'three'
+
 /**
  * Shared globe shader state. Keeping the patch in this small module lets the
  * persistent canvas warm the exact program cache keys used by route-owned
@@ -12,6 +14,9 @@ export const MORPH = { value: 0 }
 
 /** Occlusion attenuation: full sphere occlusion at 1, none at 0. */
 export const FLAT_OCC = { value: 1 }
+
+/** The one brand accent, linearized once by Three before any dot program uses it. */
+export const ACCENT = { value: new THREE.Color('#ff2d1a') }
 
 /** View-space depth of the soft band behind the globe's limb. */
 const OCC_SOFT = { value: 0.04 }
@@ -28,6 +33,7 @@ export const patchDotAlpha = (shader: {
   shader.uniforms.uOccSoft = OCC_SOFT
   shader.uniforms.uMorph = MORPH
   shader.uniforms.uFlat = FLAT_OCC
+  shader.uniforms.uAccent = ACCENT
   shader.vertexShader = shader.vertexShader
     .replace(
       '#include <common>',
@@ -56,6 +62,12 @@ vTint = aTint;
 }`
     )
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', 'varying float vAlpha;\nvarying float vTint;\n#include <common>')
-    .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.a *= vAlpha;')
+    .replace(
+      '#include <common>',
+      'varying float vAlpha;\nvarying float vTint;\nuniform vec3 uAccent;\n#include <common>'
+    )
+    .replace(
+      '#include <color_fragment>',
+      '#include <color_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, uAccent, clamp(vTint, 0.0, 1.0));\n\tdiffuseColor.a *= vAlpha;'
+    )
 }
