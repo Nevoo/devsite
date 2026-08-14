@@ -1,8 +1,9 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { webglAvailable } from '@/lib/webgl'
 import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { FramePop } from '@/components/FramePop'
-import type { PinProjection } from '@/canvas/Globe'
+import type { PinProjection, ScaleState } from '@/canvas/Globe'
+import type { PlaceCluster } from '@/content/clusters'
 import { places, framesAt, firstAt, type Place } from '@/content/places'
 import { flightArcs, waypointAirports } from '@/content/flights'
 
@@ -42,6 +43,8 @@ const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', '
 
 /** '2023-10-16T…' → "oct '23" */
 const stamp = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} '${iso.slice(2, 4)}`
+const easeCubic = (x: number) =>
+  x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2
 
 /**
  * The line under the place name. A stop that has been travelled but not yet
@@ -96,16 +99,51 @@ export function WorldGlobe({
   const projectionRef = useRef<PinProjection[]>([])
   const waypointRefs = useRef<(HTMLLIElement | null)[]>([])
   const waypointProjectionRef = useRef<PinProjection[]>([])
+  const chipRefs = useRef<(HTMLLIElement | null)[]>([])
+  const chipProjectionRef = useRef<PinProjection[]>([])
   const internalActiveRef = useRef(-1)
   const internalSelectedRef = useRef(-1)
   const activeRef = sharedActiveRef ?? internalActiveRef
   const selectedRef = sharedSelectedRef ?? internalSelectedRef
   const spinRef = useRef(0)
   const tiltRef = useRef(0)
+  const scaleRef = useRef<ScaleState>({ phase: 'world', cluster: -1, morph: 0 })
+  const enterRef = useRef(-1)
+  const exitRef = useRef(false)
+  const instrumentRef = useRef<HTMLSpanElement>(null)
+  const worldButtonRef = useRef<HTMLButtonElement>(null)
+  const instrumentPositionRef = useRef({ lat: 0, lng: 0 })
   const draggingRef = useRef(false)
   const pressRef = useRef<{ x: number; y: number } | null>(null)
   const lastXRef = useRef(0)
   const lastYRef = useRef(0)
+  const dragVelocityRef = useRef({ x: 0, y: 0, at: 0 })
+  const [has3D] = useState(() => webglAvailable() && !prefersReducedMotion())
+
+  /* Dynamic on purpose: WorldGlobe itself is entry code, while clustering and
+     its plate math belong to the globe feature chunk. Terrain remains one
+     boundary later and is requested only when enterRef is consumed. */
+  const [clusterData, setClusterData] = useState<PlaceCluster[]>([])
+  useEffect(() => {
+    if (!has3D) return
+    let mounted = true
+    void import('@/content/clusters').then((module) => {
+      if (mounted) setClusterData(module.clusters)
+    })
+    return () => {
+      mounted = false
+    }
+  }, [has3D])
+
+  const clusterForPlace = useMemo(() => {
+    const lookup = new Int16Array(places.length).fill(-1)
+    clusterData.forEach((cluster, clusterIndex) => {
+      cluster.memberIndices.forEach((placeIndex) => {
+        lookup[placeIndex] = clusterIndex
+      })
+    })
+    return lookup
+  }, [clusterData])
 
   /* the card currently popped out of its hand at viewer scale, or null. React
      state on purpose: it changes on taps, not per frame, and the fan below
@@ -114,8 +152,6 @@ export function WorldGlobe({
   /* the card buttons by `pin:frame`, so the pop can measure the exact card it
      flies out of — and, at close time, whatever that card's geometry is NOW */
   const cardRefs = useRef(new Map<string, HTMLButtonElement>())
-
-  const [has3D] = useState(() => webglAvailable() && !prefersReducedMotion())
 
   /* One loop for every label, reading the positions the canvas wrote on its
      own frame. Writing transforms straight to the nodes keeps a turning globe
@@ -131,6 +167,11 @@ export function WorldGlobe({
       const frame = frameRef.current
       if (!frame) return
       const { top, width, height } = frame.getBoundingClientRect()
+      const scaleState = scaleRef.current
+      const worldScale = scaleState.phase === 'world'
+      const annotation = 1 - easeCubic(Math.max(0, Math.min(1, scaleState.morph / 0.3)))
+      frame.dataset.phase = scaleState.phase
+      frame.dataset.morph = scaleState.morph.toFixed(3)
       /* the horizon: pickups sink out of view before they reach the byline
          band. Facing alone can't catch this any more — with the sphere cut
          at the bottom, a pin near the disc centre faces the camera almost
@@ -144,13 +185,20 @@ export function WorldGlobe({
         // fade out as a pin rounds the limb rather than popping at the edge
         const limb = Math.max(0, Math.min(1, (projection.facing - 0.02) / 0.28))
         const screenY = top + projection.y * height
-        const sink = Math.max(0, Math.min(1, (horizonY - screenY) / 60))
+        const sink = worldScale
+          ? Math.max(0, Math.min(1, (horizonY - screenY) / 60))
+          : 1
         /* the entrance holds this pickup back until the ground under IT has
            landed — per pin, not per globe. A single shared progress value
            meant every label in the world arrived on the same frame, which is
            most of what read as "and now the planet is here" (Globe.tsx, the
            seed pass). 1 on a formed mount, so nothing waits on a remount. */
-        const visible = limb * sink * projection.form
+        const clusterIndex = clusterForPlace[i]
+        const cluster = clusterIndex >= 0 ? clusterData[clusterIndex] : undefined
+        const hiddenUnderChip = worldScale && cluster && !cluster.congestedSingleton
+        const belongsOnPlate = !worldScale && clusterIndex === scaleState.cluster
+        const scaleVisible = worldScale ? (hiddenUnderChip ? 0 : 1) : belongsOnPlate ? 1 : 0
+        const visible = limb * sink * projection.form * scaleVisible
         /* depth is drawn, not implied: a pickup near the limb shrinks as well
            as fades, and the stacking order follows facing so a front pickup
            always overlaps one further round the curve */
@@ -190,14 +238,113 @@ export function WorldGlobe({
         const cap = waypoints[i].legCount > 1 ? 1 : 0.9
         const scale = 0.7 + 0.3 * Math.max(0, Math.min(1, projection.facing))
         node.style.transform = `translate3d(${projection.x * width}px, ${projection.y * height}px, 0) scale(${scale.toFixed(3)})`
-        node.style.opacity = (limb * sink * cap * projection.form).toFixed(3)
+        node.style.opacity = (limb * sink * cap * projection.form * annotation).toFixed(3)
+      }
+
+      for (let i = 0; i < clusterData.length; i++) {
+        const cluster = clusterData[i]
+        if (cluster.congestedSingleton) continue
+        const node = chipRefs.current[i]
+        const projection = chipProjectionRef.current[i]
+        if (!node || !projection) continue
+        const limb = Math.max(0, Math.min(1, (projection.facing - 0.02) / 0.28))
+        const screenY = top + projection.y * height
+        const sink = Math.max(0, Math.min(1, (horizonY - screenY) / 60))
+        const visible = limb * sink * projection.form
+        const depthScale = 0.72 + 0.28 * Math.max(0, Math.min(1, projection.facing))
+        node.style.transform = `translate3d(${projection.x * width}px, ${projection.y * height}px, 0) scale(${depthScale.toFixed(3)})`
+        node.style.opacity = visible.toFixed(3)
+        node.style.zIndex = String(250 + Math.round(Math.max(0, projection.facing) * 80))
+        node.style.pointerEvents = worldScale && visible > 0.6 ? 'auto' : 'none'
+      }
+
+      const instrument = instrumentRef.current
+      const worldButton = worldButtonRef.current
+      if (instrument && worldButton) {
+        const activeCluster = clusterData[scaleState.cluster]
+        const showing = !worldScale && Boolean(activeCluster)
+        instrument.style.opacity = showing ? '1' : '0'
+        worldButton.style.opacity = showing ? '1' : '0'
+        worldButton.style.pointerEvents = showing ? 'auto' : 'none'
+        worldButton.tabIndex = showing ? 0 : -1
+        if (activeCluster) {
+          if (scaleState.phase === 'dive' && scaleState.morph < 0.58) {
+            const position = instrumentPositionRef.current
+            const targetLat = activeCluster.centroidLatLng[0]
+            const targetLng = activeCluster.centroidLatLng[1]
+            const step = 1 - Math.exp(-0.08 * gsap.ticker.deltaRatio(60))
+            position.lat += (targetLat - position.lat) * step
+            position.lng += (targetLng - position.lng) * step
+            instrument.textContent = `${position.lat.toFixed(3)}° / ${position.lng.toFixed(3)}°`
+          } else if (scaleState.phase === 'dive') {
+            const scan = Math.round(
+              Math.max(0, Math.min(1, (scaleState.morph - 0.58) / 0.42)) * 100
+            )
+            instrument.textContent = `scan … ${String(scan).padStart(2, '0')}%`
+          } else {
+            instrument.textContent = `${activeCluster.memberIndices.length} ${
+              activeCluster.memberIndices.length === 1 ? 'place' : 'places'
+            } · ${activeCluster.totalFrameCount} frames`
+          }
+        } else {
+          instrumentPositionRef.current.lat = 0
+          instrumentPositionRef.current.lng = 0
+        }
       }
     }
     gsap.ticker.add(tick)
     return () => {
       gsap.ticker.remove(tick)
     }
-  }, [has3D, activeRef, selectedRef])
+  }, [has3D, activeRef, selectedRef, clusterData, clusterForPlace])
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && scaleRef.current.phase !== 'world') {
+        exitRef.current = true
+      }
+    }
+    const onScroll = () => {
+      const nextScrollY = window.scrollY
+      const hero = frameRef.current?.closest('.hero')
+      if (
+        nextScrollY > lastScrollY &&
+        scaleRef.current.phase !== 'world' &&
+        hero &&
+        hero.getBoundingClientRect().bottom <= window.innerHeight
+      ) {
+        exitRef.current = true
+      }
+      lastScrollY = nextScrollY
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const devWindow = window as typeof window & {
+      __dive?: (clusterIndex: number) => void
+      __exitDive?: () => void
+    }
+    /* Probe-only intent hooks. They deliberately do not mutate scaleRef, so
+       Globe's useFrame remains the state machine's single writer. */
+    devWindow.__dive = (clusterIndex) => {
+      enterRef.current = clusterIndex
+    }
+    devWindow.__exitDive = () => {
+      exitRef.current = true
+    }
+    return () => {
+      delete devWindow.__dive
+      delete devWindow.__exitDive
+    }
+  }, [])
 
   /* A press is not yet a drag. The pickups are buttons INSIDE the drag
      surface, and capturing the pointer on pointerdown (as this used to)
@@ -214,6 +361,9 @@ export function WorldGlobe({
     pressRef.current = { x: e.clientX, y: e.clientY }
     lastXRef.current = e.clientX
     lastYRef.current = e.clientY
+    dragVelocityRef.current.x = 0
+    dragVelocityRef.current.y = 0
+    dragVelocityRef.current.at = performance.now()
   }
   /* Both axes. Horizontal alone could never show you the whole globe: spinning
      about Y sweeps a single band of latitudes past the camera and the poles are
@@ -232,9 +382,17 @@ export function WorldGlobe({
       draggingRef.current = true
       e.currentTarget.setPointerCapture(e.pointerId)
     }
-    // fed into the group's rotation and damped there, so a flick keeps coasting
-    spinRef.current += (e.clientX - lastXRef.current) * 0.00035
-    tiltRef.current += (e.clientY - lastYRef.current) * 0.00035
+    const dx = e.clientX - lastXRef.current
+    const dy = e.clientY - lastYRef.current
+    const now = performance.now()
+    const elapsed = Math.max(1, now - dragVelocityRef.current.at)
+    dragVelocityRef.current.x = dx / elapsed
+    dragVelocityRef.current.y = dy / elapsed
+    dragVelocityRef.current.at = now
+    // fed into the group's rotation and damped there at world scale; on a
+    // plate the canvas consumes the same deltas as cap-clamped re-aims
+    spinRef.current += dx * 0.00035
+    tiltRef.current += dy * 0.00035
     lastXRef.current = e.clientX
     lastYRef.current = e.clientY
   }
@@ -243,6 +401,12 @@ export function WorldGlobe({
     if (!draggingRef.current) return
     draggingRef.current = false
     e.currentTarget.releasePointerCapture?.(e.pointerId)
+    if (
+      scaleRef.current.phase === 'plate' &&
+      Math.hypot(dragVelocityRef.current.x, dragVelocityRef.current.y) >= 0.55
+    ) {
+      exitRef.current = true
+    }
   }
 
   /* The static fallback. `has3D` is false under reduced motion as well as under
@@ -331,9 +495,55 @@ export function WorldGlobe({
             selectedRef={selectedRef}
             spinRef={spinRef}
             tiltRef={tiltRef}
+            clusters={clusterData}
+            chipProjectionRef={chipProjectionRef}
+            scaleRef={scaleRef}
+            enterRef={enterRef}
+            exitRef={exitRef}
           />
         </Suspense>
       )}
+
+      <div className="globe-scale-instrument" aria-live="off">
+        <span ref={instrumentRef} className="instrument-line globe-scale-readout" />
+        <button
+          ref={worldButtonRef}
+          type="button"
+          className="instrument-line globe-world-button"
+          tabIndex={-1}
+          onClick={() => {
+            exitRef.current = true
+          }}
+        >
+          ← world
+        </button>
+      </div>
+
+      <ul className="globe-clusters">
+        {clusterData.map((cluster, i) =>
+          cluster.congestedSingleton ? null : (
+            <li
+              key={cluster.memberSlugs.join(':')}
+              ref={(node) => {
+                chipRefs.current[i] = node
+              }}
+              className="globe-cluster"
+              data-cluster-index={i}
+              data-cluster-slugs={cluster.memberSlugs.join(' ')}
+            >
+              <button
+                type="button"
+                className="globe-cluster-chip instrument-line"
+                onClick={() => {
+                  enterRef.current = i
+                }}
+              >
+                {cluster.memberIndices.length} places · {cluster.totalFrameCount} frames
+              </button>
+            </li>
+          )
+        )}
+      </ul>
 
       {/* The waypoints: flown-through cities in the instrument register,
           positioned by the same rAF loop as the pickups. aria-hidden as a
@@ -367,6 +577,8 @@ export function WorldGlobe({
       <ul className="globe-pins">
         {places.map((place, i) => {
           const frames = framesAt(place)
+          const placeClusterIndex = clusterForPlace[i]
+          const placeCluster = placeClusterIndex >= 0 ? clusterData[placeClusterIndex] : undefined
           return (
             <li
               key={place.slug}
@@ -414,9 +626,15 @@ export function WorldGlobe({
                           }
                           onClick={() => {
                             // first tap picks the place up; a tap on the
-                            // fanned hand lifts that card out to viewer scale
+                            // presented congested singleton dives instead.
+                            // Sparse lone pins keep the existing fan ladder.
                             if (selectedRef.current !== i) {
                               selectedRef.current = i
+                            } else if (
+                              placeCluster?.congestedSingleton &&
+                              scaleRef.current.phase === 'world'
+                            ) {
+                              enterRef.current = placeClusterIndex
                             } else {
                               setPop({ pin: i, frame: k })
                             }
@@ -434,6 +652,11 @@ export function WorldGlobe({
                       {frames.length > 1 && (
                         <span className="globe-pickup-count" aria-hidden>
                           {frames.length}
+                        </span>
+                      )}
+                      {placeCluster?.congestedSingleton && (
+                        <span className="globe-dive-count" aria-hidden>
+                          [ {frames.length} frames ]
                         </span>
                       )}
                     </span>

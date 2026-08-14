@@ -1142,6 +1142,108 @@ body.lightbox-open {
   cursor: grabbing;
 }
 
+.globe-frame[data-phase='plate'] .globe-grab,
+.globe-frame[data-phase='return'] .globe-grab {
+  inset: 16% 12%;
+  border-radius: 0.75rem;
+}
+
+.globe-scale-instrument {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.globe-scale-readout,
+.globe-world-button {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.globe-scale-readout {
+  min-width: 13.5rem;
+  text-align: right;
+  color: var(--text);
+}
+
+.globe-world-button {
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(16, 16, 19, 0.88);
+  color: var(--text);
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.globe-world-button:hover,
+.globe-world-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.globe-clusters {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.globe-cluster {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.globe-cluster-chip {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0.5rem 0.65rem 0.48rem 1.55rem;
+  border: 1px solid rgba(244, 239, 233, 0.28);
+  border-radius: 2px;
+  background: rgba(16, 16, 19, 0.9);
+  color: var(--text);
+  white-space: nowrap;
+  transform: translate(-50%, 0);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.globe-cluster-chip::before {
+  content: '';
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 45, 26, 0.16);
+  transform: translateY(-50%);
+}
+
+.globe-cluster-chip:hover,
+.globe-cluster-chip:focus-visible {
+  border-color: var(--accent);
+}
+
 /* The waypoint layer: flown-through cities as instrument-register labels.
    Sits under the pins in the DOM and never takes pointer events — texture on
    the map, not targets. Opacity and transform come from the rAF loop. */
@@ -1438,6 +1540,20 @@ body.lightbox-open {
   font-size: 0.62rem;
   font-weight: 700;
   line-height: 1;
+}
+
+.globe-dive-count {
+  position: absolute;
+  top: calc(100% + 1.8rem);
+  left: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  opacity: 0.58;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 /* the label hangs below the dot and only speaks when addressed: hovered,

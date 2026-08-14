@@ -1,6 +1,11 @@
 import { Suspense } from 'react'
 import { View } from '@react-three/drei'
-import { Globe, type PinProjection } from '@/canvas/Globe'
+import {
+  Globe,
+  type GlobeCluster,
+  type PinProjection,
+  type ScaleState,
+} from '@/canvas/Globe'
 
 interface GlobeViewProps {
   pins: [number, number][]
@@ -15,6 +20,11 @@ interface GlobeViewProps {
   selectedRef: { current: number }
   spinRef: { current: number }
   tiltRef: { current: number }
+  clusters?: GlobeCluster[]
+  chipProjectionRef?: { current: PinProjection[] }
+  scaleRef: { current: ScaleState }
+  enterRef: { current: number }
+  exitRef: { current: boolean }
 }
 
 /**
@@ -36,6 +46,11 @@ export default function GlobeView({
   selectedRef,
   spinRef,
   tiltRef,
+  clusters,
+  chipProjectionRef,
+  scaleRef,
+  enterRef,
+  exitRef,
 }: GlobeViewProps) {
   return (
     <View className="gl-view">
@@ -51,6 +66,11 @@ export default function GlobeView({
           selectedRef={selectedRef}
           spinRef={spinRef}
           tiltRef={tiltRef}
+          clusters={clusters}
+          chipProjectionRef={chipProjectionRef}
+          scaleRef={scaleRef}
+          enterRef={enterRef}
+          exitRef={exitRef}
         />
       </Suspense>
     </View>
