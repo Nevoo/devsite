@@ -5,7 +5,7 @@ import { PerspectiveCamera } from '@react-three/drei'
 import { prefersReducedMotion } from '@/motion/gsap'
 import { isLand } from '@/content/land-mask'
 import { useUI } from '@/stores/ui'
-import { OCC_RADIUS, patchDotAlpha } from './shaders/globe'
+import { FLAT_OCC, MORPH, OCC_RADIUS, patchDotAlpha } from './shaders/globe'
 
 /** live projected state of one pin, written every frame, read by the DOM half */
 export interface PinProjection {
@@ -290,6 +290,8 @@ const seedFrom = (sweep: number, tiebreak: number) => clamp01(0.78 * sweep + 0.2
 interface DotLayer {
   geometry: THREE.BufferGeometry
   home: Float32Array
+  /** the aPlate attribute's array — pre-allocated now, reseeded by S4 later */
+  plate: Float32Array
   scatter: Float32Array
   /** per-dot launch fraction, 0..1 — REWRITTEN by the sweep pass to follow longitude */
   seeds: Float32Array
@@ -531,7 +533,12 @@ export function Globe({
       // dust rides dim (see formLayer's development) — a formed mount is full
       const alpha = new Float32Array(n).fill(entering ? 0.45 : 1)
       g.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1))
-      return { geometry: g, home, scatter, seeds, alpha }
+      // Both future plate channels exist before the first compile. Starting
+      // aPlate as an exact copy makes uMorph = 0 and 1 identical until seeded.
+      const plate = home.slice()
+      g.setAttribute('aPlate', new THREE.BufferAttribute(plate, 3))
+      g.setAttribute('aTint', new THREE.BufferAttribute(new Float32Array(n), 1))
+      return { geometry: g, home, plate, scatter, seeds, alpha }
     }
     return [build(edge), build(fill), build(water), build(graticulePoints())]
   }, [])
@@ -581,6 +588,8 @@ export function Globe({
     const n = points.length / 3
     const alpha = new Float32Array(n).fill(intro.current.phase === 'done' ? 1 : 0)
     g.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1))
+    g.setAttribute('aPlate', new THREE.Float32BufferAttribute(points, 3))
+    g.setAttribute('aTint', new THREE.BufferAttribute(new Float32Array(n), 1))
     return { geometry: g, seeds: new Float32Array(n), alpha }
   }, [legs])
 
@@ -792,6 +801,65 @@ export function Globe({
 
   const tour = useRef({ index: 0, hold: 0, target: 0, seeded: false, grace: 0, lastSelected: -1 })
 
+  /* S3 GEOMETRY PROBE — removed/replaced in S4 by the real dive state
+     machine. This deliberately exists only under Vite's development flag:
+     production neither installs the key listener nor retains the lazy plate
+     data path. The first 1/2/3 press seeds one NZ-centred azimuthal plate,
+     then the frame loop below damps 0 / 0.5 / 1 without React state or any
+     per-frame allocation. */
+  const morphTarget = useRef(0)
+  const morphCurrent = useRef(0)
+  const morphSeeded = useRef(false)
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+
+    let mounted = true
+    const seedPlate = async () => {
+      if (morphSeeded.current) return
+      morphSeeded.current = true
+      const [{ plateProject }, { clusters }] = await Promise.all([
+        import('./plate'),
+        import('@/content/clusters'),
+      ])
+      if (!mounted) return
+
+      const nz = clusters.find((cluster) => cluster.memberSlugs.includes('queenstown'))
+      if (!nz) return
+
+      const spread = 2.2
+      for (const layer of layers) {
+        const { home, plate } = layer
+        for (let i = 0; i < home.length; i += 3) {
+          const projected = plateProject(
+            [home[i], home[i + 1], home[i + 2]],
+            nz.centroid,
+            spread
+          )
+          plate[i] = projected[0]
+          plate[i + 1] = projected[1]
+          plate[i + 2] = projected[2]
+        }
+        layer.geometry.getAttribute('aPlate').needsUpdate = true
+      }
+    }
+
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.key === '1' ? 0 : event.key === '2' ? 0.5 : event.key === '3' ? 1 : null
+      if (target === null) return
+      morphTarget.current = target
+      void seedPlate()
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => {
+      mounted = false
+      window.removeEventListener('keydown', onKey)
+      MORPH.value = 0
+      FLAT_OCC.value = 1
+    }
+  }, [layers])
+
   /* THE CAMERA MUST COME FROM useThree, NOT from useFrame's state.
      useFrame hands back the ROOT store's state, and `makeDefault` writes the
      root store — so with more than one View on the page the last one to mount
@@ -805,6 +873,12 @@ export function Globe({
   const camera = useThree((s) => s.camera)
 
   useFrame((_, delta) => {
+    if (import.meta.env.DEV) {
+      morphCurrent.current = damp(morphCurrent.current, morphTarget.current, 6, delta)
+      MORPH.value = morphCurrent.current
+      FLAT_OCC.value = 1 - morphCurrent.current
+    }
+
     const group = groupRef.current
     if (!group || !camera) return
 

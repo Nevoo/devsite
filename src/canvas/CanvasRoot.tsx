@@ -90,12 +90,19 @@ function ShaderProgramWarmup() {
     const pointGeometry = new THREE.BufferGeometry()
     pointGeometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3))
     pointGeometry.setAttribute('aAlpha', new THREE.Float32BufferAttribute([1], 1))
+    pointGeometry.setAttribute('aPlate', new THREE.Float32BufferAttribute([0, 0, 0], 3))
+    pointGeometry.setAttribute('aTint', new THREE.Float32BufferAttribute([0], 1))
     const lineGeometry = new THREE.BufferGeometry()
     lineGeometry.setAttribute(
       'position',
       new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3)
     )
     lineGeometry.setAttribute('aAlpha', new THREE.Float32BufferAttribute([1, 1], 1))
+    lineGeometry.setAttribute(
+      'aPlate',
+      new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3)
+    )
+    lineGeometry.setAttribute('aTint', new THREE.Float32BufferAttribute([0, 0], 1))
     const planeGeometry = new THREE.PlaneGeometry(1, 1)
 
     const pointsMaterial = new THREE.PointsMaterial({

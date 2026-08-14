@@ -7,6 +7,12 @@
 /** The occluding mass, as the dot shaders see it. */
 export const OCC_RADIUS = { value: 0 }
 
+/** Sphere (0) to projected plate (1), shared by every patched dot material. */
+export const MORPH = { value: 0 }
+
+/** Occlusion attenuation: full sphere occlusion at 1, none at 0. */
+export const FLAT_OCC = { value: 1 }
+
 /** View-space depth of the soft band behind the globe's limb. */
 const OCC_SOFT = { value: 0.04 }
 
@@ -20,15 +26,22 @@ export const patchDotAlpha = (shader: {
 }) => {
   shader.uniforms.uOccR = OCC_RADIUS
   shader.uniforms.uOccSoft = OCC_SOFT
+  shader.uniforms.uMorph = MORPH
+  shader.uniforms.uFlat = FLAT_OCC
   shader.vertexShader = shader.vertexShader
     .replace(
       '#include <common>',
-      'attribute float aAlpha;\nvarying float vAlpha;\nuniform float uOccR;\nuniform float uOccSoft;\n#include <common>'
+      'attribute float aAlpha;\nattribute vec3 aPlate;\nattribute float aTint;\nvarying float vAlpha;\nvarying float vTint;\nuniform float uOccR;\nuniform float uOccSoft;\nuniform float uMorph;\nuniform float uFlat;\n#include <common>'
+    )
+    .replace(
+      '#include <begin_vertex>',
+      'vec3 transformed = mix(position, aPlate, uMorph);'
     )
     .replace(
       '#include <project_vertex>',
       `#include <project_vertex>
 vAlpha = aAlpha;
+vTint = aTint;
 {
 \tvec3 sphereC = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 \tvec3 rayDir = normalize(mvPosition.xyz);
@@ -37,11 +50,12 @@ vAlpha = aAlpha;
 \tfloat r2 = uOccR * uOccR;
 \tif (uOccR > 0.0 && along > 0.0 && miss2 < r2) {
 \t\tfloat entry = along - sqrt(r2 - miss2);
-\t\tvAlpha *= 1.0 - smoothstep(0.0, uOccSoft, length(mvPosition.xyz) - entry);
+\t\tfloat occFactor = 1.0 - smoothstep(0.0, uOccSoft, length(mvPosition.xyz) - entry);
+\t\tvAlpha *= mix(1.0, occFactor, uFlat);
 \t}
 }`
     )
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', 'varying float vAlpha;\n#include <common>')
+    .replace('#include <common>', 'varying float vAlpha;\nvarying float vTint;\n#include <common>')
     .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.a *= vAlpha;')
 }
