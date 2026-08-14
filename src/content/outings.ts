@@ -1,4 +1,4 @@
-import { categories, type Photo } from './categories'
+import { categories, type Photo } from './categories.ts'
 
 /**
  * The outings — the unit the archive is actually made of.

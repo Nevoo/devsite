@@ -1,5 +1,5 @@
-import { outings, photoOf } from './outings'
-import type { Photo } from './categories'
+import { outings, photoOf } from './outings.ts'
+import type { Photo } from './categories.ts'
 
 /**
  * The place layer — where the work happened, recorded at the precision it is
