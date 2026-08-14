@@ -1084,6 +1084,28 @@ body.lightbox-open {
   gap: var(--space-2);
 }
 
+.globe-log-cluster {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: 0.2em;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.globe-log-cluster-members {
+  min-width: 0;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.globe-log-cluster-count {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
 /* a placed row shows what was shot there — the projection panel must never be
    the only surface the photographs exist on (GLOBE-V2.md T15) */
 .globe-log-frames {

@@ -1,9 +1,9 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { webglAvailable } from '@/lib/webgl'
 import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { FramePop } from '@/components/FramePop'
 import type { PinProjection, ScaleState } from '@/canvas/Globe'
-import type { PlaceCluster } from '@/content/clusters'
+import { clusters, type PlaceCluster } from '@/content/clusters'
 import { places, framesAt, firstAt, type Place } from '@/content/places'
 import { flightArcs, waypointAirports } from '@/content/flights'
 
@@ -39,6 +39,66 @@ const pinCoords = places.map((p) => p.coords)
 const pinPrecisions = places.map((place) => place.precision)
 const pinWeights = places.map((place) => framesAt(place).length)
 const waypointCoords = waypoints.map((a) => a.coords)
+
+/* The static fallback needs the same congestion truth as the live globe.
+   clusters.ts is pure deployment-data math, so keeping this lookup at module
+   scope adds no Three.js/canvas dependency and decides every grouping once. */
+const clusterForPlace = new Int16Array(places.length).fill(-1)
+clusters.forEach((cluster, clusterIndex) => {
+  for (const placeIndex of cluster.memberIndices) clusterForPlace[placeIndex] = clusterIndex
+})
+
+const regionNames = new Intl.DisplayNames('en', { type: 'region' })
+const clusterLabel = (cluster: PlaceCluster) => {
+  const countryCodes = cluster.memberIndices.map((placeIndex) => {
+    const suffix = places[placeIndex].label.split(',').at(-1)?.trim()
+    return suffix?.length === 2 ? suffix.toUpperCase() : null
+  })
+  const countryCode = countryCodes[0]
+  if (countryCode && countryCodes.every((code) => code === countryCode)) {
+    return (regionNames.of(countryCode) ?? countryCode).toLocaleLowerCase('en')
+  }
+  return cluster.memberIndices.map((placeIndex) => places[placeIndex].label).join('; ')
+}
+
+const clusterLabels = clusters.map(clusterLabel)
+const clusterAccessibleName = (cluster: PlaceCluster, clusterIndex: number) => {
+  const placeCount = cluster.memberIndices.length
+  const frameCount = cluster.totalFrameCount
+  return `enter ${clusterLabels[clusterIndex]} — ${placeCount} ${
+    placeCount === 1 ? 'place' : 'places'
+  }, ${frameCount} ${frameCount === 1 ? 'frame' : 'frames'}`
+}
+
+/* Group a cluster when its newest member is reached, then keep its members in
+   travelled order beneath one counts line. Lone places retain the same order
+   around those groups, and empty stops remain ordinary label-only rows. */
+const staticPlaces: {
+  place: Place
+  index: number
+  cluster?: PlaceCluster
+  clusterIndex?: number
+}[] = []
+const emittedStaticClusters = new Uint8Array(clusters.length)
+for (let index = places.length - 1; index >= 0; index--) {
+  const clusterIndex = clusterForPlace[index]
+  if (clusterIndex < 0) {
+    staticPlaces.push({ place: places[index], index })
+    continue
+  }
+  if (emittedStaticClusters[clusterIndex] === 1) continue
+  emittedStaticClusters[clusterIndex] = 1
+  const cluster = clusters[clusterIndex]
+  const memberIndices = cluster.memberIndices.slice().sort((a, b) => b - a)
+  memberIndices.forEach((memberIndex, memberOrder) => {
+    staticPlaces.push({
+      place: places[memberIndex],
+      index: memberIndex,
+      cluster: memberOrder === 0 ? cluster : undefined,
+      clusterIndex: memberOrder === 0 ? clusterIndex : undefined,
+    })
+  })
+}
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
@@ -101,6 +161,7 @@ export function WorldGlobe({
   const waypointRefs = useRef<(HTMLLIElement | null)[]>([])
   const waypointProjectionRef = useRef<PinProjection[]>([])
   const chipRefs = useRef<(HTMLLIElement | null)[]>([])
+  const chipButtonRefs = useRef<(HTMLButtonElement | null)[]>([])
   const chipProjectionRef = useRef<PinProjection[]>([])
   const internalActiveRef = useRef(-1)
   const internalSelectedRef = useRef(-1)
@@ -120,31 +181,6 @@ export function WorldGlobe({
   const lastYRef = useRef(0)
   const dragVelocityRef = useRef({ x: 0, y: 0, at: 0 })
   const [has3D] = useState(() => webglAvailable() && !prefersReducedMotion())
-
-  /* Dynamic on purpose: WorldGlobe itself is entry code, while clustering and
-     its plate math belong to the globe feature chunk. Terrain remains one
-     boundary later and is requested only when enterRef is consumed. */
-  const [clusterData, setClusterData] = useState<PlaceCluster[]>([])
-  useEffect(() => {
-    if (!has3D) return
-    let mounted = true
-    void import('@/content/clusters').then((module) => {
-      if (mounted) setClusterData(module.clusters)
-    })
-    return () => {
-      mounted = false
-    }
-  }, [has3D])
-
-  const clusterForPlace = useMemo(() => {
-    const lookup = new Int16Array(places.length).fill(-1)
-    clusterData.forEach((cluster, clusterIndex) => {
-      cluster.memberIndices.forEach((placeIndex) => {
-        lookup[placeIndex] = clusterIndex
-      })
-    })
-    return lookup
-  }, [clusterData])
 
   /* the card currently popped out of its hand at viewer scale, or null. React
      state on purpose: it changes on taps, not per frame, and the fan below
@@ -195,7 +231,7 @@ export function WorldGlobe({
            most of what read as "and now the planet is here" (Globe.tsx, the
            seed pass). 1 on a formed mount, so nothing waits on a remount. */
         const clusterIndex = clusterForPlace[i]
-        const cluster = clusterIndex >= 0 ? clusterData[clusterIndex] : undefined
+        const cluster = clusterIndex >= 0 ? clusters[clusterIndex] : undefined
         const hiddenUnderChip = worldScale && cluster && !cluster.congestedSingleton
         const belongsOnPlate = !worldScale && clusterIndex === scaleState.cluster
         const scaleVisible = worldScale ? (hiddenUnderChip ? 0 : 1) : belongsOnPlate ? 1 : 0
@@ -242,9 +278,16 @@ export function WorldGlobe({
         node.style.opacity = (limb * sink * cap * projection.form * annotation).toFixed(3)
       }
 
-      for (let i = 0; i < clusterData.length; i++) {
-        const cluster = clusterData[i]
+      for (let i = 0; i < clusters.length; i++) {
+        const cluster = clusters[i]
         if (cluster.congestedSingleton) continue
+        const button = chipButtonRefs.current[i]
+        const expandedValue = scaleState.phase !== 'world' && scaleState.cluster === i
+          ? 'true'
+          : 'false'
+        if (button?.getAttribute('aria-expanded') !== expandedValue) {
+          button?.setAttribute('aria-expanded', expandedValue)
+        }
         const node = chipRefs.current[i]
         const projection = chipProjectionRef.current[i]
         if (!node || !projection) continue
@@ -262,7 +305,7 @@ export function WorldGlobe({
       const instrument = instrumentRef.current
       const worldButton = worldButtonRef.current
       if (instrument && worldButton) {
-        const activeCluster = clusterData[scaleState.cluster]
+        const activeCluster = clusters[scaleState.cluster]
         const showing = !worldScale && Boolean(activeCluster)
         instrument.style.opacity = showing ? '1' : '0'
         worldButton.style.opacity = showing ? '1' : '0'
@@ -297,7 +340,7 @@ export function WorldGlobe({
     return () => {
       gsap.ticker.remove(tick)
     }
-  }, [has3D, activeRef, selectedRef, clusterData, clusterForPlace])
+  }, [has3D, activeRef, selectedRef])
 
   useEffect(() => {
     let lastScrollY = window.scrollY
@@ -421,13 +464,23 @@ export function WorldGlobe({
     return (
       <div className="gl-frame globe-frame globe-frame-static">
         <ol className="globe-log">
-          {places
-            .slice()
-            .reverse()
-            .map((place) => {
+          {staticPlaces.map(({ place, cluster, clusterIndex }) => {
               const frames = framesAt(place)
               return (
                 <li key={place.slug} className="globe-log-row">
+                  {cluster && clusterIndex !== undefined && (
+                    <div className="globe-log-cluster">
+                      <span className="globe-log-cluster-members">
+                        {clusterLabels[clusterIndex]} —
+                      </span>
+                      <span className="globe-log-cluster-count">
+                        {cluster.memberIndices.length}{' '}
+                        {cluster.memberIndices.length === 1 ? 'place' : 'places'} ·{' '}
+                        {cluster.totalFrameCount}{' '}
+                        {cluster.totalFrameCount === 1 ? 'frame' : 'frames'}
+                      </span>
+                    </div>
+                  )}
                   <div className="globe-log-line">
                     <span className="globe-log-place">{place.label}</span>
                     <span className="globe-log-meta">{meta(place)}</span>
@@ -497,7 +550,7 @@ export function WorldGlobe({
             selectedRef={selectedRef}
             spinRef={spinRef}
             tiltRef={tiltRef}
-            clusters={clusterData}
+            clusters={clusters}
             chipProjectionRef={chipProjectionRef}
             scaleRef={scaleRef}
             enterRef={enterRef}
@@ -506,8 +559,11 @@ export function WorldGlobe({
         </Suspense>
       )}
 
-      <div className="globe-scale-instrument" aria-live="off">
-        <span ref={instrumentRef} className="instrument-line globe-scale-readout" />
+      <div className="globe-scale-instrument">
+        {/* Like Index's mono instrument marks, this animated readout is visual
+            context, not a second announcement stream. The chip's maintained
+            aria-expanded state carries the scale change for AT users. */}
+        <span ref={instrumentRef} className="instrument-line globe-scale-readout" aria-hidden />
         <button
           ref={worldButtonRef}
           type="button"
@@ -522,7 +578,7 @@ export function WorldGlobe({
       </div>
 
       <ul className="globe-clusters">
-        {clusterData.map((cluster, i) =>
+        {clusters.map((cluster, i) =>
           cluster.congestedSingleton ? null : (
             <li
               key={cluster.memberSlugs.join(':')}
@@ -534,8 +590,13 @@ export function WorldGlobe({
               data-cluster-slugs={cluster.memberSlugs.join(' ')}
             >
               <button
+                ref={(node) => {
+                  chipButtonRefs.current[i] = node
+                }}
                 type="button"
                 className="globe-cluster-chip instrument-line"
+                aria-label={clusterAccessibleName(cluster, i)}
+                aria-expanded={false}
                 onClick={() => {
                   enterRef.current = i
                 }}
@@ -580,7 +641,7 @@ export function WorldGlobe({
         {places.map((place, i) => {
           const frames = framesAt(place)
           const placeClusterIndex = clusterForPlace[i]
-          const placeCluster = placeClusterIndex >= 0 ? clusterData[placeClusterIndex] : undefined
+          const placeCluster = placeClusterIndex >= 0 ? clusters[placeClusterIndex] : undefined
           return (
             <li
               key={place.slug}

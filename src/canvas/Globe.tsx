@@ -170,6 +170,15 @@ const ISLAND_REACH = 0.045
 const FIORD_REACH = 0.03
 /** The low end of the proposed wash keeps broad precision from reading as alarm red. */
 const BROAD_PRECISION_TINT = 0.12
+/** Reseeding yields before it can monopolise a frame under CPU throttling. */
+const RESEED_SLICE_MS = 6
+
+const PRECISION_VENUE = 1
+const PRECISION_TOWN = 2
+const PRECISION_ISLAND = 3
+const PRECISION_FIORD = 4
+const PRECISION_COUNTRY = 5
+const PRECISION_REGION = 6
 
 /** seconds a place stays front-and-centre with its card open before the next */
 const HOLD = 2.6
@@ -327,6 +336,25 @@ const SPIN_RESIDUAL = 0.12
 const WAKE = 1.2
 
 let entranceDone = false
+let terrainPrefetchScheduled = false
+
+/** Warm the lazy terrain module and its memoized fetch after the globe exists.
+ *  The real dive awaits the same loadTerrain promise, so this never touches
+ *  plate state and cannot start a second request. */
+const scheduleTerrainPrefetch = () => {
+  if (terrainPrefetchScheduled) return
+  terrainPrefetchScheduled = true
+  const warm = () => {
+    void import('@/content/terrain')
+      .then((terrainModule) => terrainModule.loadTerrain())
+      .catch(() => {})
+  }
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(warm, { timeout: 2000 })
+  } else {
+    globalThis.setTimeout(warm, 2000)
+  }
+}
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 /* framerate-independent smoothing: damp converges identically at 30 and 144
@@ -410,6 +438,102 @@ const smoothstep = (edge0: number, edge1: number, value: number) => {
 
 const angularDistance = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
   Math.acos(THREE.MathUtils.clamp(ax * bx + ay * by + az * bz, -1, 1))
+
+type MutableNumericArray = Float32Array | Float64Array
+
+/** Allocation-free mirror of plateProject for the sliced reseed hot path. */
+const plateProjectInto = (
+  dx: number,
+  dy: number,
+  dz: number,
+  centroid: Vec3,
+  spread: number,
+  target: MutableNumericArray,
+  offset: number
+) => {
+  const directionLength = Math.hypot(dx, dy, dz) || 1
+  dx /= directionLength
+  dy /= directionLength
+  dz /= directionLength
+  const centroidLength = Math.hypot(centroid[0], centroid[1], centroid[2]) || 1
+  const cx = centroid[0] / centroidLength
+  const cy = centroid[1] / centroidLength
+  const cz = centroid[2] / centroidLength
+  const alignment = THREE.MathUtils.clamp(dx * cx + dy * cy + dz * cz, -1, 1)
+  const alpha = Math.acos(alignment)
+  if (alpha <= 1e-12) {
+    target[offset] = cx
+    target[offset + 1] = cy
+    target[offset + 2] = cz
+    return
+  }
+
+  let tx = dx - cx * alignment
+  let ty = dy - cy * alignment
+  let tz = dz - cz * alignment
+  let tangentLength = Math.hypot(tx, ty, tz)
+  if (tangentLength <= 1e-12) {
+    let ax = 0
+    let ay = 0
+    let az = 0
+    if (Math.abs(cx) < Math.abs(cy)) {
+      if (Math.abs(cx) < Math.abs(cz)) ax = 1
+      else az = 1
+    } else if (Math.abs(cy) < Math.abs(cz)) ay = 1
+    else az = 1
+    tx = cy * az - cz * ay
+    ty = cz * ax - cx * az
+    tz = cx * ay - cy * ax
+    tangentLength = Math.hypot(tx, ty, tz) || 1
+  }
+  const scale = (alpha * spread) / tangentLength
+  target[offset] = cx + tx * scale
+  target[offset + 1] = cy + ty * scale
+  target[offset + 2] = cz + tz * scale
+}
+
+const latLngToDirectionInto = (
+  lat: number,
+  lng: number,
+  target: MutableNumericArray,
+  offset: number
+) => {
+  const phi = (90 - lat) * (Math.PI / 180)
+  const theta = (lng + 180) * (Math.PI / 180)
+  target[offset] = -Math.sin(phi) * Math.cos(theta)
+  target[offset + 1] = Math.cos(phi)
+  target[offset + 2] = Math.sin(phi) * Math.sin(theta)
+}
+
+const wrapLongitude = (lng: number) => {
+  const wrapped = ((lng + 180) % 360 + 360) % 360 - 180
+  return Object.is(wrapped, -0) ? 0 : wrapped
+}
+
+const precisionCode = (precision: PlacePrecision) => {
+  switch (precision) {
+    case 'venue': return PRECISION_VENUE
+    case 'town': return PRECISION_TOWN
+    case 'island': return PRECISION_ISLAND
+    case 'fiord': return PRECISION_FIORD
+    case 'country': return PRECISION_COUNTRY
+    case 'region': return PRECISION_REGION
+  }
+  return 0
+}
+
+interface RandomCursor {
+  randomState: number
+}
+
+const nextReseedRandom = (cursor: RandomCursor) => {
+  let state = cursor.randomState
+  state ^= state << 13
+  state ^= state >>> 17
+  state ^= state << 5
+  cursor.randomState = state >>> 0
+  return cursor.randomState / 0x1_0000_0000
+}
 
 /** No closures or allocations: the same typed buffers are rewritten in place. */
 function formPlateLayer(layer: PlateLayer, develop: number, returning: boolean) {
@@ -835,6 +959,16 @@ export function Globe({
   const pinPlate = useMemo(() => new Float32Array(pinPoints.length * 3), [pinPoints])
   const pinPlateSeeds = useMemo(() => new Float32Array(pinPoints.length), [pinPoints])
   const activeMembers = useMemo(() => new Uint8Array(pinPoints.length), [pinPoints])
+  /* Scratch is sized once with the deployment data and reused by every slice;
+     neither a rejected terrain candidate nor a resumed frame allocates. */
+  const reseedMemberDirections = useMemo(
+    () => new Float32Array(pinPoints.length * 3),
+    [pinPoints]
+  )
+  const reseedMemberPrecisions = useMemo(() => new Uint8Array(pinPoints.length), [pinPoints])
+  const reseedVenueMembers = useMemo(() => new Int16Array(pinPoints.length), [pinPoints])
+  const reseedDirection = useMemo(() => new Float64Array(3), [])
+  const reseedLngRanges = useMemo(() => new Float64Array(4), [])
 
   useEffect(
     () => () => {
@@ -1050,7 +1184,7 @@ export function Globe({
 
   const tour = useRef({ index: 0, hold: 0, target: 0, seeded: false, grace: 0, lastSelected: -1 })
 
-  type PlateModule = typeof import('./plate')
+  type ReseedStage = 'idle' | 'world' | 'pins' | 'terrain' | 'finalize' | 'done'
   const dive = useRef({
     clock: 0,
     returnClock: 0,
@@ -1059,7 +1193,20 @@ export function Globe({
     seeded: false,
     interrupted: false,
     terrain: null as Terrain | null,
-    plateModule: null as PlateModule | null,
+    reseedStage: 'idle' as ReseedStage,
+    worldLayerIndex: 0,
+    worldPointIndex: 0,
+    pinMemberIndex: 0,
+    terrainPointIndex: 0,
+    randomState: 0,
+    memberCount: 0,
+    venueMemberCount: 0,
+    venuePointBudget: 0,
+    broadPrecision: false,
+    boundsMinLat: 0,
+    boundsMaxLat: 0,
+    lngRangeCount: 0,
+    gridStep: 1,
     startYaw: 0,
     startTilt: 0,
     sphereYaw: 0,
@@ -1094,19 +1241,28 @@ export function Globe({
     const interrupt = () => {
       if (scaleRef.current.phase === 'dive') dive.current.interrupted = true
     }
+    const interruptKey = (event: KeyboardEvent) => {
+      // A key held before the dive can keep emitting repeat keydowns after it
+      // starts; that is not a newly committed input against the transition.
+      if (event.repeat) return
+      interrupt()
+    }
     window.addEventListener('pointerdown', interrupt)
-    window.addEventListener('keydown', interrupt)
+    window.addEventListener('keydown', interruptKey)
     window.addEventListener('wheel', interrupt, { passive: true })
     return () => {
       window.removeEventListener('pointerdown', interrupt)
-      window.removeEventListener('keydown', interrupt)
+      window.removeEventListener('keydown', interruptKey)
       window.removeEventListener('wheel', interrupt)
     }
   }, [scaleRef])
-
-  /** Reseed work is allowed to be synchronous and allocation-bearing once per
-      enter. The animation frames that follow only rewrite these typed arrays. */
-  const reseedPlate = (clusterIndex: number, terrain: Terrain, plateModule: PlateModule) => {
+  /**
+   * Prepare the resumable cursor. This work is bounded by place/member counts;
+   * the large world projection and rejection sampler live in advancePlateReseed
+   * and yield against a per-frame deadline.
+   */
+  const preparePlateReseed = (clusterIndex: number) => {
+    const d = dive.current
     const cluster = clusters[clusterIndex]
     if (!cluster) return false
     const c = cluster.centroid
@@ -1127,13 +1283,9 @@ export function Globe({
       )
     }
     capRadius = THREE.MathUtils.clamp(capRadius, MIN_CAP_RADIUS, MAX_CAP_RADIUS)
-    dive.current.capRadius = capRadius
+    d.capRadius = capRadius
 
-    let spread = THREE.MathUtils.clamp(
-      TARGET_PLATE_RADIUS / capRadius,
-      MIN_SPREAD,
-      SPREAD_MAX
-    )
+    let spread = THREE.MathUtils.clamp(TARGET_PLATE_RADIUS / capRadius, MIN_SPREAD, SPREAD_MAX)
     if (cluster.memberIndices.length >= 2) {
       let minPairwiseDistance = Infinity
       for (let a = 0; a < cluster.memberIndices.length; a++) {
@@ -1161,182 +1313,295 @@ export function Globe({
           : SPREAD_MAX
       }
     }
-    dive.current.spread = spread
+    d.spread = spread
     plateLayer.normal[0] = c[0]
     plateLayer.normal[1] = c[1]
     plateLayer.normal[2] = c[2]
 
-    for (const layer of layers) {
-      const { home, plate, plateDistance } = layer
-      for (let i = 0; i < plateDistance.length; i++) {
-        const j = i * 3
-        const projected = plateModule.plateProject(
-          [home[j], home[j + 1], home[j + 2]],
-          c,
-          spread
-        )
-        plate[j] = projected[0]
-        plate[j + 1] = projected[1]
-        plate[j + 2] = projected[2]
-        const length = Math.hypot(home[j], home[j + 1], home[j + 2]) || 1
-        plateDistance[i] = angularDistance(
-          home[j] / length,
-          home[j + 1] / length,
-          home[j + 2] / length,
-          c[0],
-          c[1],
-          c[2]
-        )
-      }
-      layer.geometry.getAttribute('aPlate').needsUpdate = true
-    }
-
     activeMembers.fill(0)
     pinPlate.fill(0)
     pinPlateSeeds.fill(0)
-    for (let i = 0; i < cluster.memberIndices.length; i++) {
+    d.memberCount = cluster.memberIndices.length
+    d.venueMemberCount = 0
+    d.broadPrecision = false
+    for (let i = 0; i < d.memberCount; i++) {
       const memberIndex = cluster.memberIndices[i]
-      const point = pinPoints[memberIndex]
-      const projected = plateModule.plateProject([point.x, point.y, point.z], c, spread)
-      const j = memberIndex * 3
-      pinPlate[j] = projected[0] + c[0] * 0.012
-      pinPlate[j + 1] = projected[1] + c[1] * 0.012
-      pinPlate[j + 2] = projected[2] + c[2] * 0.012
-      const pointLength = point.length() || 1
-      pinPlateSeeds[memberIndex] = clamp01(
-        angularDistance(
-          point.x / pointLength,
-          point.y / pointLength,
-          point.z / pointLength,
+      const coordinate = pins[memberIndex]
+      const j = i * 3
+      latLngToDirectionInto(
+        coordinate[0],
+        coordinate[1],
+        reseedMemberDirections,
+        j
+      )
+      const code = precisionCode(precisions[memberIndex])
+      reseedMemberPrecisions[i] = code
+      if (code === PRECISION_VENUE) {
+        reseedVenueMembers[d.venueMemberCount++] = i
+      } else if (code === PRECISION_COUNTRY || code === PRECISION_REGION) {
+        d.broadPrecision = true
+      }
+    }
+
+    const capDegrees = capRadius * (180 / Math.PI)
+    d.gridStep = Math.max(1, capDegrees / 3)
+    d.boundsMinLat = Math.max(-90, cluster.centroidLatLng[0] - capDegrees)
+    d.boundsMaxLat = Math.min(90, cluster.centroidLatLng[0] + capDegrees)
+    if (d.boundsMinLat <= -90 || d.boundsMaxLat >= 90) {
+      d.lngRangeCount = 1
+      reseedLngRanges[0] = -180
+      reseedLngRanges[1] = 180
+    } else {
+      const latitude = THREE.MathUtils.clamp(cluster.centroidLatLng[0], -90, 90)
+        * (Math.PI / 180)
+      const lngRadius = Math.asin(
+        THREE.MathUtils.clamp(Math.sin(capRadius) / Math.cos(latitude), -1, 1)
+      ) * (180 / Math.PI)
+      const centreLng = wrapLongitude(cluster.centroidLatLng[1])
+      const minLngUnwrapped = centreLng - lngRadius
+      const maxLngUnwrapped = centreLng + lngRadius
+      const minLng = wrapLongitude(minLngUnwrapped)
+      const maxLng = wrapLongitude(maxLngUnwrapped)
+      if (minLngUnwrapped < -180 || maxLngUnwrapped >= 180) {
+        d.lngRangeCount = 2
+        reseedLngRanges[0] = minLng
+        reseedLngRanges[1] = 180
+        reseedLngRanges[2] = -180
+        reseedLngRanges[3] = maxLng
+      } else {
+        d.lngRangeCount = 1
+        reseedLngRanges[0] = minLng
+        reseedLngRanges[1] = maxLng
+      }
+    }
+
+    const fillCount = PLATE_POINTS - PLATE_GRID_POINTS
+    d.venuePointBudget = Math.min(
+      fillCount,
+      d.venueMemberCount * VENUE_POINT_COUNT
+    )
+    d.randomState = (0x5eed1234 ^ ((clusterIndex + 1) * 0x9e3779b9)) >>> 0
+    d.worldLayerIndex = 0
+    d.worldPointIndex = 0
+    d.pinMemberIndex = 0
+    d.terrainPointIndex = 0
+    d.reseedStage = 'world'
+    return true
+  }
+
+  /**
+   * Advance candidates until this frame's budget is spent. The deadline is
+   * checked after every candidate—including land/cap rejections—so a run of
+   * bad samples cannot turn back into the long task this cursor replaces.
+   */
+  const advancePlateReseed = () => {
+    const d = dive.current
+    const cluster = clusters[scaleRef.current.cluster]
+    const terrain = d.terrain
+    if (!cluster || !terrain || d.reseedStage === 'idle') return false
+    const c = cluster.centroid
+    const deadline = performance.now() + RESEED_SLICE_MS
+
+    while (true) {
+      if (d.reseedStage === 'world') {
+        if (d.worldLayerIndex >= layers.length) {
+          d.reseedStage = 'pins'
+          continue
+        }
+        const layer = layers[d.worldLayerIndex]
+        if (d.worldPointIndex >= layer.plateDistance.length) {
+          d.worldLayerIndex++
+          d.worldPointIndex = 0
+          continue
+        }
+        const i = d.worldPointIndex++
+        const j = i * 3
+        const hx = layer.home[j]
+        const hy = layer.home[j + 1]
+        const hz = layer.home[j + 2]
+        plateProjectInto(hx, hy, hz, c, d.spread, layer.plate, j)
+        const length = Math.hypot(hx, hy, hz) || 1
+        layer.plateDistance[i] = angularDistance(
+          hx / length,
+          hy / length,
+          hz / length,
           c[0],
           c[1],
           c[2]
-        ) / capRadius
-      )
-      activeMembers[memberIndex] = 1
-    }
-
-    const bounds = plateModule.angularCapBounds(cluster.centroidLatLng, capRadius)
-    let randomState = (0x5eed1234 ^ ((clusterIndex + 1) * 0x9e3779b9)) >>> 0
-    const random = () => {
-      randomState ^= randomState << 13
-      randomState ^= randomState >>> 17
-      randomState ^= randomState << 5
-      return (randomState >>> 0) / 0x1_0000_0000
-    }
-    const fillCount = PLATE_POINTS - PLATE_GRID_POINTS
-    const capDegrees = (capRadius * 180) / Math.PI
-    const gridStep = Math.max(1, capDegrees / 3)
-    const memberDirections = new Float32Array(cluster.memberIndices.length * 3)
-    const memberPrecisions: PlacePrecision[] = []
-    const venueMembers: number[] = []
-    let broadPrecision = false
-    for (let i = 0; i < cluster.memberIndices.length; i++) {
-      const memberIndex = cluster.memberIndices[i]
-      const direction = plateModule.latLngToVec3(pins[memberIndex])
-      const j = i * 3
-      memberDirections[j] = direction[0]
-      memberDirections[j + 1] = direction[1]
-      memberDirections[j + 2] = direction[2]
-      const precision = precisions[memberIndex]
-      memberPrecisions.push(precision)
-      if (precision === 'venue') venueMembers.push(i)
-      else if (precision === 'country' || precision === 'region') broadPrecision = true
-    }
-    const venuePointBudget = Math.min(fillCount, venueMembers.length * VENUE_POINT_COUNT)
-
-    for (let i = 0; i < PLATE_POINTS; ) {
-      const gridPoint = i >= fillCount
-      const venuePoint = !gridPoint && i < venuePointBudget
-      let lat: number
-      let lng: number
-      if (venuePoint) {
-        const venueSlot = venueMembers[Math.floor(i / VENUE_POINT_COUNT)]
-        const memberIndex = cluster.memberIndices[venueSlot]
-        const coordinate = pins[memberIndex]
-        const pointInKnot = i % VENUE_POINT_COUNT
-        const radius = pointInKnot === 0 ? 0 : VENUE_JITTER * Math.sqrt(random())
-        const angle = random() * Math.PI * 2
-        lat = coordinate[0] + radius * Math.cos(angle) * (180 / Math.PI)
-        lng = coordinate[1] +
-          radius * Math.sin(angle) * (180 / Math.PI) /
-            Math.max(0.2, Math.cos((coordinate[0] * Math.PI) / 180))
-      } else {
-        lat = bounds.minLat + random() * (bounds.maxLat - bounds.minLat)
-        const range = bounds.lngRanges[
-          Math.min(bounds.lngRanges.length - 1, Math.floor(random() * bounds.lngRanges.length))
-        ]
-        lng = range[0] + random() * (range[1] - range[0])
+        )
+        if (performance.now() >= deadline) return false
+        continue
       }
-      if (gridPoint) {
-        if (i % 2 === 0) lat = Math.round(lat / gridStep) * gridStep
-        else lng = Math.round(lng / gridStep) * gridStep
-      }
-      const direction = plateModule.latLngToVec3([lat, lng])
-      const distance = angularDistance(
-        direction[0],
-        direction[1],
-        direction[2],
-        c[0],
-        c[1],
-        c[2]
-      )
-      if (distance > capRadius || (!gridPoint && !venuePoint && !terrain.landAt(lat, lng))) continue
 
-      const projected = plateModule.plateProject(direction, c, spread)
-      const j = i * 3
-      plateLayer.scatter[j] = direction[0] * 1.001
-      plateLayer.scatter[j + 1] = direction[1] * 1.001
-      plateLayer.scatter[j + 2] = direction[2] * 1.001
-      const gridSink = gridPoint ? -0.004 : 0
-      plateLayer.flat[j] = projected[0] + c[0] * gridSink
-      plateLayer.flat[j + 1] = projected[1] + c[1] * gridSink
-      plateLayer.flat[j + 2] = projected[2] + c[2] * gridSink
-      plateLayer.home[j] = plateLayer.flat[j]
-      plateLayer.home[j + 1] = plateLayer.flat[j + 1]
-      plateLayer.home[j + 2] = plateLayer.flat[j + 2]
-      plateLayer.plate[j] = plateLayer.scatter[j]
-      plateLayer.plate[j + 1] = plateLayer.scatter[j + 1]
-      plateLayer.plate[j + 2] = plateLayer.scatter[j + 2]
-      plateLayer.seeds[i] = clamp01(distance / capRadius)
-      plateLayer.plateDistance[i] = distance
-      plateLayer.elevation[i] = gridPoint ? 0 : terrain.elevationAt(lat, lng)
-      plateLayer.kind[i] = gridPoint ? 1 : 0
-      plateLayer.alpha[i] = 0
-      let targetTint = !gridPoint && broadPrecision ? BROAD_PRECISION_TINT : 0
-      if (!gridPoint) {
-        for (let member = 0; member < memberPrecisions.length; member++) {
-          const j = member * 3
-          const memberDistance = angularDistance(
-            direction[0],
-            direction[1],
-            direction[2],
-            memberDirections[j],
-            memberDirections[j + 1],
-            memberDirections[j + 2]
-          )
-          const precision = memberPrecisions[member]
-          let featureTint = 0
-          if (precision === 'venue' && memberDistance <= VENUE_REACH) {
-            featureTint = 1
-          } else if (precision === 'town') {
-            const ringDistance = Math.abs(memberDistance - TOWN_RING_RADIUS) * spread
-            featureTint = 1 - smoothstep(0, TOWN_RING_HALF_WIDTH, ringDistance)
-          } else if (precision === 'island' || precision === 'fiord') {
-            const reach = precision === 'island' ? ISLAND_REACH : FIORD_REACH
-            featureTint = 1 - smoothstep(0, reach, memberDistance)
-          }
-          targetTint = Math.max(targetTint, featureTint)
+      if (d.reseedStage === 'pins') {
+        if (d.pinMemberIndex >= cluster.memberIndices.length) {
+          d.reseedStage = 'terrain'
+          continue
         }
+        const memberIndex = cluster.memberIndices[d.pinMemberIndex++]
+        const point = pinPoints[memberIndex]
+        const j = memberIndex * 3
+        plateProjectInto(point.x, point.y, point.z, c, d.spread, pinPlate, j)
+        pinPlate[j] += c[0] * 0.012
+        pinPlate[j + 1] += c[1] * 0.012
+        pinPlate[j + 2] += c[2] * 0.012
+        const pointLength = point.length() || 1
+        pinPlateSeeds[memberIndex] = clamp01(
+          angularDistance(
+            point.x / pointLength,
+            point.y / pointLength,
+            point.z / pointLength,
+            c[0],
+            c[1],
+            c[2]
+          ) / d.capRadius
+        )
+        activeMembers[memberIndex] = 1
+        if (performance.now() >= deadline) return false
+        continue
       }
-      plateLayer.targetTint[i] = targetTint
-      plateLayer.tint[i] = 0
-      i++
+
+      if (d.reseedStage === 'terrain') {
+        if (d.terrainPointIndex >= PLATE_POINTS) {
+          d.reseedStage = 'finalize'
+          continue
+        }
+
+        const i = d.terrainPointIndex
+        const fillCount = PLATE_POINTS - PLATE_GRID_POINTS
+        const gridPoint = i >= fillCount
+        const venuePoint = !gridPoint && i < d.venuePointBudget
+        let lat: number
+        let lng: number
+        if (venuePoint) {
+          const venueSlot = reseedVenueMembers[Math.floor(i / VENUE_POINT_COUNT)]
+          const memberIndex = cluster.memberIndices[venueSlot]
+          const coordinate = pins[memberIndex]
+          const pointInKnot = i % VENUE_POINT_COUNT
+          const radius = pointInKnot === 0
+            ? 0
+            : VENUE_JITTER * Math.sqrt(nextReseedRandom(d))
+          const angle = nextReseedRandom(d) * Math.PI * 2
+          lat = coordinate[0] + radius * Math.cos(angle) * (180 / Math.PI)
+          lng = coordinate[1] +
+            radius * Math.sin(angle) * (180 / Math.PI) /
+              Math.max(0.2, Math.cos(coordinate[0] * (Math.PI / 180)))
+        } else {
+          lat = d.boundsMinLat + nextReseedRandom(d) * (d.boundsMaxLat - d.boundsMinLat)
+          const rangeIndex = Math.min(
+            d.lngRangeCount - 1,
+            Math.floor(nextReseedRandom(d) * d.lngRangeCount)
+          )
+          const rangeOffset = rangeIndex * 2
+          lng = reseedLngRanges[rangeOffset] +
+            nextReseedRandom(d) *
+              (reseedLngRanges[rangeOffset + 1] - reseedLngRanges[rangeOffset])
+        }
+        if (gridPoint) {
+          if (i % 2 === 0) lat = Math.round(lat / d.gridStep) * d.gridStep
+          else lng = Math.round(lng / d.gridStep) * d.gridStep
+        }
+
+        latLngToDirectionInto(lat, lng, reseedDirection, 0)
+        const dx = reseedDirection[0]
+        const dy = reseedDirection[1]
+        const dz = reseedDirection[2]
+        const distance = angularDistance(dx, dy, dz, c[0], c[1], c[2])
+        const accepted = distance <= d.capRadius &&
+          (gridPoint || venuePoint || terrain.landAt(lat, lng))
+
+        if (accepted) {
+          const j = i * 3
+          plateProjectInto(dx, dy, dz, c, d.spread, plateLayer.flat, j)
+          plateLayer.scatter[j] = dx * 1.001
+          plateLayer.scatter[j + 1] = dy * 1.001
+          plateLayer.scatter[j + 2] = dz * 1.001
+          const gridSink = gridPoint ? -0.004 : 0
+          plateLayer.flat[j] += c[0] * gridSink
+          plateLayer.flat[j + 1] += c[1] * gridSink
+          plateLayer.flat[j + 2] += c[2] * gridSink
+          plateLayer.home[j] = plateLayer.flat[j]
+          plateLayer.home[j + 1] = plateLayer.flat[j + 1]
+          plateLayer.home[j + 2] = plateLayer.flat[j + 2]
+          plateLayer.plate[j] = plateLayer.scatter[j]
+          plateLayer.plate[j + 1] = plateLayer.scatter[j + 1]
+          plateLayer.plate[j + 2] = plateLayer.scatter[j + 2]
+          plateLayer.seeds[i] = clamp01(distance / d.capRadius)
+          plateLayer.plateDistance[i] = distance
+          plateLayer.elevation[i] = gridPoint ? 0 : terrain.elevationAt(lat, lng)
+          plateLayer.kind[i] = gridPoint ? 1 : 0
+          plateLayer.alpha[i] = 0
+
+          let targetTint = !gridPoint && d.broadPrecision ? BROAD_PRECISION_TINT : 0
+          if (!gridPoint) {
+            for (let member = 0; member < d.memberCount; member++) {
+              const memberOffset = member * 3
+              const memberDistance = angularDistance(
+                dx,
+                dy,
+                dz,
+                reseedMemberDirections[memberOffset],
+                reseedMemberDirections[memberOffset + 1],
+                reseedMemberDirections[memberOffset + 2]
+              )
+              const code = reseedMemberPrecisions[member]
+              let featureTint = 0
+              if (code === PRECISION_VENUE && memberDistance <= VENUE_REACH) {
+                featureTint = 1
+              } else if (code === PRECISION_TOWN) {
+                const ringDistance = Math.abs(memberDistance - TOWN_RING_RADIUS) * d.spread
+                featureTint = 1 - smoothstep(0, TOWN_RING_HALF_WIDTH, ringDistance)
+              } else if (code === PRECISION_ISLAND || code === PRECISION_FIORD) {
+                const reach = code === PRECISION_ISLAND ? ISLAND_REACH : FIORD_REACH
+                featureTint = 1 - smoothstep(0, reach, memberDistance)
+              }
+              targetTint = Math.max(targetTint, featureTint)
+            }
+          }
+          plateLayer.targetTint[i] = targetTint
+          plateLayer.tint[i] = 0
+          d.terrainPointIndex++
+        }
+
+        if (performance.now() >= deadline) return false
+        continue
+      }
+
+      if (d.reseedStage === 'finalize') {
+        for (const layer of layers) {
+          layer.geometry.getAttribute('aPlate').needsUpdate = true
+        }
+        plateLayer.geometry.getAttribute('position').needsUpdate = true
+        plateLayer.geometry.getAttribute('aAlpha').needsUpdate = true
+        plateLayer.geometry.getAttribute('aTint').needsUpdate = true
+        d.reseedStage = 'done'
+        d.seeded = true
+        d.loading = false
+        return true
+      }
+
+      return d.reseedStage === 'done'
     }
-    plateLayer.geometry.getAttribute('position').needsUpdate = true
+  }
+
+  /** Cancel an unfinished cursor and invalidate any terrain continuation. */
+  const abandonPartialReseed = () => {
+    const d = dive.current
+    d.loadId++
+    d.loading = false
+    d.seeded = false
+    d.interrupted = false
+    d.terrain = null
+    d.reseedStage = 'idle'
+    d.worldLayerIndex = 0
+    d.worldPointIndex = 0
+    d.pinMemberIndex = 0
+    d.terrainPointIndex = 0
+    activeMembers.fill(0)
+    plateLayer.alpha.fill(0)
+    plateLayer.tint.fill(0)
     plateLayer.geometry.getAttribute('aAlpha').needsUpdate = true
     plateLayer.geometry.getAttribute('aTint').needsUpdate = true
-    return true
   }
 
   /* THE CAMERA MUST COME FROM useThree, NOT from useFrame's state.
@@ -1491,14 +1756,28 @@ export function Globe({
       OCC_RADIUS.value = RADIUS * OCCLUDER
     }
 
+    // Globe only mounts inside WorldGlobe's live-canvas branch. Scheduling
+    // here after the handoff keeps reduced-motion/static paths entirely cold.
+    if (intro.current.phase === 'done') scheduleTerrainPrefetch()
+
     const scale = scaleRef.current
     const d = dive.current
 
-    /* Consume exactly one DOM intent. The fetch starts here, never at module
-       evaluation or mount, which keeps terrain.bin and terrain.ts off the
-       initial path. The steer can spend its first beat while the asset lands;
-       the peel clock holds at STEER_DUR until reseeding is complete. */
-    if (introPhase === 'done' && scale.phase === 'world' && enterRef.current >= 0) {
+    /* A second intent may replace an unfinished reseed while the peel is still
+       held at zero. Once geometry is visible, normal interruption rules own
+       the transition and a new target cannot swap the table underneath it. */
+    const canReplacePartialDive = scale.phase === 'dive' &&
+      !d.seeded && scale.morph <= 0.0001
+
+    /* Consume exactly one DOM intent. Terrain may already be warm, but the
+       dive always awaits loadTerrain's module-level promise. The steer can
+       spend its first beat while slices run; the peel remains at zero until
+       the final slice marks d.seeded. */
+    if (
+      intro.current.phase === 'done' &&
+      (scale.phase === 'world' || canReplacePartialDive) &&
+      enterRef.current >= 0
+    ) {
       const clusterIndex = enterRef.current
       enterRef.current = -1
       const cluster = clusters[clusterIndex]
@@ -1512,7 +1791,11 @@ export function Globe({
         d.seeded = false
         d.interrupted = false
         d.terrain = null
-        d.plateModule = null
+        d.reseedStage = 'idle'
+        d.worldLayerIndex = 0
+        d.worldPointIndex = 0
+        d.pinMemberIndex = 0
+        d.terrainPointIndex = 0
         d.startYaw = group.rotation.y
         d.startTilt = group.rotation.x
         const rawYaw = Math.atan2(cluster.centroid[2], cluster.centroid[0]) - Math.PI / 2
@@ -1530,16 +1813,16 @@ export function Globe({
         if (!cluster.congestedSingleton) selectedRef.current = -1
 
         const loadId = ++d.loadId
-        void Promise.all([import('./plate'), import('@/content/terrain')])
-          .then(async ([plateModule, terrainModule]) => {
-            const terrain = await terrainModule.loadTerrain()
+        void import('@/content/terrain')
+          .then((terrainModule) => terrainModule.loadTerrain())
+          .then((terrain) => {
             if (!alive.current || loadId !== dive.current.loadId) return
-            dive.current.plateModule = plateModule
             dive.current.terrain = terrain
           })
           .catch(() => {
             if (!alive.current || loadId !== dive.current.loadId) return
             dive.current.loading = false
+            dive.current.reseedStage = 'idle'
             exitRef.current = true
           })
       }
@@ -1547,15 +1830,25 @@ export function Globe({
       enterRef.current = -1
     }
 
-    if (scale.phase === 'dive' && !d.seeded && d.terrain && d.plateModule) {
-      d.seeded = reseedPlate(scale.cluster, d.terrain, d.plateModule)
-      d.loading = false
+    if (
+      scale.phase === 'dive' &&
+      !d.seeded &&
+      d.terrain &&
+      !d.interrupted &&
+      !exitRef.current
+    ) {
+      if (d.reseedStage === 'idle' && !preparePlateReseed(scale.cluster)) {
+        d.loading = false
+        exitRef.current = true
+      }
+      if (d.reseedStage !== 'idle') advancePlateReseed()
     }
 
     const beginReturn = exitRef.current && scale.phase !== 'world' && scale.phase !== 'return'
     exitRef.current = false
     if (beginReturn) {
       if (!d.seeded || scale.morph <= 0.0001) {
+        if (!d.seeded) abandonPartialReseed()
         scale.phase = 'world'
         scale.cluster = -1
         scale.morph = 0
@@ -1585,20 +1878,24 @@ export function Globe({
 
     if (scale.phase === 'dive') {
       if (d.interrupted) {
-        d.interrupted = false
+        const completedReseed = d.seeded
+        if (completedReseed) d.interrupted = false
+        else abandonPartialReseed()
         if (scale.morph < 0.5) {
           scale.phase = 'world'
           scale.cluster = -1
           scale.morph = 0
           MORPH.value = 0
           FLAT_OCC.value = 1
-          formWorldPlate(layers, 0)
-          if (arcs) {
-            arcs.alpha.fill(1)
-            arcs.geometry.getAttribute('aAlpha').needsUpdate = true
+          if (completedReseed) {
+            formWorldPlate(layers, 0)
+            if (arcs) {
+              arcs.alpha.fill(1)
+              arcs.geometry.getAttribute('aAlpha').needsUpdate = true
+            }
+            plateLayer.alpha.fill(0)
+            plateLayer.geometry.getAttribute('aAlpha').needsUpdate = true
           }
-          plateLayer.alpha.fill(0)
-          plateLayer.geometry.getAttribute('aAlpha').needsUpdate = true
         } else {
           scale.phase = 'plate'
           scale.morph = 1
