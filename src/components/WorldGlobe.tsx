@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type RefObject } from 'react'
 import { webglAvailable } from '@/lib/webgl'
 import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { FramePop } from '@/components/FramePop'
@@ -49,6 +49,7 @@ clusters.forEach((cluster, clusterIndex) => {
 })
 
 const regionNames = new Intl.DisplayNames('en', { type: 'region' })
+const withoutCountrySuffix = (label: string) => label.replace(/,\s*[a-z]{2}$/i, '')
 const clusterLabel = (cluster: PlaceCluster) => {
   const countryCodes = cluster.memberIndices.map((placeIndex) => {
     const suffix = places[placeIndex].label.split(',').at(-1)?.trim()
@@ -58,7 +59,9 @@ const clusterLabel = (cluster: PlaceCluster) => {
   if (countryCode && countryCodes.every((code) => code === countryCode)) {
     return (regionNames.of(countryCode) ?? countryCode).toLocaleLowerCase('en')
   }
-  return cluster.memberIndices.map((placeIndex) => places[placeIndex].label).join('; ')
+  return cluster.memberIndices
+    .map((placeIndex) => withoutCountrySuffix(places[placeIndex].label))
+    .join(' · ')
 }
 
 const clusterLabels = clusters.map(clusterLabel)
@@ -134,6 +137,9 @@ interface WorldGlobeProps {
    * tour moves on or the sphere is grabbed.
    */
   selectedRef?: { current: number }
+  /** The existing hero subject nodes; the ticker crossfades their two layers. */
+  titleRef?: RefObject<HTMLHeadingElement | null>
+  subtitleRef?: RefObject<HTMLParagraphElement | null>
 }
 
 /**
@@ -154,9 +160,12 @@ interface WorldGlobeProps {
 export function WorldGlobe({
   activeRef: sharedActiveRef,
   selectedRef: sharedSelectedRef,
+  titleRef,
+  subtitleRef,
 }: WorldGlobeProps) {
   const frameRef = useRef<HTMLDivElement>(null)
   const pinRefs = useRef<(HTMLLIElement | null)[]>([])
+  const pinLabelRefs = useRef<(HTMLSpanElement | null)[]>([])
   const projectionRef = useRef<PinProjection[]>([])
   const waypointRefs = useRef<(HTMLLIElement | null)[]>([])
   const waypointProjectionRef = useRef<PinProjection[]>([])
@@ -169,7 +178,7 @@ export function WorldGlobe({
   const selectedRef = sharedSelectedRef ?? internalSelectedRef
   const spinRef = useRef(0)
   const tiltRef = useRef(0)
-  const scaleRef = useRef<ScaleState>({ phase: 'world', cluster: -1, morph: 0 })
+  const scaleRef = useRef<ScaleState>({ phase: 'world', cluster: -1, morph: 0, presence: 0 })
   const enterRef = useRef(-1)
   const exitRef = useRef(false)
   const instrumentRef = useRef<HTMLSpanElement>(null)
@@ -180,6 +189,9 @@ export function WorldGlobe({
   const lastXRef = useRef(0)
   const lastYRef = useRef(0)
   const dragVelocityRef = useRef({ x: 0, y: 0, at: 0 })
+  const originalDocumentTitleRef = useRef(
+    typeof document === 'undefined' ? 'rouvens.work' : document.title
+  )
   const [has3D] = useState(() => webglAvailable() && !prefersReducedMotion())
 
   /* the card currently popped out of its hand at viewer scale, or null. React
@@ -203,12 +215,26 @@ export function WorldGlobe({
     const tick = () => {
       const frame = frameRef.current
       if (!frame) return
-      const { top, width, height } = frame.getBoundingClientRect()
+      const { top, left, width, height } = frame.getBoundingClientRect()
       const scaleState = scaleRef.current
       const worldScale = scaleState.phase === 'world'
+      const platePresence = Math.max(0, Math.min(1, scaleState.presence))
       const annotation = 1 - easeCubic(Math.max(0, Math.min(1, scaleState.morph / 0.3)))
       frame.dataset.phase = scaleState.phase
       frame.dataset.morph = scaleState.morph.toFixed(3)
+      frame.dataset.presence = platePresence.toFixed(3)
+      frame.closest<HTMLElement>('.hero')?.style.setProperty('--plate-presence', String(platePresence))
+      document.documentElement.style.setProperty('--plate-presence', String(platePresence))
+      const titleBounds = titleRef?.current?.getBoundingClientRect()
+      const subtitleBounds = subtitleRef?.current?.getBoundingClientRect()
+      const titleSafeArea = !worldScale && titleBounds && subtitleBounds
+        ? {
+            top: Math.min(titleBounds.top, subtitleBounds.top) - 10,
+            right: Math.max(titleBounds.right, subtitleBounds.right) + 10,
+            bottom: Math.max(titleBounds.bottom, subtitleBounds.bottom) + 14,
+            left: Math.min(titleBounds.left, subtitleBounds.left) - 10,
+          }
+        : null
       /* the horizon: pickups sink out of view before they reach the byline
          band. Facing alone can't catch this any more — with the sphere cut
          at the bottom, a pin near the disc centre faces the camera almost
@@ -234,13 +260,46 @@ export function WorldGlobe({
         const cluster = clusterIndex >= 0 ? clusters[clusterIndex] : undefined
         const hiddenUnderChip = worldScale && cluster && !cluster.congestedSingleton
         const belongsOnPlate = !worldScale && clusterIndex === scaleState.cluster
-        const scaleVisible = worldScale ? (hiddenUnderChip ? 0 : 1) : belongsOnPlate ? 1 : 0
+        const scaleVisible = worldScale
+          ? (hiddenUnderChip ? 0 : 1)
+          : belongsOnPlate || scaleState.phase === 'return'
+            ? 1
+            : 0
         const visible = limb * sink * projection.form * scaleVisible
         /* depth is drawn, not implied: a pickup near the limb shrinks as well
            as fades, and the stacking order follows facing so a front pickup
            always overlaps one further round the curve */
         const scale = 0.55 + 0.45 * Math.max(0, Math.min(1, projection.facing))
-        node.style.transform = `translate3d(${projection.x * width}px, ${projection.y * height}px, 0) scale(${scale.toFixed(3)})`
+        let localX = projection.x * width
+        let localY = projection.y * height
+        if (belongsOnPlate) {
+          /* At table scale the cap is intentionally larger than the frame.
+             Keep operable anchors and their widest fans inside the viewport,
+             blended by the same plate presence so no clamp switches on. */
+          const boundsMix = easeCubic(Math.max(0, Math.min(1, (platePresence - 0.52) / 0.48)))
+          const rawScreenX = left + localX
+          const rawScreenY = top + localY
+          const fanClearance = Math.min(280, 90 + Math.max(0, places[i].frames.length - 4) * 15)
+          const horizontalClearance = Math.min(
+            window.innerWidth * 0.44,
+            Math.max(window.innerWidth * 0.06, fanClearance)
+          )
+          const verticalClearance = Math.min(
+            window.innerHeight * 0.44,
+            Math.max(window.innerHeight * 0.06, fanClearance)
+          )
+          const boundedScreenX = Math.max(
+            horizontalClearance,
+            Math.min(window.innerWidth - horizontalClearance, rawScreenX)
+          )
+          const boundedScreenY = Math.max(
+            verticalClearance,
+            Math.min(window.innerHeight - verticalClearance, rawScreenY)
+          )
+          localX += (boundedScreenX - rawScreenX) * boundsMix
+          localY += (boundedScreenY - rawScreenY) * boundsMix
+        }
+        node.style.transform = `translate3d(${localX}px, ${localY}px, 0) scale(${scale.toFixed(3)})`
         node.style.opacity = String(visible)
         /* a fanned hand must ride over every neighbouring pickup, whatever
            its facing says — the visitor just asked for this one. The tour's
@@ -254,6 +313,22 @@ export function WorldGlobe({
               ? '300'
               : String(100 + Math.round(Math.max(0, projection.facing) * 100))
         node.style.pointerEvents = visible > 0.6 ? 'auto' : 'none'
+        const pinInert = !worldScale && visible <= 0.6
+        if (node.inert !== pinInert) node.inert = pinInert
+        const label = pinLabelRefs.current[i]
+        if (label) {
+          let clearsTitle = true
+          if (belongsOnPlate && scaleState.phase === 'plate' && titleSafeArea) {
+            const labelBounds = label.getBoundingClientRect()
+            clearsTitle = !(
+              labelBounds.right > titleSafeArea.left &&
+              labelBounds.left < titleSafeArea.right &&
+              labelBounds.bottom > titleSafeArea.top &&
+              labelBounds.top < titleSafeArea.bottom
+            )
+          }
+          label.style.setProperty('--label-safe-opacity', clearsTitle ? '1' : '0')
+        }
         node.classList.toggle('globe-pin-active', i === activeRef.current)
         node.classList.toggle('globe-pin-selected', i === selectedRef.current)
       }
@@ -300,6 +375,8 @@ export function WorldGlobe({
         node.style.opacity = visible.toFixed(3)
         node.style.zIndex = String(250 + Math.round(Math.max(0, projection.facing) * 80))
         node.style.pointerEvents = worldScale && visible > 0.6 ? 'auto' : 'none'
+        const chipTabIndex = worldScale ? 0 : -1
+        if (button && button.tabIndex !== chipTabIndex) button.tabIndex = chipTabIndex
       }
 
       const instrument = instrumentRef.current
@@ -307,10 +384,15 @@ export function WorldGlobe({
       if (instrument && worldButton) {
         const activeCluster = clusters[scaleState.cluster]
         const showing = !worldScale && Boolean(activeCluster)
-        instrument.style.opacity = showing ? '1' : '0'
-        worldButton.style.opacity = showing ? '1' : '0'
-        worldButton.style.pointerEvents = showing ? 'auto' : 'none'
-        worldButton.tabIndex = showing ? 0 : -1
+        const interfaceMix = showing
+          ? easeCubic(Math.max(0, Math.min(1, (platePresence - 0.08) / 0.42)))
+          : 0
+        const liveTransition = scaleState.phase === 'dive' || scaleState.phase === 'return'
+        const landed = scaleState.phase === 'plate'
+        instrument.style.opacity = liveTransition ? interfaceMix.toFixed(3) : '0'
+        worldButton.style.opacity = landed ? interfaceMix.toFixed(3) : '0'
+        worldButton.style.pointerEvents = landed && interfaceMix > 0.55 ? 'auto' : 'none'
+        worldButton.tabIndex = landed && interfaceMix > 0.55 ? 0 : -1
         if (activeCluster) {
           if (scaleState.phase === 'dive' && scaleState.morph < 0.58) {
             const position = instrumentPositionRef.current
@@ -325,22 +407,72 @@ export function WorldGlobe({
               Math.max(0, Math.min(1, (scaleState.morph - 0.58) / 0.42)) * 100
             )
             instrument.textContent = `scan … ${String(scan).padStart(2, '0')}%`
-          } else {
-            instrument.textContent = `${activeCluster.memberIndices.length} ${
-              activeCluster.memberIndices.length === 1 ? 'place' : 'places'
-            } · ${activeCluster.totalFrameCount} frames`
+          } else if (scaleState.phase === 'return') {
+            const scan = Math.round(Math.max(0, Math.min(1, scaleState.morph)) * 100)
+            instrument.textContent = `scan … ${String(scan).padStart(2, '0')}%`
           }
         } else {
           instrumentPositionRef.current.lat = 0
           instrumentPositionRef.current.lng = 0
+        }
+
+        const title = titleRef?.current
+        const subtitle = subtitleRef?.current
+        const titleWorld = title?.querySelector<HTMLElement>('.hero-title-world')
+        const titleSelection = title?.querySelector<HTMLElement>('.hero-title-selection')
+        const subtitleWorld = subtitle?.querySelector<HTMLElement>('.hero-title-sub-world')
+        const subtitleSelection = subtitle?.querySelector<HTMLElement>(
+          '.hero-title-sub-selection'
+        )
+        const titleMix = activeCluster
+          ? easeCubic(Math.max(0, Math.min(1, platePresence / 0.55)))
+          : 0
+        if (activeCluster && titleSelection && subtitleSelection) {
+          const selection = activeCluster.congestedSingleton
+            ? places[activeCluster.memberIndices[0]].label
+            : clusterLabel(activeCluster)
+          const counts = `${activeCluster.memberIndices.length} ${
+            activeCluster.memberIndices.length === 1 ? 'place' : 'places'
+          } · ${activeCluster.totalFrameCount} ${
+            activeCluster.totalFrameCount === 1 ? 'frame' : 'frames'
+          }`
+          if (titleSelection.textContent !== selection) titleSelection.textContent = selection
+          titleSelection.style.fontSize = selection.length > 34
+            ? '0.58em'
+            : selection.length > 24
+              ? '0.72em'
+              : '1em'
+          if (subtitleSelection.textContent !== counts) subtitleSelection.textContent = counts
+          const landedTitle = scaleState.phase === 'plate'
+            ? `${selection} — rouvens.work`
+            : originalDocumentTitleRef.current
+          if (document.title !== landedTitle) document.title = landedTitle
+        } else if (document.title !== originalDocumentTitleRef.current) {
+          document.title = originalDocumentTitleRef.current
+        }
+        if (titleWorld && titleSelection && subtitleWorld && subtitleSelection) {
+          titleWorld.style.opacity = (1 - titleMix).toFixed(3)
+          titleSelection.style.opacity = titleMix.toFixed(3)
+          subtitleWorld.style.opacity = (1 - titleMix).toFixed(3)
+          subtitleSelection.style.opacity = titleMix.toFixed(3)
+          const selectionIsSubject = titleMix >= 0.5
+          titleWorld.setAttribute('aria-hidden', selectionIsSubject ? 'true' : 'false')
+          subtitleWorld.setAttribute('aria-hidden', selectionIsSubject ? 'true' : 'false')
+          titleSelection.setAttribute('aria-hidden', selectionIsSubject ? 'false' : 'true')
+          subtitleSelection.setAttribute('aria-hidden', selectionIsSubject ? 'false' : 'true')
         }
       }
     }
     gsap.ticker.add(tick)
     return () => {
       gsap.ticker.remove(tick)
+      frameRef.current?.closest<HTMLElement>('.hero')?.style.removeProperty('--plate-presence')
+      document.documentElement.style.removeProperty('--plate-presence')
+      if (document.title !== originalDocumentTitleRef.current) {
+        document.title = originalDocumentTitleRef.current
+      }
     }
-  }, [has3D, activeRef, selectedRef])
+  }, [has3D, activeRef, selectedRef, titleRef, subtitleRef])
 
   useEffect(() => {
     let lastScrollY = window.scrollY
@@ -724,7 +856,13 @@ export function WorldGlobe({
                         </span>
                       )}
                     </span>
-                    <span className="globe-pickup-label" aria-hidden>
+                    <span
+                      ref={(node) => {
+                        pinLabelRefs.current[i] = node
+                      }}
+                      className="globe-pickup-label"
+                      aria-hidden
+                    >
                       <span className="globe-pickup-place">{place.label}</span>
                       <span className="globe-pickup-meta">{meta(place)}</span>
                     </span>
@@ -735,7 +873,12 @@ export function WorldGlobe({
               ) : (
                 <>
                   <span className="globe-pin-dot globe-pin-dot-bare" aria-hidden />
-                  <span className="globe-pickup-label globe-pickup-label-bare">
+                  <span
+                    ref={(node) => {
+                      pinLabelRefs.current[i] = node
+                    }}
+                    className="globe-pickup-label globe-pickup-label-bare"
+                  >
                     <span className="globe-pickup-place">{place.label}</span>
                     <span className="globe-pickup-meta">{meta(place)}</span>
                   </span>

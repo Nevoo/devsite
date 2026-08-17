@@ -5,7 +5,7 @@ import { PerspectiveCamera } from '@react-three/drei'
 import { prefersReducedMotion } from '@/motion/gsap'
 import { isLand } from '@/content/land-mask'
 import { useUI } from '@/stores/ui'
-import { FLAT_OCC, MORPH, OCC_RADIUS, patchDotAlpha } from './shaders/globe'
+import { FLAT_OCC, MORPH, OCC_RADIUS, patchDotAlpha, patchPlateDots } from './shaders/globe'
 import type { Vec3 } from './plate'
 import type { Terrain } from '@/content/terrain'
 import type { PlacePrecision } from '@/content/places'
@@ -32,6 +32,8 @@ export interface ScaleState {
   phase: ScalePhase
   cluster: number
   morph: number
+  /** 0 at world, 1 at the landed table; every DOM transition reads this. */
+  presence: number
 }
 
 /** Plain deployment data passed into the lazy globe chunk, never store state. */
@@ -129,30 +131,41 @@ const OCCLUDER = 0.9985
 /** S4 plate vocabulary. All timing is positional off one dive clock. */
 const PLATE_POINTS = 24000
 const PLATE_GRID_POINTS = 1800
+const PLATE_TERRAIN_CAPACITY = PLATE_POINTS - PLATE_GRID_POINTS
+/** Minimum accepted terrain marks needed for a 8–14px landed land-fill pitch. */
+const MIN_PLATE_TERRAIN_POINTS = 12000
+const MIN_PLATE_GRID_POINTS = 720
 /** S4's scale remains the floor: no plate gets smaller than the shipped peel. */
 const MIN_SPREAD = 2.2
-/** A cap edge lands 0.72 units from centre, filling over half this camera's stage. */
-const TARGET_PLATE_RADIUS = 0.72
+/** The cap edge clears the viewport; its soft particle falloff happens off-frame. */
+const TARGET_PLATE_RADIUS = 1.25
 /** Tiny coordinate gaps may enlarge a plate, but never into an unbounded map. */
 const SPREAD_MAX = 12.5
 /** Pickup anchors need this much table between them before cards can read apart. */
 const MIN_PIN_SEPARATION = 0.11
 const PLATE_EXTENT = 0.35
-const EXAGGERATION = 8
+const EXAGGERATION = 10
 const ELEVATION_UNIT = 0.012
 const ENTER_DUR = 1.6
 const STEER_DUR = 0.34
 const DEVELOP_AT = 0.58
 const RETURN_DUR = 1.1
-const RETURN_FILL_DUR = 0.5
-const RETURN_MORPH_DELAY = 0.12
-const TABLE_TILT = (12 * Math.PI) / 180
+const RETURN_FILL_END = 0.32
+const RETURN_MORPH_AT = 0.32
+const TABLE_TILT = (36 * Math.PI) / 180
+const TABLE_YAW = (12 * Math.PI) / 180
 const CAMERA_ELEVATION = Math.atan2(0.3, 4.6)
 const FLARE_TAIL = 0.3
 const DEVELOP_DUR = ENTER_DUR * (1 - DEVELOP_AT)
 const CAP_PADDING = 0.065
 const MIN_CAP_RADIUS = 0.12
 const MAX_CAP_RADIUS = 0.24
+const PAN_MARGIN = 0.06
+/** Opens a clean title band before the visitor applies any manual table pan. */
+const LANDED_SAFE_PAN_TILT = 0.14
+const SEA_SAMPLE_RATE = 0.18
+/** Only the outer 18% softens; the readable terrain body stays at full alpha. */
+const PLATE_EDGE_FADE_START = 0.82
 
 /** Eight kilometres is a town-sized claim, small enough to remain an outline. */
 const TOWN_RING_RADIUS = 8 / 6371
@@ -179,6 +192,12 @@ const PRECISION_ISLAND = 3
 const PRECISION_FIORD = 4
 const PRECISION_COUNTRY = 5
 const PRECISION_REGION = 6
+
+const PLATE_FILL = 1
+const PLATE_COAST = 2
+const PLATE_SEA = 3
+const PLATE_GRID = 4
+const PLATE_FILL_MIN_ALPHA = 0.5
 
 /** seconds a place stays front-and-centre with its card open before the next */
 const HOLD = 2.6
@@ -412,8 +431,13 @@ interface PlateLayer extends DotLayer {
   flat: Float32Array
   /** normalized terrain height, or zero for graticule samples */
   elevation: Float32Array
-  /** 0 terrain fill, 1 local graticule */
+  /** plate fill/coast/sea/grid classification */
   kind: Uint8Array
+  /** shader-side footprint and tonal hierarchy, fixed for one reseed */
+  pointScale: Float32Array
+  shade: Float32Array
+  /** soft cap-edge envelope; the zero rim is deliberately beyond the viewport */
+  edgeAlpha: Float32Array
   /** precision authority decided once per dive, before the live develop mirror */
   targetTint: Float32Array
   /** the aTint attribute's live array, rewritten beside aAlpha and nothing else */
@@ -541,11 +565,23 @@ function formPlateLayer(layer: PlateLayer, develop: number, returning: boolean) 
   const alphaAttr = layer.geometry.getAttribute('aAlpha') as THREE.BufferAttribute
   const tintAttr = layer.geometry.getAttribute('aTint') as THREE.BufferAttribute
   const pos = posAttr.array as Float32Array
-  const { flat, scatter, seeds, alpha, elevation, kind, targetTint, tint, normal } = layer
+  const {
+    flat,
+    scatter,
+    seeds,
+    alpha,
+    elevation,
+    kind,
+    shade,
+    targetTint,
+    tint,
+    normal,
+    edgeAlpha,
+  } = layer
   const returnFront = returning ? develop : 0
 
   for (let i = 0; i < seeds.length; i++) {
-    const lag = kind[i] === 1 ? LABEL_LAG : 0
+    const lag = kind[i] === PLATE_GRID ? LABEL_LAG : 0
     const arrive = clamp01((develop - seeds[i] * 0.62 - lag) / 0.38)
     const leave = returning
       ? clamp01((returnFront - (1 - seeds[i]) * 0.62 - lag) / 0.38)
@@ -563,11 +599,19 @@ function formPlateLayer(layer: PlateLayer, develop: number, returning: boolean) 
     pos[j + 2] += normal[2] * elevationLift
 
     const sinceFront = develop - seeds[i] * 0.62
-    const flare = returning || kind[i] === 1 || sinceFront < 0
+    const flare = returning || kind[i] === PLATE_GRID || sinceFront < 0
       ? 0
       : clamp01(1 - sinceFront / Math.max(0.001, FLARE_TAIL / DEVELOP_DUR))
-    const settled = kind[i] === 1 ? 0.22 : 0.7 + elevation[i] * 0.3
-    alpha[i] = clamp01(local * (settled + flare * 0.65))
+    const settled = kind[i] === PLATE_COAST
+      ? 1
+      : kind[i] === PLATE_FILL
+        ? PLATE_FILL_MIN_ALPHA + shade[i] * (1 - PLATE_FILL_MIN_ALPHA)
+        : kind[i] === PLATE_SEA
+          ? 0.18
+          : kind[i] === PLATE_GRID
+            ? 0.2
+            : 0
+    alpha[i] = clamp01(local * (settled + flare * 0.65) * edgeAlpha[i])
     const tintArrive = returning
       ? local
       : ease(clamp01((develop - seeds[i] * 0.62 - LABEL_LAG) / 0.38))
@@ -861,12 +905,16 @@ export function Globe({
     const position = new Float32Array(PLATE_POINTS * 3)
     const alpha = new Float32Array(PLATE_POINTS)
     const tint = new Float32Array(PLATE_POINTS)
+    const pointScale = new Float32Array(PLATE_POINTS)
+    const shade = new Float32Array(PLATE_POINTS)
     const geometry = new THREE.BufferGeometry()
     const positionAttribute = new THREE.BufferAttribute(position, 3)
     geometry.setAttribute('position', positionAttribute)
     geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1))
     geometry.setAttribute('aPlate', positionAttribute)
     geometry.setAttribute('aTint', new THREE.BufferAttribute(tint, 1))
+    geometry.setAttribute('aPointScale', new THREE.BufferAttribute(pointScale, 1))
+    geometry.setAttribute('aShade', new THREE.BufferAttribute(shade, 1))
     return {
       geometry,
       home,
@@ -878,6 +926,9 @@ export function Globe({
       flat: new Float32Array(PLATE_POINTS * 3),
       elevation: new Float32Array(PLATE_POINTS),
       kind: new Uint8Array(PLATE_POINTS),
+      pointScale,
+      shade,
+      edgeAlpha: new Float32Array(PLATE_POINTS),
       targetTint: new Float32Array(PLATE_POINTS),
       tint,
       normal: new Float32Array(3),
@@ -1184,7 +1235,15 @@ export function Globe({
 
   const tour = useRef({ index: 0, hold: 0, target: 0, seeded: false, grace: 0, lastSelected: -1 })
 
-  type ReseedStage = 'idle' | 'world' | 'pins' | 'terrain' | 'finalize' | 'done'
+  type ReseedStage =
+    | 'idle'
+    | 'clear'
+    | 'world'
+    | 'pins'
+    | 'terrain'
+    | 'relief'
+    | 'finalize'
+    | 'done'
   const dive = useRef({
     clock: 0,
     returnClock: 0,
@@ -1197,7 +1256,15 @@ export function Globe({
     worldLayerIndex: 0,
     worldPointIndex: 0,
     pinMemberIndex: 0,
+    clearPointIndex: 0,
     terrainPointIndex: 0,
+    reliefPointIndex: 0,
+    elevationMin: Infinity,
+    elevationMax: -Infinity,
+    elevationScale: 0,
+    activeTerrainCount: 0,
+    activeGridCount: 0,
+    activePointCount: 0,
     randomState: 0,
     memberCount: 0,
     venueMemberCount: 0,
@@ -1211,11 +1278,14 @@ export function Globe({
     startTilt: 0,
     sphereYaw: 0,
     sphereTilt: 0,
+    plateYaw: 0,
     plateTilt: 0,
     capRadius: MIN_CAP_RADIUS,
     spread: MIN_SPREAD,
     panYaw: 0,
     panTilt: 0,
+    panTargetYaw: 0,
+    panTargetTilt: 0,
     returnFromMorph: 1,
     returnStartYaw: 0,
     returnStartTilt: 0,
@@ -1375,17 +1445,35 @@ export function Globe({
       }
     }
 
-    const fillCount = PLATE_POINTS - PLATE_GRID_POINTS
+    /* Every cap is expanded to approximately the same landed screen radius,
+       so the old 2,048 floor became an area-starved SCREEN budget. Keep area
+       scaling for genuinely broad caps but enforce the measured landed floor;
+       the 24k resident buffer and resumable 6ms cursor remain unchanged. */
+    const capAreaRatio = (1 - Math.cos(capRadius)) / (1 - Math.cos(MAX_CAP_RADIUS))
+    d.activeTerrainCount = Math.min(
+      PLATE_TERRAIN_CAPACITY,
+      Math.max(MIN_PLATE_TERRAIN_POINTS, Math.round(PLATE_TERRAIN_CAPACITY * capAreaRatio))
+    )
+    d.activeGridCount = Math.min(
+      PLATE_GRID_POINTS,
+      Math.max(MIN_PLATE_GRID_POINTS, Math.round(PLATE_GRID_POINTS * capAreaRatio))
+    )
+    d.activePointCount = d.activeTerrainCount + d.activeGridCount
     d.venuePointBudget = Math.min(
-      fillCount,
+      d.activeTerrainCount,
       d.venueMemberCount * VENUE_POINT_COUNT
     )
     d.randomState = (0x5eed1234 ^ ((clusterIndex + 1) * 0x9e3779b9)) >>> 0
     d.worldLayerIndex = 0
     d.worldPointIndex = 0
     d.pinMemberIndex = 0
+    d.clearPointIndex = 0
     d.terrainPointIndex = 0
-    d.reseedStage = 'world'
+    d.reliefPointIndex = 0
+    d.elevationMin = Infinity
+    d.elevationMax = -Infinity
+    d.elevationScale = 0
+    d.reseedStage = 'clear'
     return true
   }
 
@@ -1403,6 +1491,24 @@ export function Globe({
     const deadline = performance.now() + RESEED_SLICE_MS
 
     while (true) {
+      if (d.reseedStage === 'clear') {
+        if (d.clearPointIndex >= PLATE_POINTS) {
+          d.reseedStage = 'world'
+          continue
+        }
+        const i = d.clearPointIndex++
+        plateLayer.alpha[i] = 0
+        plateLayer.tint[i] = 0
+        plateLayer.targetTint[i] = 0
+        plateLayer.pointScale[i] = 0
+        plateLayer.shade[i] = 0
+        plateLayer.edgeAlpha[i] = 0
+        plateLayer.elevation[i] = 0
+        plateLayer.kind[i] = 0
+        if (performance.now() >= deadline) return false
+        continue
+      }
+
       if (d.reseedStage === 'world') {
         if (d.worldLayerIndex >= layers.length) {
           d.reseedStage = 'pins'
@@ -1462,13 +1568,15 @@ export function Globe({
       }
 
       if (d.reseedStage === 'terrain') {
-        if (d.terrainPointIndex >= PLATE_POINTS) {
-          d.reseedStage = 'finalize'
+        if (d.terrainPointIndex >= d.activePointCount) {
+          const elevationRange = d.elevationMax - d.elevationMin
+          d.elevationScale = elevationRange > 0 ? 1 / elevationRange : 0
+          d.reseedStage = 'relief'
           continue
         }
 
         const i = d.terrainPointIndex
-        const fillCount = PLATE_POINTS - PLATE_GRID_POINTS
+        const fillCount = d.activeTerrainCount
         const gridPoint = i >= fillCount
         const venuePoint = !gridPoint && i < d.venuePointBudget
         let lat: number
@@ -1507,8 +1615,14 @@ export function Globe({
         const dy = reseedDirection[1]
         const dz = reseedDirection[2]
         const distance = angularDistance(dx, dy, dz, c[0], c[1], c[2])
-        const accepted = distance <= d.capRadius &&
-          (gridPoint || venuePoint || terrain.landAt(lat, lng))
+        const insideCap = distance <= d.capRadius
+        const landSample = insideCap && !gridPoint && terrain.landAt(lat, lng)
+        const accepted = insideCap && (
+          gridPoint ||
+          venuePoint ||
+          landSample ||
+          nextReseedRandom(d) < SEA_SAMPLE_RATE
+        )
 
         if (accepted) {
           const j = i * 3
@@ -1526,13 +1640,49 @@ export function Globe({
           plateLayer.plate[j] = plateLayer.scatter[j]
           plateLayer.plate[j + 1] = plateLayer.scatter[j + 1]
           plateLayer.plate[j + 2] = plateLayer.scatter[j + 2]
-          plateLayer.seeds[i] = clamp01(distance / d.capRadius)
+          const radialSeed = clamp01(distance / d.capRadius)
+          plateLayer.seeds[i] = radialSeed
           plateLayer.plateDistance[i] = distance
-          plateLayer.elevation[i] = gridPoint ? 0 : terrain.elevationAt(lat, lng)
-          plateLayer.kind[i] = gridPoint ? 1 : 0
+          const elevation = landSample ? terrain.elevationAt(lat, lng) : 0
+          plateLayer.elevation[i] = elevation
+          let plateKind = PLATE_SEA
+          if (gridPoint) {
+            plateKind = PLATE_GRID
+          } else if (landSample || venuePoint) {
+            const latCell = 180 / terrain.height
+            const lngCell = 360 / terrain.width
+            const coastSample = landSample && (
+              !terrain.landAt(lat + latCell, lng) ||
+              !terrain.landAt(lat - latCell, lng) ||
+              !terrain.landAt(lat, lng + lngCell) ||
+              !terrain.landAt(lat, lng - lngCell)
+            )
+            plateKind = coastSample ? PLATE_COAST : PLATE_FILL
+          }
+          plateLayer.kind[i] = plateKind
+          if (plateKind === PLATE_COAST) {
+            plateLayer.pointScale[i] = 1.58
+            plateLayer.shade[i] = 1
+          } else if (plateKind === PLATE_FILL) {
+            plateLayer.pointScale[i] = 1.28 + elevation * 0.18
+            plateLayer.shade[i] = 0
+            d.elevationMin = Math.min(d.elevationMin, elevation)
+            d.elevationMax = Math.max(d.elevationMax, elevation)
+          } else if (plateKind === PLATE_SEA) {
+            plateLayer.pointScale[i] = 0.58
+            plateLayer.shade[i] = 0.22
+          } else {
+            plateLayer.pointScale[i] = 0.66
+            plateLayer.shade[i] = 0.34
+          }
+          plateLayer.edgeAlpha[i] = 1 - smoothstep(
+            PLATE_EDGE_FADE_START,
+            1,
+            radialSeed
+          )
           plateLayer.alpha[i] = 0
 
-          let targetTint = !gridPoint && d.broadPrecision ? BROAD_PRECISION_TINT : 0
+          let targetTint = landSample && d.broadPrecision ? BROAD_PRECISION_TINT : 0
           if (!gridPoint) {
             for (let member = 0; member < d.memberCount; member++) {
               const memberOffset = member * 3
@@ -1551,7 +1701,10 @@ export function Globe({
               } else if (code === PRECISION_TOWN) {
                 const ringDistance = Math.abs(memberDistance - TOWN_RING_RADIUS) * d.spread
                 featureTint = 1 - smoothstep(0, TOWN_RING_HALF_WIDTH, ringDistance)
-              } else if (code === PRECISION_ISLAND || code === PRECISION_FIORD) {
+              } else if (
+                landSample &&
+                (code === PRECISION_ISLAND || code === PRECISION_FIORD)
+              ) {
                 const reach = code === PRECISION_ISLAND ? ISLAND_REACH : FIORD_REACH
                 featureTint = 1 - smoothstep(0, reach, memberDistance)
               }
@@ -1567,6 +1720,30 @@ export function Globe({
         continue
       }
 
+      if (d.reseedStage === 'relief') {
+        if (d.reliefPointIndex >= d.activePointCount) {
+          d.reseedStage = 'finalize'
+          continue
+        }
+        const i = d.reliefPointIndex++
+        if (plateLayer.kind[i] === PLATE_FILL) {
+          /* Elevation stays absolute for lift and footprint. Only its visual
+             value is normalized, once per accepted fill dot, against this
+             cap's extrema. The cursor keeps this full-buffer pass sliced. */
+          plateLayer.shade[i] = d.elevationScale > 0
+            ? Math.pow(
+                clamp01((plateLayer.elevation[i] - d.elevationMin) * d.elevationScale),
+                0.6
+              )
+            : 1
+          /* relief must read in SIZE as well as brightness: alpha alone on a
+             2px dot cannot carry a mountain range. Highlands grow ~50%. */
+          plateLayer.pointScale[i] = 1.16 + plateLayer.shade[i] * 0.55
+        }
+        if (performance.now() >= deadline) return false
+        continue
+      }
+
       if (d.reseedStage === 'finalize') {
         for (const layer of layers) {
           layer.geometry.getAttribute('aPlate').needsUpdate = true
@@ -1574,6 +1751,8 @@ export function Globe({
         plateLayer.geometry.getAttribute('position').needsUpdate = true
         plateLayer.geometry.getAttribute('aAlpha').needsUpdate = true
         plateLayer.geometry.getAttribute('aTint').needsUpdate = true
+        plateLayer.geometry.getAttribute('aPointScale').needsUpdate = true
+        plateLayer.geometry.getAttribute('aShade').needsUpdate = true
         d.reseedStage = 'done'
         d.seeded = true
         d.loading = false
@@ -1785,6 +1964,7 @@ export function Globe({
         scale.phase = 'dive'
         scale.cluster = clusterIndex
         scale.morph = 0
+        scale.presence = 0
         d.clock = 0
         d.returnClock = 0
         d.loading = true
@@ -1806,9 +1986,12 @@ export function Globe({
         d.sphereYaw = group.rotation.y + yawDiff
         const latitude = (cluster.centroidLatLng[0] * Math.PI) / 180
         d.sphereTilt = THREE.MathUtils.clamp(latitude, -0.62, 0.62) - PRESENT_BIAS
+        d.plateYaw = d.sphereYaw + TABLE_YAW
         d.plateTilt = latitude - CAMERA_ELEVATION - TABLE_TILT
         d.panYaw = 0
-        d.panTilt = 0
+        d.panTilt = LANDED_SAFE_PAN_TILT
+        d.panTargetYaw = 0
+        d.panTargetTilt = LANDED_SAFE_PAN_TILT
         activeRef.current = -1
         if (!cluster.congestedSingleton) selectedRef.current = -1
 
@@ -1852,6 +2035,7 @@ export function Globe({
         scale.phase = 'world'
         scale.cluster = -1
         scale.morph = 0
+        scale.presence = 0
         MORPH.value = 0
         FLAT_OCC.value = 1
       } else {
@@ -1871,7 +2055,6 @@ export function Globe({
         const direction = diff === 0 ? 1 : Math.sign(diff)
         d.returnYaw = group.rotation.y + diff - direction * SPIN_RESIDUAL
         d.returnTilt = pinPoints.length > 0 ? facingTilts[d.nextIndex] : group.rotation.x
-        selectedRef.current = -1
         state_.lastSelected = -1
       }
     }
@@ -1885,6 +2068,7 @@ export function Globe({
           scale.phase = 'world'
           scale.cluster = -1
           scale.morph = 0
+          scale.presence = 0
           MORPH.value = 0
           FLAT_OCC.value = 1
           if (completedReseed) {
@@ -1899,10 +2083,11 @@ export function Globe({
         } else {
           scale.phase = 'plate'
           scale.morph = 1
+          scale.presence = 1
           MORPH.value = 1
           FLAT_OCC.value = 0
-          group.rotation.y = d.sphereYaw
-          group.rotation.x = d.plateTilt
+          group.rotation.y = d.plateYaw
+          group.rotation.x = d.plateTilt + d.panTilt
           formWorldPlate(layers, 1)
           formPlateLayer(plateLayer, 1, false)
         }
@@ -1912,13 +2097,18 @@ export function Globe({
         const morph = d.seeded
           ? ease(clamp01((d.clock - STEER_DUR) / (ENTER_DUR - STEER_DUR)))
           : 0
+        const presence = ease(clamp01(d.clock / ENTER_DUR))
         scale.morph = morph
+        scale.presence = presence
         MORPH.value = morph
         FLAT_OCC.value = 1 - morph
-        group.rotation.y = d.startYaw + (d.sphereYaw - d.startYaw) * steer
+        group.rotation.y =
+          d.startYaw +
+          (d.sphereYaw - d.startYaw) * steer +
+          (d.plateYaw - d.sphereYaw) * ease(morph)
         group.rotation.x =
           d.startTilt + (d.sphereTilt - d.startTilt) * steer +
-          (d.plateTilt - d.sphereTilt) * ease(morph)
+          (d.plateTilt + d.panTilt - d.sphereTilt) * ease(morph)
         if (d.seeded) {
           formWorldPlate(layers, morph)
           const develop = clamp01((morph - DEVELOP_AT) / (1 - DEVELOP_AT))
@@ -1936,39 +2126,44 @@ export function Globe({
       activeRef.current = -1
     } else if (scale.phase === 'plate') {
       scale.morph = 1
+      scale.presence = 1
       MORPH.value = 1
       FLAT_OCC.value = 0
-      d.panYaw += spinRef.current
-      d.panTilt += tiltRef.current
-      const panDistance = Math.hypot(d.panYaw, d.panTilt)
+      d.panTargetYaw += spinRef.current
+      d.panTargetTilt += tiltRef.current
+      const panDistance = Math.hypot(d.panTargetYaw, d.panTargetTilt)
       // Pan re-aims the source cap in angular units; spread only changes where
       // that cap is drawn. Scaling this clamp would rotate beyond the declared
       // geography and trade a larger plate for an empty, steeply tilted table.
-      if (panDistance > d.capRadius) {
-        const clampScale = d.capRadius / panDistance
-        d.panYaw *= clampScale
-        d.panTilt *= clampScale
+      const panLimit = d.capRadius + PAN_MARGIN
+      if (panDistance > panLimit) {
+        const clampScale = panLimit / panDistance
+        d.panTargetYaw *= clampScale
+        d.panTargetTilt *= clampScale
       }
+      d.panYaw = damp(d.panYaw, d.panTargetYaw, 8, delta)
+      d.panTilt = damp(d.panTilt, d.panTargetTilt, 8, delta)
       spinRef.current = 0
       tiltRef.current = 0
-      group.rotation.y = d.sphereYaw + d.panYaw
+      group.rotation.y = d.plateYaw + d.panYaw
       group.rotation.x = d.plateTilt + d.panTilt
       activeRef.current = -1
     } else if (scale.phase === 'return') {
       d.returnClock += delta
       const progress = clamp01(d.returnClock / RETURN_DUR)
       const morphProgress = ease(
-        clamp01((d.returnClock - RETURN_MORPH_DELAY) / (RETURN_DUR - RETURN_MORPH_DELAY))
+        clamp01((progress - RETURN_MORPH_AT) / (1 - RETURN_MORPH_AT))
       )
       const morph = d.returnFromMorph * (1 - morphProgress)
       const pose = ease(progress)
       scale.morph = morph
+      scale.presence = 1 - pose
       MORPH.value = morph
       FLAT_OCC.value = 1 - morph
       group.rotation.y = d.returnStartYaw + (d.returnYaw - d.returnStartYaw) * pose
       group.rotation.x = d.returnStartTilt + (d.returnTilt - d.returnStartTilt) * pose
       formWorldPlate(layers, morph)
-      formPlateLayer(plateLayer, clamp01(d.returnClock / RETURN_FILL_DUR), true)
+      formPlateLayer(plateLayer, clamp01(progress / RETURN_FILL_END), true)
       if (arcs) {
         const route = 1 - ease(clamp01(morph / 0.3))
         arcs.alpha.fill(route)
@@ -1981,8 +2176,10 @@ export function Globe({
         scale.phase = 'world'
         scale.cluster = -1
         scale.morph = 0
+        scale.presence = 0
         MORPH.value = 0
         FLAT_OCC.value = 1
+        selectedRef.current = -1
         if (pinPoints.length > 0) {
           state_.index = d.nextIndex
           state_.target = facingRotations[d.nextIndex]
@@ -1992,6 +2189,7 @@ export function Globe({
         }
       }
     } else {
+      scale.presence = 0
       MORPH.value = 0
       FLAT_OCC.value = 1
     }
@@ -2171,6 +2369,16 @@ export function Globe({
        no branch inside the loop. */
     const labelP =
       introPhase === 'done' ? Infinity : introPhase === 'gather' ? intro.current.t / GATHER_DUR : -Infinity
+    const returnProgress = scale.phase === 'return'
+      ? clamp01(d.returnClock / RETURN_DUR)
+      : 0
+    const returnPlateForm = scale.phase === 'return'
+      ? 1 - ease(clamp01((returnProgress - 0.12) / 0.58))
+      : 0
+    const returnWorldForm = scale.phase === 'return'
+      ? ease(clamp01((returnProgress - 0.58) / 0.42))
+      : 0
+    const activePlateCluster = clusters[scale.cluster]
     for (let i = 0; i < pinPoints.length; i++) {
       let plateForm = 0
       const onActivePlate = scale.phase !== 'world' && activeMembers[i] === 1
@@ -2182,7 +2390,7 @@ export function Globe({
             clamp01((develop - pinPlateSeeds[i] * 0.62 - LABEL_LAG) / 0.38)
           )
         } else {
-          plateForm = ease(clamp01(scale.morph))
+          plateForm = returnPlateForm
         }
         const cluster = clusters[scale.cluster]
         if (cluster) {
@@ -2216,7 +2424,13 @@ export function Globe({
       projection.facing = front
       projection.form = scale.phase === 'world'
         ? labelFormAt(pinSeeds[i], labelP)
-        : onActivePlate ? plateForm : 0
+        : onActivePlate
+          ? scale.phase === 'return' && activePlateCluster?.congestedSingleton
+            ? Math.max(plateForm, returnWorldForm)
+            : plateForm
+          : scale.phase === 'return'
+            ? returnWorldForm
+            : 0
       projectionRef.current[i] = projection
 
       /* Under the hand the tour is not running, so it cannot say which place is
@@ -2271,9 +2485,14 @@ export function Globe({
         projection.x = (world.x + 1) / 2
         projection.y = (-world.y + 1) / 2
         projection.facing = front
+        const worldForm = labelFormAt(chipSeeds[i], labelP)
         projection.form = scale.phase === 'world'
-          ? labelFormAt(chipSeeds[i], labelP)
-          : i === scale.cluster ? 1 - ease(clamp01(scale.morph / 0.3)) : 0
+          ? worldForm
+          : scale.phase === 'dive'
+            ? worldForm * (1 - ease(clamp01(scale.presence / 0.28)))
+            : scale.phase === 'return'
+              ? worldForm * returnWorldForm
+              : 0
         chipProjectionRef.current[i] = projection
       }
     }
@@ -2339,13 +2558,13 @@ export function Globe({
             position/aPlate buffer outward from the chosen centroid. */}
         <points geometry={plateLayer.geometry} renderOrder={1}>
           <pointsMaterial
-            size={0.009}
+            size={0.012}
             color="#f4efe9"
             sizeAttenuation
             transparent
             opacity={0.86}
             depthWrite={false}
-            onBeforeCompile={patchDotAlpha}
+            onBeforeCompile={patchPlateDots}
           />
         </points>
 

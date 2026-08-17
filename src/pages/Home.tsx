@@ -58,6 +58,8 @@ function Hero() {
      by the canvas (swing it front-on, fan the hand, hold it), cleared by the
      canvas when the tour moves on */
   const selectedPinRef = useRef(-1)
+  const heroTitleRef = useRef<HTMLHeadingElement>(null)
+  const heroSubtitleRef = useRef<HTMLParagraphElement>(null)
 
   useGSAP(
     () => {
@@ -110,16 +112,25 @@ function Hero() {
             with the same numbers in words, and a data line whose whole job
             was symmetry read as duplicate the moment the byline moved.) */}
         <div className="hero-sky">
-          <h1 className="hero-title">
-            <span className="hero-title-inner">
+          <h1 ref={heroTitleRef} className="hero-title">
+            <span className="hero-title-inner hero-title-world">
               rouven<span className="accent">.</span>
             </span>
+            <span className="hero-title-inner hero-title-selection" aria-hidden="true" />
           </h1>
-          <p className="hero-title-sub">photographer &amp; creative developer</p>
+          <p ref={heroSubtitleRef} className="hero-title-sub">
+            <span className="hero-title-sub-world">photographer &amp; creative developer</span>
+            <span className="hero-title-sub-selection" aria-hidden="true" />
+          </p>
         </div>
 
         <div className="hero-globe">
-          <WorldGlobe activeRef={activePinRef} selectedRef={selectedPinRef} />
+          <WorldGlobe
+            activeRef={activePinRef}
+            selectedRef={selectedPinRef}
+            titleRef={heroTitleRef}
+            subtitleRef={heroSubtitleRef}
+          />
         </div>
 
         <span className="hero-rule" aria-hidden />

@@ -279,6 +279,21 @@ async function main() {
       return card?.getAttribute('aria-label') ?? null
     })
     assert.equal(nzAriaAtPlate, nzAriaBefore, 'plate scale must preserve the pickup aria-label')
+    const plateTabOrder = await evaluate(cdp, sessionId, () =>
+      ['milford-sound', 'doubtful-sound', 'south-island', 'queenstown'].map((slug) => {
+        const pin = document.querySelector(`[data-place-slug="${slug}"]`)
+        const card = pin?.querySelector('.globe-pickup-card:first-child')
+        return {
+          slug,
+          inert: pin instanceof HTMLElement ? pin.inert : null,
+          cardTabIndex: card instanceof HTMLButtonElement ? card.tabIndex : null,
+        }
+      })
+    )
+    assert.ok(
+      plateTabOrder.every((pin) => pin.inert === false && pin.cardTabIndex === 0),
+      'every NZ plate pickup must remain in DOM order and keyboard reachable'
+    )
     const returnStart = await clickWorldButton()
     const world = await waitForState('world', 0, 0.001)
     await sleep(150)
@@ -433,6 +448,7 @@ async function main() {
         atPlate: nzAriaAtPlate,
         unchanged: nzAriaBefore === nzAriaAtPlate,
       },
+      plateTabOrder,
       exceptions,
       consoleErrors,
     }, null, 2))

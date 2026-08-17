@@ -49,7 +49,7 @@ body.lightbox-open {
   gap: clamp(1.1rem, 3vw, 2rem);
   padding: 0.6rem 1.35rem;
   border-radius: 999px;
-  background: rgba(15, 15, 18, 0.48);
+  background: rgba(15, 15, 18, calc(0.48 + var(--plate-presence, 0) * 0.44));
   -webkit-backdrop-filter: blur(18px) saturate(1.5);
   backdrop-filter: blur(18px) saturate(1.5);
   border: 1px solid rgba(244, 239, 233, 0.14);
@@ -420,6 +420,7 @@ body.lightbox-open {
   /* the sphere is deliberately bigger than the section: the viewport is the
      crop. Without this the planet's off-screen half becomes a scrollbar. */
   overflow: clip;
+  --plate-presence: 0;
 }
 
 /* The horizon. The planet stands at the bottom of the viewport, cut by its
@@ -444,6 +445,7 @@ body.lightbox-open {
   );
   z-index: 1;
   pointer-events: none;
+  opacity: calc(1 - var(--plate-presence));
 }
 
 /* The process beat, one screen below the globe. It inherits the old hero's
@@ -681,6 +683,19 @@ body.lightbox-open {
   line-height: 1;
   color: var(--text);
   opacity: 0.72;
+  isolation: isolate;
+}
+
+/* A full-bleed table reaches the top rail. Its knockout leaves at most ten
+   percent of the dots behind navigation copy without changing the row itself. */
+.hero-rail::before {
+  content: '';
+  position: absolute;
+  inset: -0.7rem -0.9rem;
+  z-index: -1;
+  background: rgba(16, 16, 19, 0.9);
+  opacity: var(--plate-presence);
+  pointer-events: none;
 }
 
 .hero-rail-sep {
@@ -707,6 +722,7 @@ body.lightbox-open {
 }
 
 .hero-title {
+  position: relative;
   margin: 0;
   font-family: var(--font-display);
   font-size: clamp(3rem, 7vw, 7rem);
@@ -715,13 +731,37 @@ body.lightbox-open {
   letter-spacing: -0.02em;
   color: var(--text);
   overflow: hidden; /* the entrance rises out of this */
+  min-height: 0.95em;
 }
 
 .hero-title-inner {
   display: inline-block;
 }
 
+.hero-title-world,
+.hero-title-selection,
+.hero-title-sub-world,
+.hero-title-sub-selection {
+  will-change: opacity;
+}
+
+.hero-title-selection,
+.hero-title-sub-selection {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.hero-title-selection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  text-shadow: 0 2px 18px rgba(12, 12, 15, 0.68);
+}
+
 .hero-title-sub {
+  position: relative;
   margin: 1em 0 0;
   font-size: clamp(0.9rem, 1vw, 0.98rem);
   font-weight: 500;
@@ -1175,9 +1215,8 @@ body.lightbox-open {
   top: 18%;
   left: 50%;
   z-index: 500;
-  display: flex;
-  align-items: center;
-  gap: 1.1rem;
+  display: grid;
+  place-items: center;
   transform: translateX(-50%);
   white-space: nowrap;
   pointer-events: none;
@@ -1185,13 +1224,13 @@ body.lightbox-open {
 
 .globe-scale-readout,
 .globe-world-button {
+  grid-area: 1 / 1;
   opacity: 0;
-  transition: opacity 0.2s ease;
 }
 
 .globe-scale-readout {
   min-width: 13.5rem;
-  text-align: right;
+  text-align: center;
   color: var(--text);
 }
 
@@ -1507,6 +1546,18 @@ body.lightbox-open {
   scale: 1.15;
 }
 
+/* Return does not launch a CSS clock. The same plate-presence scalar that
+   unwraps the scene closes the hand positionally, landing on each card's
+   original loose-stack jitter on the final world frame. */
+.globe-frame[data-phase='return'] .globe-pin-selected .globe-pickup-card {
+  rotate: calc(
+    var(--jitter) * 1deg * (1 - var(--plate-presence)) +
+    (var(--i) - (var(--n) - 1) / 2) * 20deg * var(--plate-presence)
+  );
+  scale: calc(1 + 0.15 * var(--plate-presence));
+  transition: none;
+}
+
 /* The pop rides the IMAGE, never the button. The image is pointer-events:
    none, so the hit geometry under the pointer stays exactly where it was —
    popping the button itself moved the target out from under the cursor,
@@ -1581,6 +1632,7 @@ body.lightbox-open {
 /* the label hangs below the dot and only speaks when addressed: hovered,
    presented by the tour, or tapped */
 .globe-pickup-label {
+  --label-safe-opacity: 1;
   position: absolute;
   top: calc(100% + 0.4rem);
   left: 50%;
@@ -1600,7 +1652,7 @@ body.lightbox-open {
 .globe-pickup:hover .globe-pickup-label,
 .globe-pin-active .globe-pickup-label,
 .globe-pin-selected .globe-pickup-label {
-  opacity: 1;
+  opacity: var(--label-safe-opacity);
   transform: translate(-50%, 0);
 }
 
@@ -1608,7 +1660,7 @@ body.lightbox-open {
    always on, hanging under the bare dot */
 .globe-pickup-label-bare {
   top: 0.5rem;
-  opacity: 0.75;
+  opacity: calc(0.75 * var(--label-safe-opacity));
   transform: translate(-50%, 0);
 }
 
@@ -2462,6 +2514,12 @@ body.drench .site-footer .ticker {
 
   .hero-index-scroll {
     margin-left: 0;
+  }
+
+  /* The 15-frame country hand spans almost a full circle. At plate scale the
+     anchor stays honest while the hand scales as one object to clear a phone. */
+  .globe-frame[data-phase='plate'] .globe-pin-selected .globe-pickup-hand {
+    scale: 0.72;
   }
 
   .cursor {

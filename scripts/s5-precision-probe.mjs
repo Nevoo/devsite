@@ -209,6 +209,26 @@ async function main() {
     )
     await sleep(500)
     screenshots.push(await screenshot('s5-germany-fan.png'))
+    const germanyFanBounds = await evaluate(cdp, sessionId, () => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+      cards: [...document.querySelectorAll(
+        '[data-place-slug="germany"] .globe-pickup-card img'
+      )].map((card) => {
+        const rect = card.getBoundingClientRect()
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
+      }),
+    }))
+    assert.ok(germanyFanBounds.cards.length > 1, 'germany must open a multi-card fan')
+    assert.ok(
+      germanyFanBounds.cards.every((card) =>
+        card.left >= -1 &&
+        card.right <= germanyFanBounds.width + 1 &&
+        card.top >= -1 &&
+        card.bottom <= germanyFanBounds.height + 1
+      ),
+      'the widest plate fan must open fully inside the viewport'
+    )
     await evaluate(cdp, sessionId, () => {
       const cards = document.querySelectorAll(
         '[data-place-slug="germany"] .globe-pickup-card'
@@ -244,6 +264,10 @@ async function main() {
     )
     assert.equal(nzPins.length, 4, 'all four NZ pins must render')
     assert.ok(nzPins.every((pin) => pin.opacity > 0.6), 'all four NZ pins must be visible')
+    assert.ok(
+      nzPins.every((pin) => pin.y >= 60 && pin.y <= 940),
+      'all NZ anchors must stay inside the landed 6–94% viewport-height contract'
+    )
     let nzMinSeparation = Infinity
     for (let a = 0; a < nzPins.length; a++) {
       for (let b = a + 1; b < nzPins.length; b++) {
@@ -294,6 +318,7 @@ async function main() {
     assert.deepEqual(shaderWarnings, [], 'shader compile/link warnings were reported')
     console.log(JSON.stringify({
       screenshots,
+      germanyFanBounds,
       nzPins,
       nzMinSeparation,
       emptyStop,

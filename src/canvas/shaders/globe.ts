@@ -71,3 +71,31 @@ vTint = aTint;
       '#include <color_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, uAccent, clamp(vTint, 0.0, 1.0));\n\tdiffuseColor.a *= vAlpha;'
     )
 }
+
+/** Plate-only extension: terrain classes vary point footprint and value while
+ * keeping the shared morph/occlusion/tint program vocabulary above. World
+ * layers and route lines never need these attributes, so their warmed shader
+ * keys remain unchanged. */
+export const patchPlateDots = (shader: {
+  vertexShader: string
+  fragmentShader: string
+  uniforms: Record<string, { value: unknown }>
+}) => {
+  patchDotAlpha(shader)
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      'attribute float aAlpha;',
+      'attribute float aPointScale;\nattribute float aShade;\nvarying float vShade;\nattribute float aAlpha;'
+    )
+    .replace(
+      'vec3 transformed = mix(position, aPlate, uMorph);',
+      'vShade = aShade;\nvec3 transformed = mix(position, aPlate, uMorph);'
+    )
+    .replace('gl_PointSize = size;', 'gl_PointSize = size * aPointScale;')
+  shader.fragmentShader = shader.fragmentShader
+    .replace('varying float vAlpha;', 'varying float vShade;\nvarying float vAlpha;')
+    .replace(
+      'diffuseColor.rgb = mix(diffuseColor.rgb, uAccent, clamp(vTint, 0.0, 1.0));',
+      'diffuseColor.rgb *= mix(0.42, 1.0, clamp(vShade, 0.0, 1.0));\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, uAccent, clamp(vTint, 0.0, 1.0));'
+    )
+}

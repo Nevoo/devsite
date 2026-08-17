@@ -178,6 +178,41 @@ async function main() {
         window.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 91 }))
       })
 
+    /* Catch a morph window and interrupt INSIDE it, page-side on rAF. The
+       area-scaled reseed made small caps fast enough that a node-side 40ms
+       poll can shoot straight past an ~70ms window; watching from the page
+       guarantees the interrupt lands within the same frame the window is
+       entered. Resolves with the morph it fired at; rejects if the dive
+       finishes without the window ever being seen. */
+    const interruptInMorphWindow = (minMorph, maxMorph) =>
+      evaluate(cdp, sessionId, (min, max) =>
+        new Promise((resolve, reject) => {
+          const frame = document.querySelector('.globe-frame-live')
+          const started = performance.now()
+          const check = () => {
+            const phase = frame.dataset.phase
+            const morph = Number(frame.dataset.morph ?? 0)
+            if (phase === 'dive' && morph >= min && morph <= max) {
+              window.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 91 }))
+              resolve(morph)
+              return
+            }
+            if ((phase === 'dive' && morph > max) || phase === 'plate') {
+              reject(new Error(`morph window ${min}..${max} skipped (now ${phase}@${morph})`))
+              return
+            }
+            if (performance.now() - started > 15000) {
+              reject(new Error(`morph window ${min}..${max} never reached (now ${phase}@${morph})`))
+              return
+            }
+            requestAnimationFrame(check)
+          }
+          check()
+        }),
+        minMorph,
+        maxMorph
+      )
+
     await waitFor(
       () => Boolean(
         document.querySelector('canvas')?.width &&
@@ -195,23 +230,57 @@ async function main() {
     screenshots.push(await screenshot('s4-peel-mid.png'))
     await waitForState('plate', 0.999, 1)
     screenshots.push(await screenshot('s4-plate-landed.png'))
+    const landedSubject = await evaluate(cdp, sessionId, () => ({
+      title: document.querySelector('.hero-title-selection')?.textContent?.trim(),
+      subtitle: document.querySelector('.hero-title-sub-selection')?.textContent?.trim(),
+      documentTitle: document.title,
+      titleOpacity: Number(getComputedStyle(
+        document.querySelector('.hero-title-selection')
+      ).opacity),
+    }))
+    assert.deepEqual(
+      landedSubject,
+      {
+        title: 'new zealand',
+        subtitle: '4 places · 24 frames',
+        documentTitle: 'new zealand — rouvens.work',
+        titleOpacity: 1,
+      },
+      'the landed selection must own the existing hero title and document title'
+    )
     await evaluate(cdp, sessionId, () => document.querySelector('.globe-world-button')?.click())
     await waitForState('return', 0.35, 0.7)
     screenshots.push(await screenshot('s4-return-mid.png'))
     await waitForState('world', 0, 0.001)
     screenshots.push(await screenshot('s4-world-restored.png'))
+    const restoredSubject = await evaluate(cdp, sessionId, () => ({
+      worldTitle: document.querySelector('.hero-title-world')?.textContent?.trim(),
+      worldOpacity: Number(getComputedStyle(document.querySelector('.hero-title-world')).opacity),
+      selectionOpacity: Number(getComputedStyle(
+        document.querySelector('.hero-title-selection')
+      ).opacity),
+      documentTitle: document.title,
+    }))
+    assert.deepEqual(
+      restoredSubject,
+      {
+        worldTitle: 'rouven.',
+        worldOpacity: 1,
+        selectionOpacity: 0,
+        documentTitle: 'rouvens.work',
+      },
+      'the final return frame must exactly restore the world subject'
+    )
 
     // Cycle 2: interruption below the midpoint must resolve to world.
     await clickNz()
-    await waitForState('dive', 0.36, 0.44)
-    await interrupt()
+    await interruptInMorphWindow(0.05, 0.44)
     assert.equal((await waitForState('world', 0, 0.001)).phase, 'world')
 
     // Cycle 3: interruption above the midpoint must complete the plate, then
     // the explicit exit runs the normal return choreography once more.
     await clickNz()
-    await waitForState('dive', 0.66, 0.74)
-    await interrupt()
+    await interruptInMorphWindow(0.66, 0.98)
     assert.equal((await waitForState('plate', 0.999, 1)).phase, 'plate')
     await evaluate(cdp, sessionId, () => window.__exitDive?.())
     await waitForState('world', 0, 0.001)
@@ -228,7 +297,14 @@ async function main() {
     assert.deepEqual(exceptions, [], 'runtime exceptions were reported')
     assert.deepEqual(consoleErrors, [], 'console errors were reported')
     assert.deepEqual(shaderWarnings, [], 'shader compile/link warnings were reported')
-    console.log(JSON.stringify({ screenshots, exceptions, consoleErrors, shaderWarnings }, null, 2))
+    console.log(JSON.stringify({
+      screenshots,
+      landedSubject,
+      restoredSubject,
+      exceptions,
+      consoleErrors,
+      shaderWarnings,
+    }, null, 2))
   } finally {
     if (cdp && targetId) await cdp.send('Target.closeTarget', { targetId }).catch(() => {})
     cdp?.close()
