@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+import { decodeBorders } from '../src/canvas/borders.ts'
 import { clusters, lonePlaceSlugs } from '../src/content/clusters.ts'
 import { places } from '../src/content/places.ts'
 import {
+  BORDER_POINT_BUDGET,
+  BORDER_SPACING_PITCHES,
   BOX_FILL_TARGET,
   CAPTION_MARGIN_FRACTION,
   CAP_PADDING,
@@ -13,6 +19,8 @@ import {
   MIN_PIN_SEPARATION,
   MIN_PLATE_TERRAIN_POINTS,
   MIN_SPREAD,
+  PLATE_GRID_CAPACITY,
+  PLATE_SAMPLE_MARGIN,
   PLATE_TERRAIN_CAPACITY,
   PRINT_MARGIN_FRACTION,
   SPREAD_MAX,
@@ -23,8 +31,10 @@ import {
   fitPlateFrame,
   latLngToVec3,
   plateBasis,
+  plateBorderSpacing,
   plateFramePosition,
   plateFromLocal,
+  plateGridBudget,
   plateLocal,
   plateProject,
   plateTerrainBudget,
@@ -197,10 +207,36 @@ try {
     budget <= PLATE_TERRAIN_CAPACITY && budget >= MIN_PLATE_TERRAIN_POINTS,
     `the landed budget ${budget} escaped its own buffer`
   )
+  /* Three fields share one resident buffer: the outline stroke is seeded from
+     the top down, terrain and the graticule from the bottom up. What keeps
+     them from meeting is that the stroke's ceiling is subtracted from
+     terrain's, so the worst case has to fit with the reserve fully spent.
+     Measured at the CEILING, not at this reference frame — every real cap
+     lands on the terrain floor, which is exactly why a floor-shaped test of
+     this would pass while the invariant it claims to hold was broken. */
+  const reservedBudget = PLATE_TERRAIN_CAPACITY - BORDER_POINT_BUDGET
+  const worstCaseSpend =
+    reservedBudget + plateGridBudget(reservedBudget) + BORDER_POINT_BUDGET
+  assert.ok(
+    worstCaseSpend <= PLATE_TERRAIN_CAPACITY + PLATE_GRID_CAPACITY,
+    `terrain ${reservedBudget} + graticule ${plateGridBudget(reservedBudget)} + ` +
+    `outline ${BORDER_POINT_BUDGET} = ${worstCaseSpend} marks, past the ` +
+    `${PLATE_TERRAIN_CAPACITY + PLATE_GRID_CAPACITY}-mark plate buffer`
+  )
+  assert.ok(
+    PLATE_TERRAIN_CAPACITY - BORDER_POINT_BUDGET >= MIN_PLATE_TERRAIN_POINTS,
+    `a ${BORDER_POINT_BUDGET}-mark outline reserve leaves terrain under its own floor`
+  )
   console.log(
     `\nPASS constants: SPREAD_MAX ${SPREAD_MAX} bottoms out at ` +
     `${Math.round(tightestSpan * 6371)}km across, clear of the ` +
     `${Math.round(ZOOM_FLOOR_SPAN * 6371)}km floor`
+  )
+  console.log(
+    `      buffer split: terrain ≤ ${PLATE_TERRAIN_CAPACITY} marks, graticule ≤ ` +
+    `${PLATE_GRID_CAPACITY}, outline ≤ ${BORDER_POINT_BUDGET} reserved off ` +
+    `terrain's ceiling — worst case ${worstCaseSpend} of ` +
+    `${PLATE_TERRAIN_CAPACITY + PLATE_GRID_CAPACITY}`
   )
   console.log(
     `      reference window ${reference.frameWidth.toFixed(3)} × ` +
@@ -278,6 +314,26 @@ const report = (reserveSheetSpace) => {
       )
     }
   }
+  /* The dots column is what the landing seeds, so it has to answer for the
+     outline's reserve rather than pretend the buffer is still all terrain's. */
+  const moved = clusters
+    .map((cluster) => {
+      const frame = fitPlateFrame(frameMembers(cluster), { reserveSheetSpace })
+      const before = plateTerrainBudget(frame.sampleArea)
+      const after = plateTerrainBudget(frame.sampleArea, BORDER_POINT_BUDGET)
+      return { cluster, before, after }
+    })
+    .filter((row) => row.before !== row.after)
+  console.log(
+    moved.length === 0
+      ? `outline reserve (${BORDER_POINT_BUDGET} marks) moves no cap's dots column: ` +
+        `every cap lands on the ${MIN_PLATE_TERRAIN_POINTS}-mark floor, well under the ` +
+        `${PLATE_TERRAIN_CAPACITY - BORDER_POINT_BUDGET} reserved ceiling`
+      : `outline reserve (${BORDER_POINT_BUDGET} marks) thins ` +
+        moved
+          .map((row) => `${row.cluster.memberSlugs[0]} ${row.before}→${row.after}`)
+          .join(', ')
+  )
 }
 
 try {
@@ -341,6 +397,103 @@ try {
   )
 } catch (error) {
   console.error('FAIL framing invariants')
+  throw error
+}
+
+/* ---------- the plotted outline ----------
+
+   What the stroke costs, per cap. The render path walks borders.bin segment by
+   segment inside the reseed cursor; this cannot call that (it lives inside a
+   React component with three.js under it), so it prices the same asset through
+   the same exported frame map and the same exported spacing. It is an
+   ESTIMATE of length — a segment counts when either end is on the table, so a
+   line that only clips a corner is counted whole — and it is here to answer
+   one question the stills cannot: does the figure fit its budget, or does the
+   stroke stop halfway round germany. */
+
+const bordersPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'public',
+  'borders.bin'
+)
+let borderPolylines
+try {
+  const file = readFileSync(bordersPath)
+  borderPolylines = decodeBorders(
+    file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength)
+  )
+  const vertexTotal = borderPolylines.reduce((sum, line) => sum + line.points.length / 2, 0)
+  console.log(
+    `\nOutline stroke — ${borderPolylines.length} polylines, ${vertexTotal} vertices, ` +
+    `${(file.byteLength / 1024).toFixed(1)}KB on disk`
+  )
+} catch (error) {
+  console.error(`FAIL outline asset: cannot decode ${bordersPath}`)
+  throw error
+}
+
+const strokeCost = (cluster) => {
+  const frame = fitPlateFrame(frameMembers(cluster))
+  const basis = plateBasis(frame.center)
+  const spacing = plateBorderSpacing(frame.sampleArea)
+  const limit = 1 + PLATE_SAMPLE_MARGIN
+  let visibleLength = 0
+  for (const line of borderPolylines) {
+    const points = line.points
+    let previous = null
+    let previousLon = 0
+    let previousInside = false
+    for (let vertex = 0; vertex < points.length / 2; vertex++) {
+      const lat = points[vertex * 2]
+      const lon = points[vertex * 2 + 1]
+      const direction = latLngToVec3([lat * (180 / Math.PI), lon * (180 / Math.PI)])
+      const [x, y] = plateFramePosition(direction, frame, basis)
+      const inside = Math.abs(x) <= limit && Math.abs(y) <= limit
+      if (previous && (inside || previousInside) && Math.abs(lon - previousLon) <= Math.PI) {
+        visibleLength += angularDistanceVec3(previous, direction) * frame.spread
+      }
+      previous = direction
+      previousLon = lon
+      previousInside = inside
+    }
+  }
+  return {
+    frame,
+    spacing,
+    visibleLength,
+    dots: Math.round(visibleLength / spacing),
+  }
+}
+
+try {
+  console.log(
+    'cluster                                  | spacing u² | spacing km | stroke km | dots  | of budget'
+  )
+  for (const cluster of clusters) {
+    const { frame, spacing, visibleLength, dots } = strokeCost(cluster)
+    console.log([
+      cluster.memberSlugs.join(', ').padEnd(40),
+      pad(spacing.toFixed(4), 10),
+      pad(((spacing / frame.spread) * 6371).toFixed(1), 10),
+      pad(Math.round((visibleLength / frame.spread) * 6371), 9),
+      pad(dots, 5),
+      `${((dots / BORDER_POINT_BUDGET) * 100).toFixed(0)}%`,
+    ].join(' | '))
+    assert.ok(
+      dots <= BORDER_POINT_BUDGET,
+      `${cluster.memberSlugs.join(', ')}: the outline wants ${dots} marks, past the ` +
+      `${BORDER_POINT_BUDGET}-mark reserve — the figure would stop mid-stroke. ` +
+      `Raise BORDER_POINT_BUDGET (and the buffer that pays for it) or open ` +
+      `BORDER_SPACING_PITCHES past ${BORDER_SPACING_PITCHES}`
+    )
+  }
+  console.log(
+    `PASS outline budget: every cap's border and coast fit the ` +
+    `${BORDER_POINT_BUDGET}-mark reserve at ${BORDER_SPACING_PITCHES}× the landed pitch`
+  )
+} catch (error) {
+  console.error('FAIL outline budget')
   throw error
 }
 

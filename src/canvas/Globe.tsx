@@ -6,7 +6,10 @@ import { prefersReducedMotion } from '@/motion/gsap'
 import { isLand } from '@/content/land-mask'
 import { useUI } from '@/stores/ui'
 import { FLAT_OCC, MORPH, OCC_RADIUS, patchDotAlpha, patchPlateDots } from './shaders/globe'
+import { loadBorders } from './borders'
+import type { BorderPolyline } from './borders'
 import {
+  BORDER_POINT_BUDGET,
   FIORD_REACH,
   ISLAND_REACH,
   MIN_CAP_RADIUS,
@@ -28,6 +31,7 @@ import {
   heroGlobeViewport,
   latLngToVec3,
   plateBasis,
+  plateBorderSpacing,
   plateGridBudget,
   plateTerrainBudget,
   precisionReach,
@@ -207,7 +211,58 @@ const PLATE_FILL = 1
 const PLATE_COAST = 2
 const PLATE_SEA = 3
 const PLATE_GRID = 4
+/** the plotted outline: border and coastline as one stroke, drawn by the front */
+const PLATE_BORDER = 5
 const PLATE_FILL_MIN_ALPHA = 0.5
+/**
+ * The top of the terrain ladder, and the whole reason it has a top: the stroke
+ * settles at 1.0 and has to be the brightest thing on the table (§6, figure
+ * layer 1). Without a ceiling the single highest relief dot in an alpine cap
+ * settles at 1.0 too and ties the outline it is supposed to sit under.
+ */
+const PLATE_FILL_MAX_ALPHA = 0.92
+/**
+ * Terrain-derived coast dots keep existing — they are dense shore texture, and
+ * on a coastal cap they are where the land actually stops — but they stop
+ * claiming to BE the edge. borders.bin draws the edge now, one dot wide; two
+ * bright shorelines on top of each other is a double-drawn stroke, so this
+ * demotes the terrain one toward the fill ladder and leaves the plotted stroke
+ * alone at the top. Judged on stills; the other half of the knob is
+ * BORDER_SETTLED_ALPHA.
+ */
+const PLATE_COAST_SETTLED_ALPHA = 0.75
+/** The stroke's settled alpha. Full value, full shade, no tint: bone. */
+const BORDER_SETTLED_ALPHA = 1
+/** One dot wide. The stroke is the finest mark on the plate, never a fattened one. */
+const BORDER_POINT_SCALE = 1
+/* The stroke's grain — BORDER_SPACING_PITCHES and plateBorderSpacing — lives
+   in plate.ts beside the dot budget, for the reason every other density number
+   does: the gate prices the stroke against the same buffer the landing spends,
+   and one home is what keeps those two numbers the same number. */
+/** Along-track only, as a fraction of the spacing: a hand-plotted stroke, not a scatter. */
+const BORDER_JITTER_PITCHES = 0.18
+/**
+ * How far ahead of the terrain at the same radius the stroke develops, in
+ * develop units (the front crosses the whole plate in 0.62 of them, and one
+ * dot's arrival ramp is 0.38). At 0.2 the outline is a third of a plate ahead
+ * of the ground: the scan front leaves the figure behind it and the terrain
+ * fills in a beat later, which is the 0.8s/1.2s reading of §5. Applied as a
+ * NEGATIVE lag, so the return wave inherits it and the outline unplots one
+ * beat ahead of the ground it drew.
+ */
+const BORDER_SEED_LEAD = 0.2
+/**
+ * How long the outline stage holds the reseed waiting for borders.bin before
+ * it lands the ground without a figure, in milliseconds.
+ *
+ * The peel is pinned at zero until the cursor finishes, so this wait costs the
+ * visitor a held sphere, not a broken landing — and a 50KB asset that was
+ * prefetched at idle only ever misses this window on a cold cache. Past the
+ * bound the ground lands anyway (a stalled dive is worse than a late figure)
+ * and the stroke is retrofitted into its reserved slots when the asset
+ * arrives, so no branch here can end with a landed plate that has no outline.
+ */
+const BORDER_WAIT_MS = 600
 
 /** seconds a place stays front-and-centre with its card open before the next */
 const HOLD = 2.6
@@ -367,16 +422,20 @@ const WAKE = 1.2
 let entranceDone = false
 let terrainPrefetchScheduled = false
 
-/** Warm the lazy terrain module and its memoized fetch after the globe exists.
- *  The real dive awaits the same loadTerrain promise, so this never touches
- *  plate state and cannot start a second request. */
-const scheduleTerrainPrefetch = () => {
+/** Warm the lazy terrain module and its memoized fetch after the globe exists,
+ *  and the borders asset beside it. The real dive awaits the same two
+ *  promises, so this never touches plate state and cannot start a second
+ *  request. borders.bin is ~50KB against terrain.bin's 3.6MB, so in practice
+ *  the stroke's asset is resident long before the ground it is drawn on —
+ *  which is what lets the reseed treat it as optional rather than await it. */
+const schedulePlateAssetPrefetch = () => {
   if (terrainPrefetchScheduled) return
   terrainPrefetchScheduled = true
   const warm = () => {
     void import('@/content/terrain')
       .then((terrainModule) => terrainModule.loadTerrain())
       .catch(() => {})
+    void loadBorders().catch(() => {})
   }
   if (window.requestIdleCallback) {
     window.requestIdleCallback(warm, { timeout: 2000 })
@@ -539,6 +598,39 @@ const latLngToDirectionInto = (
   target[offset + 2] = Math.sin(phi) * Math.sin(theta)
 }
 
+/**
+ * One Liang-Barsky edge test against a parametric range held in `range` as
+ * [t0, t1], narrowed in place. Returns false when the segment is wholly
+ * outside this edge, which is the answer the outline sampler actually wants:
+ * "is there any of this line on the table at all".
+ */
+const clipRange = (p: number, q: number, range: Float64Array) => {
+  if (p === 0) return q >= 0
+  const t = q / p
+  if (p < 0) {
+    if (t > range[1]) return false
+    if (t > range[0]) range[0] = t
+  } else {
+    if (t < range[0]) return false
+    if (t < range[1]) range[1] = t
+  }
+  return true
+}
+
+/** The same direction, from RADIANS — what borders.bin decodes to. */
+const latLonRadToDirectionInto = (
+  lat: number,
+  lon: number,
+  target: MutableNumericArray,
+  offset: number
+) => {
+  const phi = Math.PI / 2 - lat
+  const theta = lon + Math.PI
+  target[offset] = -Math.sin(phi) * Math.cos(theta)
+  target[offset + 1] = Math.cos(phi)
+  target[offset + 2] = Math.sin(phi) * Math.sin(theta)
+}
+
 const wrapLongitude = (lng: number) => {
   const wrapped = ((lng + 180) % 360 + 360) % 360 - 180
   return Object.is(wrapped, -0) ? 0 : wrapped
@@ -591,7 +683,16 @@ function formPlateLayer(layer: PlateLayer, develop: number, returning: boolean) 
   const returnFront = returning ? develop : 0
 
   for (let i = 0; i < seeds.length; i++) {
-    const lag = kind[i] === PLATE_GRID ? LABEL_LAG : 0
+    /* One clock, three places in it. The graticule lags its ground the way a
+       label does; the plotted outline LEADS it, because the front is drawing
+       the figure and the ground develops inside what it drew (§5). The lead is
+       a negative lag on purpose: the return wave reads the same term, so the
+       outline also unplots one beat ahead of the terrain, inward. */
+    const lag = kind[i] === PLATE_GRID
+      ? LABEL_LAG
+      : kind[i] === PLATE_BORDER
+        ? -BORDER_SEED_LEAD
+        : 0
     const arrive = clamp01((develop - seeds[i] * 0.62 - lag) / 0.38)
     const leave = returning
       ? clamp01((returnFront - (1 - seeds[i]) * 0.62 - lag) / 0.38)
@@ -609,18 +710,27 @@ function formPlateLayer(layer: PlateLayer, develop: number, returning: boolean) 
     pos[j + 2] += normal[2] * elevationLift
 
     const sinceFront = develop - seeds[i] * 0.62
-    const flare = returning || kind[i] === PLATE_GRID || sinceFront < 0
+    /* The front's flare is the one place a dot borrows scarlet. The stroke
+       never does: a scarlet national border reads political (§6), so the
+       outline is excluded here and its targetTint is zero at seed time — the
+       two together are what make `tint[i]` identically 0 for a border dot. */
+    const flare = returning ||
+      kind[i] === PLATE_GRID ||
+      kind[i] === PLATE_BORDER ||
+      sinceFront < 0
       ? 0
       : clamp01(1 - sinceFront / Math.max(0.001, FLARE_TAIL / DEVELOP_DUR))
-    const settled = kind[i] === PLATE_COAST
-      ? 1
-      : kind[i] === PLATE_FILL
-        ? PLATE_FILL_MIN_ALPHA + shade[i] * (1 - PLATE_FILL_MIN_ALPHA)
-        : kind[i] === PLATE_SEA
-          ? 0.18
-          : kind[i] === PLATE_GRID
-            ? 0.2
-            : 0
+    const settled = kind[i] === PLATE_BORDER
+      ? BORDER_SETTLED_ALPHA
+      : kind[i] === PLATE_COAST
+        ? PLATE_COAST_SETTLED_ALPHA
+        : kind[i] === PLATE_FILL
+          ? PLATE_FILL_MIN_ALPHA + shade[i] * (PLATE_FILL_MAX_ALPHA - PLATE_FILL_MIN_ALPHA)
+          : kind[i] === PLATE_SEA
+            ? 0.18
+            : kind[i] === PLATE_GRID
+              ? 0.2
+              : 0
     alpha[i] = clamp01(local * (settled + flare * 0.65) * edgeAlpha[i])
     const tintArrive = returning
       ? local
@@ -1037,6 +1147,15 @@ export function Globe({
   const reseedVenueMembers = useMemo(() => new Int16Array(pinPoints.length), [pinPoints])
   const reseedDirection = useMemo(() => new Float64Array(3), [])
   const reseedLngRanges = useMemo(() => new Float64Array(4), [])
+  /* The outline's scratch: the window probe (x, y, angular distance) for the
+     candidate and for a segment's two ends, and one direction to project. */
+  const reseedWindow = useMemo(() => new Float64Array(3), [])
+  const borderWindowA = useMemo(() => new Float64Array(3), [])
+  const borderWindowB = useMemo(() => new Float64Array(3), [])
+  /** a segment's two endpoint directions, back to back */
+  const borderEnds = useMemo(() => new Float64Array(6), [])
+  /** the clipped [t0, t1] of the segment under the cursor */
+  const borderRange = useMemo(() => new Float64Array(2), [])
 
   useEffect(
     () => () => {
@@ -1257,6 +1376,8 @@ export function Globe({
     | 'clear'
     | 'world'
     | 'pins'
+    /** the plotted outline — seeded BEFORE terrain, and it sets terrain's budget */
+    | 'outline'
     | 'terrain'
     | 'relief'
     | 'finalize'
@@ -1269,11 +1390,31 @@ export function Globe({
     seeded: false,
     interrupted: false,
     terrain: null as Terrain | null,
+    /** decoded once per session and kept: an optional input, never awaited */
+    borders: null as BorderPolyline[] | null,
     reseedStage: 'idle' as ReseedStage,
     worldLayerIndex: 0,
     worldPointIndex: 0,
     pinMemberIndex: 0,
     clearPointIndex: 0,
+    /* The outline cursor. It checkpoints per SEGMENT, so a 6ms slice can end
+       in the middle of a polyline and the next frame picks the same polyline
+       up at the same vertex with the same dash phase in hand. */
+    borderPolylineIndex: 0,
+    borderVertexIndex: 0,
+    /** table units still to run before the next dot — the dash phase, carried
+     *  across vertices so a stroke does not restack its dots at every corner */
+    borderCarry: 0,
+    /** dot spacing along the stroke, in table units */
+    borderSpacing: 0,
+    /** how many marks the stroke has actually spent, out of BORDER_POINT_BUDGET */
+    borderPointCount: 0,
+    /** when the outline stage started waiting on borders.bin, or 0 */
+    borderWaitStartedAt: 0,
+    /** this reseed landed without a figure and owes itself one */
+    borderRetrofitPending: false,
+    /** a retrofit pass is running now, over an already-seeded plate */
+    borderRetrofit: false,
     terrainPointIndex: 0,
     reliefPointIndex: 0,
     elevationMin: Infinity,
@@ -1335,6 +1476,58 @@ export function Globe({
       FLAT_OCC.value = 1
     }
   }, [])
+
+  /* DEV-only probe surface, registered here rather than in WorldGlobe because
+     this is where the buffer lives: the counts are read off the SHIPPED
+     attribute arrays, not off bookkeeping, so a probe asserting on them is
+     asserting about what the GPU was handed. Read-only, and gone in a
+     production build (and from the DOM half's contract entirely). */
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const devWindow = window as typeof window & { __plateStats?: () => unknown }
+    devWindow.__plateStats = () => {
+      const d = dive.current
+      let borderDots = 0
+      let borderLit = 0
+      let fillDots = 0
+      let coastDots = 0
+      let seaDots = 0
+      let gridDots = 0
+      for (let i = 0; i < plateLayer.kind.length; i++) {
+        const kind = plateLayer.kind[i]
+        if (kind === PLATE_BORDER) {
+          borderDots++
+          if (plateLayer.alpha[i] >= 0.5) borderLit++
+        } else if (kind === PLATE_FILL) fillDots++
+        else if (kind === PLATE_COAST) coastDots++
+        else if (kind === PLATE_SEA) seaDots++
+        else if (kind === PLATE_GRID) gridDots++
+      }
+      return {
+        phase: scaleRef.current.phase,
+        cluster: scaleRef.current.cluster,
+        seeded: d.seeded,
+        reseedStage: d.reseedStage,
+        bordersLoaded: d.borders !== null,
+        borderRetrofitPending: d.borderRetrofitPending,
+        borderRetrofit: d.borderRetrofit,
+        borderDots,
+        /** border marks actually carrying settled alpha, not merely seeded */
+        borderLit,
+        borderBudget: BORDER_POINT_BUDGET,
+        borderSpacing: d.borderSpacing,
+        terrainDots: fillDots + coastDots,
+        fillDots,
+        coastDots,
+        seaDots,
+        gridDots,
+        terrainBudget: d.activeTerrainCount,
+      }
+    }
+    return () => {
+      delete devWindow.__plateStats
+    }
+  }, [plateLayer, scaleRef])
 
   /* Any committed input during the positional transition resolves to the
      nearest stable end. Escape is also an explicit exit intent on the DOM
@@ -1444,6 +1637,50 @@ export function Globe({
   }
 
   /**
+   * Split the resident buffer between the three fields that share it. The
+   * outline is seeded first and from the TOP of the buffer down, so what it
+   * spent is a reservation the terrain field never gets to see: terrain runs
+   * from index 0 up, the graticule follows it, and the two ends cannot meet
+   * because the reservation is subtracted from terrain's ceiling.
+   */
+  const applyTerrainBudget = (reservedPoints: number) => {
+    const d = dive.current
+    d.activeTerrainCount = plateTerrainBudget(d.sampleArea, reservedPoints)
+    d.activeGridCount = plateGridBudget(d.activeTerrainCount)
+    d.activePointCount = d.activeTerrainCount + d.activeGridCount
+    d.venuePointBudget = Math.min(
+      d.activeTerrainCount,
+      d.venueMemberCount * VENUE_POINT_COUNT
+    )
+  }
+
+  /**
+   * Where a direction lands in the visible window, in frame halves, plus the
+   * angular distance it got there by: `[x, y, distance]`.
+   *
+   * The tangent offset's DIRECTION is the candidate's east/north components
+   * (the centre's own are zero by construction) and its LENGTH is the angular
+   * distance, so the whole map costs two dot products, a hypot and the affine
+   * — the sampler runs tens of thousands of these inside a 6ms slice. ONE
+   * implementation, because the terrain field and the outline stroke have to
+   * agree to the pixel about where the table stops.
+   */
+  const probeWindow = (dx: number, dy: number, dz: number, out: Float64Array) => {
+    const d = dive.current
+    const c = d.center
+    const distance = angularDistance(dx, dy, dz, c[0], c[1], c[2])
+    const east = dx * d.plateEast[0] + dy * d.plateEast[1] + dz * d.plateEast[2]
+    const north = dx * d.plateNorth[0] + dy * d.plateNorth[1] + dz * d.plateNorth[2]
+    const lateral = Math.hypot(east, north)
+    const tangentScale = lateral > 1e-9 ? distance / lateral : 0
+    const tangentEast = east * tangentScale
+    const tangentNorth = north * tangentScale
+    out[0] = d.windowX[0] * tangentEast + d.windowX[1] * tangentNorth + d.windowX[2]
+    out[1] = d.windowY[0] * tangentEast + d.windowY[1] * tangentNorth + d.windowY[2]
+    out[2] = distance
+  }
+
+  /**
    * Prepare the resumable cursor. This work is bounded by place/member counts;
    * the large world projection and rejection sampler live in advancePlateReseed
    * and yield against a per-frame deadline.
@@ -1520,18 +1757,21 @@ export function Globe({
        much TABLE the visitor sees, and that is near enough the same rectangle
        at every zoom. Every accepted mark now lands inside it, so the pitch is
        the budget divided by an area the camera actually looks at. */
-    d.activeTerrainCount = plateTerrainBudget(d.sampleArea)
-    d.activeGridCount = plateGridBudget(d.activeTerrainCount)
-    d.activePointCount = d.activeTerrainCount + d.activeGridCount
-    d.venuePointBudget = Math.min(
-      d.activeTerrainCount,
-      d.venueMemberCount * VENUE_POINT_COUNT
-    )
+    applyTerrainBudget(0)
+    /* The stroke's grain, from the same window the budget came out of. */
+    d.borderSpacing = plateBorderSpacing(d.sampleArea)
     d.randomState = (0x5eed1234 ^ ((clusterIndex + 1) * 0x9e3779b9)) >>> 0
     d.worldLayerIndex = 0
     d.worldPointIndex = 0
     d.pinMemberIndex = 0
     d.clearPointIndex = 0
+    d.borderPolylineIndex = 0
+    d.borderVertexIndex = 0
+    d.borderCarry = 0
+    d.borderPointCount = 0
+    d.borderWaitStartedAt = 0
+    d.borderRetrofitPending = false
+    d.borderRetrofit = false
     d.terrainPointIndex = 0
     d.reliefPointIndex = 0
     d.elevationMin = Infinity
@@ -1605,7 +1845,7 @@ export function Globe({
 
       if (d.reseedStage === 'pins') {
         if (d.pinMemberIndex >= cluster.memberIndices.length) {
-          d.reseedStage = 'terrain'
+          d.reseedStage = 'outline'
           continue
         }
         const memberIndex = cluster.memberIndices[d.pinMemberIndex++]
@@ -1627,6 +1867,191 @@ export function Globe({
           ) / d.capRadius
         )
         activeMembers[memberIndex] = 1
+        if (performance.now() >= deadline) return false
+        continue
+      }
+
+      /* THE PLOTTED OUTLINE (§6, figure layer 1). Border and coastline as one
+         bright dotted stroke, seeded before any terrain so the scan front
+         leaves the figure behind it and develops the ground inside it. It is
+         also what gives a landlocked cap the edge a coastal one gets free
+         from the sea, which is the whole reason the stage exists.
+
+         One segment per iteration, so the 6ms slice can stop in the middle of
+         a polyline: the cursor carries the polyline, the vertex AND the dash
+         phase, and the next frame resumes the same stroke rather than
+         restarting it with a fresh rhythm. */
+      if (d.reseedStage === 'outline') {
+        const borders = d.borders
+        if (!borders) {
+          /* The asset is still in flight. HOLD here rather than land a plate
+             that can never grow a figure: the peel is pinned at zero anyway,
+             so the cost of waiting is a held sphere, and the cost of not
+             waiting used to be a starfield for the rest of the visit. */
+          if (d.borderWaitStartedAt === 0) d.borderWaitStartedAt = performance.now()
+          if (performance.now() - d.borderWaitStartedAt < BORDER_WAIT_MS) return false
+          /* Waited long enough. Land the ground now and owe the stroke: the
+             FULL reserve is held back from terrain so the retrofit below has
+             its slots waiting when the asset finally lands. */
+          d.borderRetrofitPending = true
+          applyTerrainBudget(BORDER_POINT_BUDGET)
+          d.reseedStage = 'terrain'
+          continue
+        }
+        if (
+          d.borderPolylineIndex >= borders.length ||
+          d.borderPointCount >= BORDER_POINT_BUDGET
+        ) {
+          if (d.borderRetrofit) {
+            /* A retrofit only redraws the stroke. Terrain and the graticule
+               are already seeded and already budgeted against the full
+               reserve, so the budget is left exactly where it stands and the
+               cursor goes straight to the attribute flush. */
+            d.borderRetrofit = false
+            d.reseedStage = 'finalize'
+            continue
+          }
+          applyTerrainBudget(d.borderPointCount)
+          d.reseedStage = 'terrain'
+          continue
+        }
+
+        const points = borders[d.borderPolylineIndex].points
+        const vertexCount = points.length / 2
+        if (d.borderVertexIndex + 1 >= vertexCount) {
+          d.borderPolylineIndex++
+          d.borderVertexIndex = 0
+          /* Each polyline starts its own dash phase at its own first vertex;
+             carrying it BETWEEN strokes would only tie two unrelated lines
+             together. Within a stroke the phase is carried, below. */
+          d.borderCarry = 0
+          continue
+        }
+
+        const v = d.borderVertexIndex++
+        const lat0 = points[v * 2]
+        const lon0 = points[v * 2 + 1]
+        const lat1 = points[v * 2 + 2]
+        const lon1 = points[v * 2 + 3]
+        const deltaLat = lat1 - lat0
+        const deltaLon = lon1 - lon0
+        /* A step of more than half the world in longitude is the antimeridian
+           seam, not a segment: interpolating it would drag a stroke across the
+           whole globe. build-borders.mjs already splits its runs there, so this
+           is the second lock on the same door, not the first. */
+        if (Math.abs(deltaLon) > Math.PI) {
+          if (performance.now() >= deadline) return false
+          continue
+        }
+
+        latLonRadToDirectionInto(lat0, lon0, borderEnds, 0)
+        latLonRadToDirectionInto(lat1, lon1, borderEnds, 3)
+        probeWindow(borderEnds[0], borderEnds[1], borderEnds[2], borderWindowA)
+        probeWindow(borderEnds[3], borderEnds[4], borderEnds[5], borderWindowB)
+        const segmentLength = angularDistance(
+          borderEnds[0],
+          borderEnds[1],
+          borderEnds[2],
+          borderEnds[3],
+          borderEnds[4],
+          borderEnds[5]
+        ) * d.spread
+        const spacing = d.borderSpacing
+        if (!(segmentLength > 1e-9) || !(spacing > 1e-9)) {
+          if (performance.now() >= deadline) return false
+          continue
+        }
+
+        /* Clip the segment against the visible window before sampling it, in
+           the same frame halves the terrain sampler rejects against. This is a
+           bound on WORK, not the accept test — every dot is re-tested exactly
+           where it lands — which is what keeps a border running clean across
+           the pacific from costing a hundred thousand samples. */
+        const limit = 1 + PLATE_SAMPLE_MARGIN
+        const ax = borderWindowA[0]
+        const ay = borderWindowA[1]
+        const sx = borderWindowB[0] - ax
+        const sy = borderWindowB[1] - ay
+        borderRange[0] = 0
+        borderRange[1] = 1
+        const visible =
+          clipRange(-sx, ax + limit, borderRange) &&
+          clipRange(sx, limit - ax, borderRange) &&
+          clipRange(-sy, ay + limit, borderRange) &&
+          clipRange(sy, limit - ay, borderRange)
+
+        if (visible) {
+          /* One spacing of slack at each end: the window map is a tangent
+             projection, so a long segment's straight line in frame halves is
+             a hair off the curve the samples actually follow. */
+          const startAt = Math.max(0, borderRange[0] * segmentLength - spacing)
+          const endAt = Math.min(segmentLength, borderRange[1] * segmentLength + spacing)
+          const firstStep = Math.max(0, Math.ceil((startAt - d.borderCarry) / spacing))
+          for (
+            let along = d.borderCarry + firstStep * spacing;
+            along <= endAt && d.borderPointCount < BORDER_POINT_BUDGET;
+            along += spacing
+          ) {
+            /* Along-track only, and small: a plotted stroke has a hand in it,
+               but a stroke that wanders off its own line is a scatter. */
+            const jittered = along +
+              (nextReseedRandom(d) * 2 - 1) * BORDER_JITTER_PITCHES * spacing
+            const t = clamp01(jittered / segmentLength)
+            const lat = lat0 + deltaLat * t
+            const lon = lon0 + deltaLon * t
+            latLonRadToDirectionInto(lat, lon, reseedDirection, 0)
+            const bx = reseedDirection[0]
+            const by = reseedDirection[1]
+            const bz = reseedDirection[2]
+            probeWindow(bx, by, bz, reseedWindow)
+            const windowDistance = Math.max(
+              Math.abs(reseedWindow[0]),
+              Math.abs(reseedWindow[1])
+            )
+            const distance = reseedWindow[2]
+            if (windowDistance > limit || distance > d.capRadius) continue
+
+            const i = PLATE_POINTS - 1 - d.borderPointCount++
+            const j = i * 3
+            plateProjectInto(bx, by, bz, c, d.spread, plateLayer.flat, j)
+            plateLayer.scatter[j] = bx * 1.001
+            plateLayer.scatter[j + 1] = by * 1.001
+            plateLayer.scatter[j + 2] = bz * 1.001
+            plateLayer.home[j] = plateLayer.flat[j]
+            plateLayer.home[j + 1] = plateLayer.flat[j + 1]
+            plateLayer.home[j + 2] = plateLayer.flat[j + 2]
+            plateLayer.plate[j] = plateLayer.scatter[j]
+            plateLayer.plate[j + 1] = plateLayer.scatter[j + 1]
+            plateLayer.plate[j + 2] = plateLayer.scatter[j + 2]
+            plateLayer.seeds[i] = clamp01(distance / d.capRadius)
+            plateLayer.plateDistance[i] = distance
+            /* The stroke lies ON the table, unlifted: it is a drawing of where
+               the ground stops, not a piece of the ground. Relief rises out of
+               it, which is exactly the light-table reading. */
+            plateLayer.elevation[i] = 0
+            plateLayer.kind[i] = PLATE_BORDER
+            plateLayer.pointScale[i] = BORDER_POINT_SCALE
+            plateLayer.shade[i] = 1
+            plateLayer.edgeAlpha[i] =
+              1 - smoothstep(1, 1 + PLATE_SAMPLE_MARGIN, windowDistance)
+            plateLayer.alpha[i] = 0
+            /* Bone, always. Zero on both channels of aTint: no scarlet mark,
+               no neutral wash. A scarlet national border reads political. */
+            plateLayer.targetTint[i] = 0
+            plateLayer.tint[i] = 0
+          }
+        }
+
+        /* The dash phase advances over the WHOLE segment whether or not any of
+           it was drawn, so a stroke that leaves the window and comes back
+           returns on the same rhythm it left with. */
+        if (d.borderCarry > segmentLength) {
+          d.borderCarry -= segmentLength
+        } else {
+          const steps = Math.floor((segmentLength - d.borderCarry) / spacing)
+          d.borderCarry = spacing - (segmentLength - (d.borderCarry + steps * spacing))
+        }
+
         if (performance.now() >= deadline) return false
         continue
       }
@@ -1678,28 +2103,16 @@ export function Globe({
         const dx = reseedDirection[0]
         const dy = reseedDirection[1]
         const dz = reseedDirection[2]
-        const distance = angularDistance(dx, dy, dz, c[0], c[1], c[2])
-        const insideCap = distance <= d.capRadius
-
         /* Where this candidate would land in the visible window, in window
-           halves. The tangent offset's DIRECTION is the candidate's east/north
-           components (the centre's own components are zero by construction)
-           and its LENGTH is the angular distance already in hand, so the whole
-           test costs two dot products, a hypot and the affine map — the
-           sampler runs tens of thousands of these inside a 6ms slice. */
-        const east = dx * d.plateEast[0] + dy * d.plateEast[1] + dz * d.plateEast[2]
-        const north = dx * d.plateNorth[0] + dy * d.plateNorth[1] + dz * d.plateNorth[2]
-        const lateral = Math.hypot(east, north)
-        const tangentScale = lateral > 1e-9 ? distance / lateral : 0
-        const tangentEast = east * tangentScale
-        const tangentNorth = north * tangentScale
+           halves, and how far off centre it got there — probeWindow is the one
+           implementation of that map, shared with the outline stroke so the
+           field and the figure agree about where the table stops. */
+        probeWindow(dx, dy, dz, reseedWindow)
+        const distance = reseedWindow[2]
+        const insideCap = distance <= d.capRadius
         const windowDistance = Math.max(
-          Math.abs(
-            d.windowX[0] * tangentEast + d.windowX[1] * tangentNorth + d.windowX[2]
-          ),
-          Math.abs(
-            d.windowY[0] * tangentEast + d.windowY[1] * tangentNorth + d.windowY[2]
-          )
+          Math.abs(reseedWindow[0]),
+          Math.abs(reseedWindow[1])
         )
         /* A venue knot is a mark we promised to draw, not sampled ground: it
            is inside the usable rect by construction, and exempting it means a
@@ -1871,6 +2284,15 @@ export function Globe({
     d.worldLayerIndex = 0
     d.worldPointIndex = 0
     d.pinMemberIndex = 0
+    /* The decoded polylines survive — they are a static asset, not dive state
+       — but the cursor into them does not. */
+    d.borderPolylineIndex = 0
+    d.borderVertexIndex = 0
+    d.borderCarry = 0
+    d.borderPointCount = 0
+    d.borderWaitStartedAt = 0
+    d.borderRetrofitPending = false
+    d.borderRetrofit = false
     d.terrainPointIndex = 0
     activeMembers.fill(0)
     plateLayer.alpha.fill(0)
@@ -2033,7 +2455,7 @@ export function Globe({
 
     // Globe only mounts inside WorldGlobe's live-canvas branch. Scheduling
     // here after the handoff keeps reduced-motion/static paths entirely cold.
-    if (intro.current.phase === 'done') scheduleTerrainPrefetch()
+    if (intro.current.phase === 'done') schedulePlateAssetPrefetch()
 
     const scale = scaleRef.current
     const d = dive.current
@@ -2071,6 +2493,13 @@ export function Globe({
         d.worldLayerIndex = 0
         d.worldPointIndex = 0
         d.pinMemberIndex = 0
+        d.borderPolylineIndex = 0
+        d.borderVertexIndex = 0
+        d.borderCarry = 0
+        d.borderPointCount = 0
+        d.borderWaitStartedAt = 0
+        d.borderRetrofitPending = false
+        d.borderRetrofit = false
         d.terrainPointIndex = 0
         d.startYaw = group.rotation.y
         d.startTilt = group.rotation.x
@@ -2095,6 +2524,17 @@ export function Globe({
         if (!cluster.congestedSingleton) selectedRef.current = -1
 
         const loadId = ++d.loadId
+        /* The stroke's asset rides ALONGSIDE the dive. The outline stage will
+           wait BORDER_WAIT_MS for it and retrofit the stroke afterwards if it
+           is later than that, so the one thing this cannot do is leave a
+           landed plate without a figure. A decoded copy from an earlier dive
+           is kept, so the second cap never waits at all. */
+        void loadBorders()
+          .then((borders) => {
+            if (!alive.current || loadId !== dive.current.loadId) return
+            dive.current.borders = borders
+          })
+          .catch(() => {})
         void import('@/content/terrain')
           .then((terrainModule) => terrainModule.loadTerrain())
           .then((terrain) => {
@@ -2124,6 +2564,49 @@ export function Globe({
         exitRef.current = true
       }
       if (d.reseedStage !== 'idle') advancePlateReseed()
+    }
+
+    /* THE STROKE, RETROFITTED. A dive that outran borders.bin landed its ground
+       against the full reserve and left those slots empty; this fills them the
+       moment the asset arrives, on the same sliced cursor. `borderRetrofitPending`
+       is set inside one reseed and cleared by prepare/abandon/enter, so it is
+       its own same-cluster guard: a new dive can never inherit an older cap's
+       debt. Nothing about the wave is restarted — the front is long gone, and
+       the marks arrive settled. */
+    if (
+      d.borderRetrofitPending &&
+      d.borders &&
+      d.seeded &&
+      d.reseedStage === 'done' &&
+      (scale.phase === 'dive' || scale.phase === 'plate') &&
+      !d.interrupted &&
+      !exitRef.current
+    ) {
+      d.borderRetrofitPending = false
+      d.borderRetrofit = true
+      d.borderPolylineIndex = 0
+      d.borderVertexIndex = 0
+      d.borderCarry = 0
+      d.borderPointCount = 0
+      d.reseedStage = 'outline'
+    }
+    if (d.borderRetrofit) {
+      if (scale.phase !== 'dive' && scale.phase !== 'plate') {
+        /* The table left underneath the retrofit (exit, interruption). Drop it
+           where it stands: the marks already written unplot with everything
+           else, and the next dive's clear stage owns the buffer. */
+        d.borderRetrofit = false
+        d.reseedStage = 'done'
+      } else {
+        advancePlateReseed()
+        /* The landed table does not run the develop loop — it settled once when
+           morph hit 1 — so a retrofit that finishes there needs exactly one
+           settle pass to give its new marks their positions and alphas.
+           Mid-dive the per-frame pass below already does it. */
+        if (!d.borderRetrofit && scale.phase === 'plate') {
+          formPlateLayer(plateLayer, 1, false)
+        }
+      }
     }
 
     const beginReturn = exitRef.current && scale.phase !== 'world' && scale.phase !== 'return'

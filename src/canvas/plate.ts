@@ -960,15 +960,76 @@ export const MIN_PLATE_TERRAIN_POINTS = 12000
 export const MIN_PLATE_GRID_POINTS = 720
 
 /**
+ * The most marks the plotted outline (border + coastline, stage B) may take
+ * out of the same buffer. The stroke is drawn BEFORE terrain and its dots are
+ * seeded from the top of the buffer down, so this number is the guarantee that
+ * the two fields can never meet in the middle: whatever the stroke actually
+ * spends is handed to `plateTerrainBudget` as a reservation, and this is the
+ * ceiling on what it may ask for. Sized from the measured worst case — germany
+ * seeds 2878 marks of border and coast inside its window, thailand 2813, and
+ * the gate's deliberately conservative estimate of germany is 3108 — after the
+ * first stills gate found a 1.2-pitch stroke invisible and the spacing came
+ * down to 0.5 (see BORDER_SPACING_PITCHES). Headroom, not slack: a denser
+ * stroke or a busier cap spends this fast, and the gate asserts on it.
+ */
+export const BORDER_POINT_BUDGET = 3600
+
+/**
  * How many terrain marks to seed for a given seeded-window area. v1 scaled
  * this by the cap's area, which asked the wrong question: every cap lands at
  * roughly the same size on screen, so the budget that matters is per square
  * table unit of window, not per steradian of ground.
+ *
+ * `reservedPoints` is what the outline stroke already spent. It bites at the
+ * CEILING, not at the pitch: every shipped cap lands on the MIN floor, where
+ * thinning the field to pay for the stroke would only make the ground sparser
+ * than the number that floor exists to protect. What it does guarantee is that
+ * terrain + graticule + stroke always fit the resident buffer.
  */
-export function plateTerrainBudget(sampleArea: number): number {
+export function plateTerrainBudget(sampleArea: number, reservedPoints = 0): number {
+  const reserved = clamp(reservedPoints, 0, BORDER_POINT_BUDGET)
   return Math.round(
-    clamp(PLATE_LANDED_DENSITY * sampleArea, MIN_PLATE_TERRAIN_POINTS, PLATE_TERRAIN_CAPACITY)
+    clamp(
+      PLATE_LANDED_DENSITY * sampleArea,
+      MIN_PLATE_TERRAIN_POINTS,
+      PLATE_TERRAIN_CAPACITY - reserved
+    )
   )
+}
+
+/**
+ * Dot spacing along the plotted outline, as a multiple of the landed terrain
+ * pitch.
+ *
+ * This shipped at 1.2 and the first stills gate failed P1 on germany: the
+ * frame read as the same uniform starfield stage A produced. The lesson is a
+ * rule, not a tuning note — a dotted stroke only reads as a LINE when its dots
+ * are denser than the field it cuts through. At 1.2 the stroke was sparser
+ * than the ground and the eye had nothing to group. At 0.5 its marks sit at
+ * half the field's pitch, so collinearity and density agree and the figure
+ * closes. Fatness is not the lever (BORDER_POINT_SCALE stays at one dot);
+ * density is.
+ *
+ * It lives here beside the budget because it is the same decision — how much
+ * table one mark is worth — and because the gate has to be able to price the
+ * stroke against the buffer it shares.
+ */
+export const BORDER_SPACING_PITCHES = 0.5
+
+/**
+ * The stroke's grain for a given seeded-window area, in TABLE units: the
+ * landed pitch (root of window area over terrain budget) times the multiple
+ * above. Table units, not pixels, so the rake compresses the stroke exactly as
+ * much as it compresses the field around it.
+ *
+ * Priced against the UNRESERVED budget on purpose: every shipped cap lands on
+ * the MIN floor, where the reservation does not move the budget at all, and
+ * pricing it against the reserved number would need the border count that this
+ * spacing is what produces.
+ */
+export function plateBorderSpacing(sampleArea: number): number {
+  const pitch = Math.sqrt(sampleArea / Math.max(1, plateTerrainBudget(sampleArea)))
+  return pitch * BORDER_SPACING_PITCHES
 }
 
 /** The graticule rides the same ratio, so a sparse plate is sparse in both. */

@@ -196,6 +196,37 @@ async function main() {
     await sleep(250)
     screenshots.push(await screenshot('s5-germany-landed.png'))
 
+    /* The plotted outline, counted off the shipped attribute buffer rather
+       than judged off the still. P1 is a human call on the screenshot, but
+       "there is no stroke at all" is a fact, and the first stills gate could
+       not tell the two apart: a stroke seeded at the wrong density and a
+       stroke that never seeded look identical in a starfield. germany is the
+       landlocked cap the figure exists for, so it carries the assertion. */
+    const germanyPlate = await waitFor(
+      () => {
+        const stats = window.__plateStats?.()
+        return stats && stats.borderDots > 0 ? stats : null
+      },
+      'the germany outline stroke to seed',
+      5000
+    )
+    assert.ok(
+      germanyPlate.borderDots > 500,
+      `germany landed with ${germanyPlate.borderDots} outline marks; ` +
+      'a landlocked cap with under 500 has no figure'
+    )
+    /* Seeded is not the same as drawn. About a tenth of the stroke is seeded
+       into the sampling margin OUTSIDE the visible window, where the plate's
+       edge falloff dims it on purpose (measured: 2582 of 2878 lit on germany),
+       so the floor sits at 80% rather than at parity. Under that, the marks
+       exist and the visitor cannot see them, which is the failure this catches
+       that a count alone would not. */
+    assert.ok(
+      germanyPlate.borderLit >= germanyPlate.borderDots * 0.8,
+      `only ${germanyPlate.borderLit} of ${germanyPlate.borderDots} outline marks ` +
+      'carry settled alpha on a landed plate'
+    )
+
     // The first member click selects its existing pickup and opens the CSS
     // fan. A subsequent card click must lift that exact card into FramePop.
     await evaluate(cdp, sessionId, () => {
@@ -254,6 +285,14 @@ async function main() {
     await waitForState('plate', 0.999, 1)
     await sleep(250)
     screenshots.push(await screenshot('s5-nz-landed.png'))
+    /* The coastal cap: it got its edge free from the sea before the stroke
+       existed, so its number is recorded rather than gated hard — but a NZ
+       landing with no coastline stroke at all means the stage regressed. */
+    const nzPlate = await evaluate(cdp, sessionId, () => window.__plateStats?.() ?? null)
+    assert.ok(
+      nzPlate && nzPlate.borderDots > 50,
+      `NZ landed with ${nzPlate?.borderDots ?? 'no'} outline marks`
+    )
     const nzPins = await evaluate(cdp, sessionId, () =>
       ['milford-sound', 'doubtful-sound', 'south-island', 'queenstown'].map((slug) => {
         const pin = document.querySelector(`[data-place-slug="${slug}"]`)
@@ -318,6 +357,8 @@ async function main() {
     assert.deepEqual(shaderWarnings, [], 'shader compile/link warnings were reported')
     console.log(JSON.stringify({
       screenshots,
+      germanyPlate,
+      nzPlate,
       germanyFanBounds,
       nzPins,
       nzMinSeparation,
