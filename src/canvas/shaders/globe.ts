@@ -21,6 +21,15 @@ export const ACCENT = { value: new THREE.Color('#ff2d1a') }
 /** View-space depth of the soft band behind the globe's limb. */
 const OCC_SOFT = { value: 0.04 }
 
+/**
+ * How far a negative aTint lifts a dot's own value. Broad precision (country,
+ * region) claims its ground with light rather than with the accent: scarlet
+ * stays the size of a mark, and the wash reads as "known this far, no
+ * further" instead of as an error state. Kept well under the coast class's
+ * step so a claimed country never impersonates an outline.
+ */
+const WASH_LIFT = 0.55
+
 /** Add per-vertex development alpha and live sphere occlusion to Three's stock
  * points/line shaders. The function source is also Three's default custom
  * program cache key, so warm-up and live materials must share this function. */
@@ -61,14 +70,24 @@ vTint = aTint;
 \t}
 }`
     )
+  /* aTint carries two channels on one float. Positive is a scarlet MARK —
+     venue point, town ring, tinted feature. Negative is a neutral LIFT, the
+     wash a country or region claim lays over its own land. The lift is the
+     last thing multiplied, after any shade term, so it stays flat: even and
+     unlit, a claim rather than a hillside. */
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
-      'varying float vAlpha;\nvarying float vTint;\nuniform vec3 uAccent;\n#include <common>'
+      `varying float vAlpha;\nvarying float vTint;\nuniform vec3 uAccent;\n#define PLATE_WASH_LIFT ${WASH_LIFT.toFixed(2)}\n#include <common>`
     )
     .replace(
       '#include <color_fragment>',
-      '#include <color_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, uAccent, clamp(vTint, 0.0, 1.0));\n\tdiffuseColor.a *= vAlpha;'
+      `#include <color_fragment>
+\tfloat plateMark = clamp(vTint, 0.0, 1.0);
+\tfloat plateLift = clamp(-vTint, 0.0, 1.0);
+\tdiffuseColor.rgb = mix(diffuseColor.rgb, uAccent, plateMark);
+\tdiffuseColor.rgb *= 1.0 + plateLift * PLATE_WASH_LIFT;
+\tdiffuseColor.a *= vAlpha;`
     )
 }
 
@@ -92,10 +111,13 @@ export const patchPlateDots = (shader: {
       'vShade = aShade;\nvec3 transformed = mix(position, aPlate, uMorph);'
     )
     .replace('gl_PointSize = size;', 'gl_PointSize = size * aPointScale;')
+  /* Terrain value lands BEFORE the mark and the wash: relief shades the
+     ground, marks sit on it, and the wash lifts whatever the ground came out
+     at — the one order in which a claim never turns into a light source. */
   shader.fragmentShader = shader.fragmentShader
     .replace('varying float vAlpha;', 'varying float vShade;\nvarying float vAlpha;')
     .replace(
-      'diffuseColor.rgb = mix(diffuseColor.rgb, uAccent, clamp(vTint, 0.0, 1.0));',
-      'diffuseColor.rgb *= mix(0.42, 1.0, clamp(vShade, 0.0, 1.0));\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, uAccent, clamp(vTint, 0.0, 1.0));'
+      'float plateMark = clamp(vTint, 0.0, 1.0);',
+      'diffuseColor.rgb *= mix(0.42, 1.0, clamp(vShade, 0.0, 1.0));\n\tfloat plateMark = clamp(vTint, 0.0, 1.0);'
     )
 }

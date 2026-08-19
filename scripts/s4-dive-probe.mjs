@@ -230,9 +230,19 @@ async function main() {
     screenshots.push(await screenshot('s4-peel-mid.png'))
     await waitForState('plate', 0.999, 1)
     screenshots.push(await screenshot('s4-plate-landed.png'))
+    /* The meta line is two spans now, not one dashed string, so the probe reads
+       both: the member list the short title stopped saying, and the counts in
+       the bracket register. Read separately on purpose — concatenating them
+       back into one textContent would let a stray separator through unnoticed,
+       which is the exact class of bug the split was made to remove. */
     const landedSubject = await evaluate(cdp, sessionId, () => ({
       title: document.querySelector('.hero-title-selection')?.textContent?.trim(),
-      subtitle: document.querySelector('.hero-title-sub-selection')?.textContent?.trim(),
+      subtitleMembers: document
+        .querySelector('.hero-title-sub-selection .hero-title-sub-members')
+        ?.textContent?.trim(),
+      subtitleCounts: document
+        .querySelector('.hero-title-sub-selection .hero-title-sub-counts')
+        ?.textContent?.trim(),
       documentTitle: document.title,
       titleOpacity: Number(getComputedStyle(
         document.querySelector('.hero-title-selection')
@@ -242,7 +252,8 @@ async function main() {
       landedSubject,
       {
         title: 'new zealand',
-        subtitle: '4 places · 24 frames',
+        subtitleMembers: 'milford sound · doubtful sound · south island · queenstown',
+        subtitleCounts: '4 places · [ 24 ]',
         documentTitle: 'new zealand — rouvens.work',
         titleOpacity: 1,
       },

@@ -4,7 +4,7 @@ import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { FramePop } from '@/components/FramePop'
 import type { PinProjection, ScaleState } from '@/canvas/Globe'
 import { clusters, type PlaceCluster } from '@/content/clusters'
-import { places, framesAt, firstAt, type Place } from '@/content/places'
+import { places, framesAt, firstAt, precisionWord, type Place } from '@/content/places'
 import { flightArcs, waypointAirports } from '@/content/flights'
 
 /**
@@ -13,6 +13,23 @@ import { flightArcs, waypointAirports } from '@/content/flights'
  * card and slides back into one, so it needs the card's real resting angle.
  */
 const FAN_STEP = 20
+
+/**
+ * The resting pile: top card straight, the rest peeking out alternately —
+ * mirrored into `--jitter` on every card, and read back below so a card that
+ * flies out to viewer scale leaves at the angle it was actually lying at.
+ */
+const cardJitter = (k: number) => (k === 0 ? 0 : (k % 2 ? -1 : 1) * (2 + k * 2))
+
+/**
+ * The same pile at plate scale, degrees — MUST mirror the CSS
+ * (.globe-frame[data-phase='plate'] .globe-pickup-card, --print-scatter).
+ * The plate stack is a stack of prints and does NOT fan, so a print popping
+ * out of it must not fly from a fan angle it was never holding.
+ */
+const PRINT_SCATTER = 4
+const printAngle = (k: number) =>
+  Math.max(-PRINT_SCATTER, Math.min(PRINT_SCATTER, cardJitter(k) * 0.45))
 
 const GlobeView = lazy(() => import('./GlobeView'))
 
@@ -50,27 +67,92 @@ clusters.forEach((cluster, clusterIndex) => {
 
 const regionNames = new Intl.DisplayNames('en', { type: 'region' })
 const withoutCountrySuffix = (label: string) => label.replace(/,\s*[a-z]{2}$/i, '')
-const clusterLabel = (cluster: PlaceCluster) => {
-  const countryCodes = cluster.memberIndices.map((placeIndex) => {
-    const suffix = places[placeIndex].label.split(',').at(-1)?.trim()
-    return suffix?.length === 2 ? suffix.toUpperCase() : null
-  })
-  const countryCode = countryCodes[0]
-  if (countryCode && countryCodes.every((code) => code === countryCode)) {
-    return (regionNames.of(countryCode) ?? countryCode).toLocaleLowerCase('en')
-  }
-  return cluster.memberIndices
-    .map((placeIndex) => withoutCountrySuffix(places[placeIndex].label))
-    .join(' · ')
+const countryCodeOf = (placeIndex: number) => {
+  const suffix = places[placeIndex].label.split(',').at(-1)?.trim()
+  return suffix?.length === 2 ? suffix.toUpperCase() : null
 }
 
+/**
+ * The display title names the cap by ONE thing: the country of its heaviest
+ * member. `germany · vienna · dolomites` mixed a country, a city and a
+ * mountain range in the same line and read as a list of unrelated errands
+ * (CONCEPT-COUNTRY-ZOOM-V2 §11 Q5). Heaviest = most frames, which is also the
+ * collection the visitor is most likely to open, so the title names what the
+ * plate is actually about. The member list is not lost — it demotes to the
+ * instrument meta line under the title (below) and stays whole in the chip's
+ * accessible name.
+ */
+const clusterLabel = (cluster: PlaceCluster) => {
+  const heaviest = cluster.memberIndices.reduce((a, b) => (pinWeights[b] > pinWeights[a] ? b : a))
+  const countryCode = countryCodeOf(heaviest)
+  return countryCode
+    ? (regionNames.of(countryCode) ?? countryCode).toLocaleLowerCase('en')
+    : withoutCountrySuffix(places[heaviest].label)
+}
+/** the demoted line: every member of the cap, in travelled order */
+const clusterMemberList = (cluster: PlaceCluster) =>
+  cluster.memberIndices
+    .map((placeIndex) => withoutCountrySuffix(places[placeIndex].label))
+    .join(' · ')
+
 const clusterLabels = clusters.map(clusterLabel)
+const clusterMembers = clusters.map(clusterMemberList)
+/** `4 places` / `1 place` — the one half of the count line that is still prose */
+const placesWord = (count: number) => `${count} ${count === 1 ? 'place' : 'places'}`
+/**
+ * The bracket half, split so the digit can be lifted into accent: everything
+ * before the number, then the number, then everything after it. `[ 24 ]` and
+ * never `[ 24 frames ]` — the stack captions set the register and a second
+ * spelling of the same count is the site disagreeing with itself.
+ */
+const countsLead = (placeCount: number) => `${placesWord(placeCount)} · [ `
+const COUNTS_TAIL = ' ]'
 const clusterAccessibleName = (cluster: PlaceCluster, clusterIndex: number) => {
   const placeCount = cluster.memberIndices.length
   const frameCount = cluster.totalFrameCount
-  return `enter ${clusterLabels[clusterIndex]} — ${placeCount} ${
-    placeCount === 1 ? 'place' : 'places'
-  }, ${frameCount} ${frameCount === 1 ? 'frame' : 'frames'}`
+  /* the short title is a display move, not an information move: a screen
+     reader still hears every place this chip covers */
+  const members = clusterMembers[clusterIndex]
+  const named =
+    members === clusterLabels[clusterIndex] ? members : `${clusterLabels[clusterIndex]}: ${members}`
+  return `enter ${named} — ${placesWord(placeCount)}, ${frameCount} ${
+    frameCount === 1 ? 'frame' : 'frames'
+  }`
+}
+
+/**
+ * The landed meta line, as structure instead of punctuation.
+ *
+ * It says two things — which places are under this cap, and how many of each
+ * there are — and the two used to be welded together with a dash. The house
+ * rule has no dash in it, and the honest fix is not a different character but
+ * the admission that these are two fields: a member list and a count readout,
+ * set as siblings and held apart by the flex gap on .hero-title-sub-selection.
+ *
+ * Built once per host element and then written by nodeValue, because the
+ * caller is the rAF loop: `textContent = …` on the wrapper every frame would
+ * throw away and rebuild the accent span sixty times a second.
+ */
+interface MetaLineNodes {
+  host: HTMLElement
+  members: HTMLElement
+  lead: Text
+  num: HTMLElement
+  tail: Text
+}
+const buildMetaLine = (host: HTMLElement): MetaLineNodes => {
+  host.textContent = ''
+  const members = document.createElement('span')
+  members.className = 'hero-title-sub-members'
+  const counts = document.createElement('span')
+  counts.className = 'hero-title-sub-counts'
+  const lead = document.createTextNode('')
+  const num = document.createElement('span')
+  num.className = 'globe-print-count-num'
+  const tail = document.createTextNode('')
+  counts.append(lead, num, tail)
+  host.append(members, counts)
+  return { host, members, lead, num, tail }
 }
 
 /* Group a cluster when its newest member is reached, then keep its members in
@@ -183,6 +265,9 @@ export function WorldGlobe({
   const exitRef = useRef(false)
   const instrumentRef = useRef<HTMLSpanElement>(null)
   const worldButtonRef = useRef<HTMLButtonElement>(null)
+  /* the two spans of the landed meta line, built once and then written in
+     place — see buildMetaLine above */
+  const metaLineRef = useRef<MetaLineNodes | null>(null)
   const instrumentPositionRef = useRef({ lat: 0, lng: 0 })
   const draggingRef = useRef(false)
   const pressRef = useRef<{ x: number; y: number } | null>(null)
@@ -279,14 +364,30 @@ export function WorldGlobe({
           const boundsMix = easeCubic(Math.max(0, Math.min(1, (platePresence - 0.52) / 0.48)))
           const rawScreenX = left + localX
           const rawScreenY = top + localY
-          const fanClearance = Math.min(280, 90 + Math.max(0, places[i].frames.length - 4) * 15)
+          /* What has to stay on the table is a print, not a fan: the stack no
+             longer spreads at plate scale, so the clearance is a function of
+             the print's own size and stopped being a function of how many
+             frames the place holds. Mirrors --print-plate-h / --print-plate-w
+             in site.css (11vh tall, 3:2), plus the caption line beneath. */
+          const printHeight = window.innerHeight * 0.11
+          const printWidth = printHeight * 1.5
+          /* The caption is wider than the print it sits under, and it is
+             centred on the same anchor, so a stack clamped to the print's own
+             half-width still gets its caption sheared off at the frame edge.
+             The widest line any enterable cap prints is 41 characters
+             (`milford sound, nz · to the region · [ 6 ]`); at 0.6rem mono
+             (0.6em advance + 0.1em tracking = 0.7em ≈ 6.7px a character) that
+             is ~276px, so ~140px each side of the anchor. Defense in depth:
+             the fit solver reserves frame margins of its own and this catches
+             whatever it misses. Mirrors .globe-print-caption in site.css. */
+          const captionHalfWidth = 140
           const horizontalClearance = Math.min(
             window.innerWidth * 0.44,
-            Math.max(window.innerWidth * 0.06, fanClearance)
+            Math.max(window.innerWidth * 0.06, printWidth / 2 + 8, captionHalfWidth)
           )
           const verticalClearance = Math.min(
             window.innerHeight * 0.44,
-            Math.max(window.innerHeight * 0.06, fanClearance)
+            Math.max(window.innerHeight * 0.06, printHeight + 34)
           )
           const boundedScreenX = Math.max(
             horizontalClearance,
@@ -327,7 +428,10 @@ export function WorldGlobe({
               labelBounds.top < titleSafeArea.bottom
             )
           }
-          label.style.setProperty('--label-safe-opacity', clearsTitle ? '1' : '0')
+          /* written on the PIN, not on the label: at plate scale the stack's
+             caption stands where the label used to and needs the same guard,
+             and a custom property on the shared ancestor covers both */
+          node.style.setProperty('--label-safe-opacity', clearsTitle ? '1' : '0')
         }
         node.classList.toggle('globe-pin-active', i === activeRef.current)
         node.classList.toggle('globe-pin-selected', i === selectedRef.current)
@@ -430,19 +534,36 @@ export function WorldGlobe({
         if (activeCluster && titleSelection && subtitleSelection) {
           const selection = activeCluster.congestedSingleton
             ? places[activeCluster.memberIndices[0]].label
-            : clusterLabel(activeCluster)
-          const counts = `${activeCluster.memberIndices.length} ${
-            activeCluster.memberIndices.length === 1 ? 'place' : 'places'
-          } · ${activeCluster.totalFrameCount} ${
-            activeCluster.totalFrameCount === 1 ? 'frame' : 'frames'
-          }`
+            : clusterLabels[scaleState.cluster]
+          const placeCount = activeCluster.memberIndices.length
+          const frameCount = activeCluster.totalFrameCount
+          /* the meta line carries what the title stopped saying: the members,
+             then the counts in the bracket register (§11 Q5). A congested
+             singleton has exactly one member and it is already the title, so
+             its member span goes empty (CSS drops it out of the flex row) and
+             the line prints the counts alone rather than saying its own name
+             twice. */
+          const built = metaLineRef.current
+          const metaLine =
+            built && built.host === subtitleSelection && built.members.parentNode === built.host
+              ? built
+              : buildMetaLine(subtitleSelection)
+          metaLineRef.current = metaLine
+          const members = activeCluster.congestedSingleton
+            ? ''
+            : clusterMembers[scaleState.cluster]
+          const lead = countsLead(placeCount)
+          const num = String(frameCount)
+          if (metaLine.members.textContent !== members) metaLine.members.textContent = members
+          if (metaLine.lead.nodeValue !== lead) metaLine.lead.nodeValue = lead
+          if (metaLine.num.textContent !== num) metaLine.num.textContent = num
+          if (metaLine.tail.nodeValue !== COUNTS_TAIL) metaLine.tail.nodeValue = COUNTS_TAIL
           if (titleSelection.textContent !== selection) titleSelection.textContent = selection
           titleSelection.style.fontSize = selection.length > 34
             ? '0.58em'
             : selection.length > 24
               ? '0.72em'
               : '1em'
-          if (subtitleSelection.textContent !== counts) subtitleSelection.textContent = counts
           const landedTitle = scaleState.phase === 'plate'
             ? `${selection} — rouvens.work`
             : originalDocumentTitleRef.current
@@ -733,7 +854,13 @@ export function WorldGlobe({
                   enterRef.current = i
                 }}
               >
-                {cluster.memberIndices.length} places · {cluster.totalFrameCount} frames
+                {/* the same count grammar as the stack captions, one scale up:
+                    brackets muted, digit in accent, no shape around either
+                    (CONCEPT-COUNTRY-ZOOM-V2 §6, P3). The chip's whole member
+                    list stays in aria-label above. */}
+                {countsLead(cluster.memberIndices.length)}
+                <span className="globe-print-count-num">{cluster.totalFrameCount}</span>
+                {COUNTS_TAIL}
               </button>
             </li>
           )
@@ -812,7 +939,7 @@ export function WorldGlobe({
                               '--n': frames.length,
                               // resting-stack jitter: top card straight, the
                               // rest peeking out alternately like a loose pile
-                              '--jitter': k === 0 ? 0 : (k % 2 ? -1 : 1) * (2 + k * 2),
+                              '--jitter': cardJitter(k),
                             } as React.CSSProperties
                           }
                           aria-label={
@@ -845,16 +972,32 @@ export function WorldGlobe({
                           />
                         </button>
                       ))}
-                      {frames.length > 1 && (
-                        <span className="globe-pickup-count" aria-hidden>
-                          {frames.length}
-                        </span>
-                      )}
                       {placeCluster?.congestedSingleton && (
                         <span className="globe-dive-count" aria-hidden>
                           [ {frames.length} frames ]
                         </span>
                       )}
+                      {/* The stack's caption, plate scale only (CSS fades it in
+                          with --plate-presence): what this pile is, how well
+                          the site knows where it was made, and how many prints
+                          are in it — the count in typography, never in a shape.
+                          Decorative: every word of it is already in the top
+                          card's accessible name and in the precision the
+                          canvas draws, so it stays out of the reading order. */}
+                      <span
+                        className="instrument-line globe-print-caption"
+                        style={
+                          { '--caption-lag': ((i % 3) * 0.05).toFixed(2) } as React.CSSProperties
+                        }
+                        aria-hidden
+                      >
+                        {place.label}
+                        {' · '}
+                        {precisionWord(place.precision)}
+                        {' · [ '}
+                        <span className="globe-print-count-num">{frames.length}</span>
+                        {' ]'}
+                      </span>
                     </span>
                     <span
                       ref={(node) => {
@@ -901,7 +1044,11 @@ export function WorldGlobe({
               photos={frames}
               index={pop.frame}
               sourceEl={() => cardRefs.current.get(`${pop.pin}:${pop.frame}`) ?? null}
-              sourceAngle={(pop.frame - (frames.length - 1) / 2) * FAN_STEP}
+              sourceAngle={
+                scaleRef.current.phase === 'world'
+                  ? (pop.frame - (frames.length - 1) / 2) * FAN_STEP
+                  : printAngle(pop.frame)
+              }
               onStep={(dir) =>
                 setPop((p) => p && { ...p, frame: (p.frame + dir + frames.length) % frames.length })
               }

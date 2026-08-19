@@ -346,10 +346,14 @@ async function main() {
       'NZ cluster chip must not sit below an aria-hidden ancestor'
     )
     assert.equal(keyboardFocusBefore.expanded, 'false', 'NZ chip must be collapsed at world scale')
+    /* The chip shows `4 places · [ 24 ]` and nothing else now, so its accessible
+       name is the only place the member list survives at world scale: the
+       display title names the cap by its heaviest member, the aria-label still
+       hands a screen reader every place under it. */
     assert.equal(
       keyboardFocusBefore.label,
-      'enter new zealand — 4 places, 24 frames',
-      'NZ chip must name the cluster and both counts'
+      'enter new zealand: milford sound · doubtful sound · south island · queenstown — 4 places, 24 frames',
+      'NZ chip must name the cluster, every member and both counts'
     )
     await evaluate(cdp, sessionId, () => {
       const chip = document.activeElement

@@ -6,7 +6,33 @@ import { prefersReducedMotion } from '@/motion/gsap'
 import { isLand } from '@/content/land-mask'
 import { useUI } from '@/stores/ui'
 import { FLAT_OCC, MORPH, OCC_RADIUS, patchDotAlpha, patchPlateDots } from './shaders/globe'
-import type { Vec3 } from './plate'
+import {
+  FIORD_REACH,
+  ISLAND_REACH,
+  MIN_CAP_RADIUS,
+  MIN_SPREAD,
+  PLATE_CAMERA_ELEVATION,
+  PLATE_CAMERA_FOV_DEGREES,
+  PLATE_CAMERA_POSITION,
+  PLATE_GRID_CAPACITY,
+  PLATE_GROUP_ROLL,
+  PLATE_LANDED_PAN_TILT,
+  PLATE_SAMPLE_MARGIN,
+  PLATE_TABLE_TILT,
+  PLATE_TABLE_YAW,
+  PLATE_TERRAIN_CAPACITY,
+  REFERENCE_WINDOW_HEIGHT,
+  REFERENCE_WINDOW_WIDTH,
+  TOWN_RING_RADIUS,
+  fitPlateFrame,
+  heroGlobeViewport,
+  latLngToVec3,
+  plateBasis,
+  plateGridBudget,
+  plateTerrainBudget,
+  precisionReach,
+} from './plate'
+import type { PlateFrameMember, PlateViewport, Vec3 } from './plate'
 import type { Terrain } from '@/content/terrain'
 import type { PlacePrecision } from '@/content/places'
 
@@ -129,20 +155,14 @@ const ANTARCTIC = -58
 const OCCLUDER = 0.9985
 
 /** S4 plate vocabulary. All timing is positional off one dive clock. */
-const PLATE_POINTS = 24000
-const PLATE_GRID_POINTS = 1800
-const PLATE_TERRAIN_CAPACITY = PLATE_POINTS - PLATE_GRID_POINTS
-/** Minimum accepted terrain marks needed for a 8–14px landed land-fill pitch. */
-const MIN_PLATE_TERRAIN_POINTS = 12000
-const MIN_PLATE_GRID_POINTS = 720
-/** S4's scale remains the floor: no plate gets smaller than the shipped peel. */
-const MIN_SPREAD = 2.2
-/** The cap edge clears the viewport; its soft particle falloff happens off-frame. */
-const TARGET_PLATE_RADIUS = 1.25
-/** Tiny coordinate gaps may enlarge a plate, but never into an unbounded map. */
-const SPREAD_MAX = 12.5
-/** Pickup anchors need this much table between them before cards can read apart. */
-const MIN_PIN_SEPARATION = 0.11
+const PLATE_POINTS = PLATE_TERRAIN_CAPACITY + PLATE_GRID_CAPACITY
+/* The framing vocabulary — spread bounds, cap bounds, the landed pose, the
+   visible window, box fill, the usable rect's margins, the dot budget and
+   precision reach — lives in plate.ts beside the fit that consumes it, so
+   `scripts/plate-gate.mjs` measures the numbers that actually ship instead of
+   a copy of them. Anything here that the camera or the table's rake depends on
+   is imported, never redeclared: two homes for the tilt is how the gate ended
+   up measuring a rake the render path was not using. */
 const PLATE_EXTENT = 0.35
 const EXAGGERATION = 10
 const ELEVATION_UNIT = 0.012
@@ -152,23 +172,11 @@ const DEVELOP_AT = 0.58
 const RETURN_DUR = 1.1
 const RETURN_FILL_END = 0.32
 const RETURN_MORPH_AT = 0.32
-const TABLE_TILT = (36 * Math.PI) / 180
-const TABLE_YAW = (12 * Math.PI) / 180
-const CAMERA_ELEVATION = Math.atan2(0.3, 4.6)
 const FLARE_TAIL = 0.3
 const DEVELOP_DUR = ENTER_DUR * (1 - DEVELOP_AT)
-const CAP_PADDING = 0.065
-const MIN_CAP_RADIUS = 0.12
-const MAX_CAP_RADIUS = 0.24
 const PAN_MARGIN = 0.06
-/** Opens a clean title band before the visitor applies any manual table pan. */
-const LANDED_SAFE_PAN_TILT = 0.14
 const SEA_SAMPLE_RATE = 0.18
-/** Only the outer 18% softens; the readable terrain body stays at full alpha. */
-const PLATE_EDGE_FADE_START = 0.82
 
-/** Eight kilometres is a town-sized claim, small enough to remain an outline. */
-const TOWN_RING_RADIUS = 8 / 6371
 /** One rendered dot across keeps the town mark a ring instead of a filled disc. */
 const TOWN_RING_HALF_WIDTH = 0.006
 /** Venue authority earns a tight knot, dense enough to exist despite random fill. */
@@ -177,12 +185,14 @@ const VENUE_POINT_COUNT = 24
 const VENUE_JITTER = 0.0012
 /** Natural terrain inside this short reach joins the seeded venue knot. */
 const VENUE_REACH = 0.0024
-/** Islands keep a broader soft footprint because their declared object is area. */
-const ISLAND_REACH = 0.045
-/** Fiords stay tighter so the tint follows their own coastal land, not the region. */
-const FIORD_REACH = 0.03
-/** The low end of the proposed wash keeps broad precision from reading as alarm red. */
-const BROAD_PRECISION_TINT = 0.12
+/**
+ * The sign convention on aTint, in one number. Positive is a scarlet mark;
+ * NEGATIVE is a neutral brightness lift, which is what a country or region
+ * claim gets: broad precision is a claim about knowledge, and painting a whole
+ * country in the accent said "error" (§9.4). The magnitude is the wash's
+ * strength against WASH_LIFT in the fragment.
+ */
+const BROAD_PRECISION_LIFT = -0.35
 /** Reseeding yields before it can monopolise a frame under CPU throttling. */
 const RESEED_SLICE_MS = 6
 
@@ -616,8 +626,15 @@ function formPlateLayer(layer: PlateLayer, develop: number, returning: boolean) 
       ? local
       : ease(clamp01((develop - seeds[i] * 0.62 - LABEL_LAG) / 0.38))
     // The scan front borrows only a trace of scarlet, then resolves to the
-    // precision target one label-lag behind the terrain it just exposed.
-    tint[i] = clamp01(local * (targetTint[i] * tintArrive + flare * 0.16))
+    // precision target one label-lag behind the terrain it just exposed. The
+    // flare rides the MARK channel alone: a wash dot still catches the front's
+    // scarlet trace, and still resolves neutral behind it, because the lift is
+    // subtracted rather than competing for the same clamp.
+    const mark = targetTint[i] > 0 ? targetTint[i] : 0
+    const washLift = targetTint[i] < 0 ? -targetTint[i] : 0
+    tint[i] = local * (
+      clamp01(mark * tintArrive + flare * 0.16) - washLift * tintArrive
+    )
   }
   posAttr.needsUpdate = true
   alphaAttr.needsUpdate = true
@@ -1282,6 +1299,21 @@ export function Globe({
     plateTilt: 0,
     capRadius: MIN_CAP_RADIUS,
     spread: MIN_SPREAD,
+    /** the fitted frame centre: what the plate projects about and the camera
+     * aims at. Not the cluster's mean, which is nowhere in particular. */
+    center: [0, 0, 1] as [number, number, number],
+    centerLat: 0,
+    centerLng: 0,
+    /* The visible window, as the fit measured it, carried into the sampler:
+       the table's own east/north axes at the frame centre, and the affine map
+       from a tangent offset in radians to the window in halves (±1 is the edge
+       the visitor sees). The reseed spends its whole budget inside that
+       rectangle instead of across a disc the camera mostly cannot see. */
+    plateEast: [1, 0, 0] as [number, number, number],
+    plateNorth: [0, 1, 0] as [number, number, number],
+    windowX: [1, 0, 0] as [number, number, number],
+    windowY: [0, 1, 0] as [number, number, number],
+    sampleArea: 1,
     panYaw: 0,
     panTilt: 0,
     panTargetYaw: 0,
@@ -1327,6 +1359,91 @@ export function Globe({
     }
   }, [scaleRef])
   /**
+   * The render surface the composition is solved against: the View's own box,
+   * in window coordinates, and the window that crops it. The plate's canvas is
+   * a square that hangs off the bottom of the page on purpose (see
+   * `.hero-globe`), so what the visitor sees is a crop, off-centre in it — and
+   * a fit that composes against the square instead lands its content below the
+   * fold. drei writes the tracked element's rect into the portal's `size`;
+   * when it has not measured yet, the CSS rule's own arithmetic stands in.
+   */
+  const surface = useThree((s) => s.size)
+  const plateViewport = (): PlateViewport => {
+    const windowWidth = typeof window === 'undefined' ? REFERENCE_WINDOW_WIDTH : window.innerWidth
+    const windowHeight = typeof window === 'undefined'
+      ? REFERENCE_WINDOW_HEIGHT
+      : window.innerHeight
+    const fallback = heroGlobeViewport(windowWidth, windowHeight)
+    const { width, height, left, top } = surface as {
+      width: number
+      height: number
+      left?: number
+      top?: number
+    }
+    if (!(width > 0) || !(height > 0)) return fallback
+    return {
+      viewWidth: width,
+      viewHeight: height,
+      viewLeft: Number.isFinite(left) ? (left as number) : fallback.viewLeft,
+      viewTop: Number.isFinite(top) ? (top as number) : fallback.viewTop,
+      windowWidth,
+      windowHeight,
+    }
+  }
+
+  /**
+   * Fit the landing frame to what this cluster actually contains — anchors
+   * plus their precision geometry, padded, composed into the usable part of
+   * the window the visitor can actually see (plate.ts owns the math and the
+   * numbers).
+   *
+   * Member-bounded and deterministic, so the enter branch can call it to aim
+   * the camera at the FRAME's centre before terrain has even loaded, and the
+   * reseed cursor can call it again and get the same table.
+   */
+  const applyPlateFrame = (clusterIndex: number) => {
+    const d = dive.current
+    const cluster = clusters[clusterIndex]
+    if (!cluster) return false
+    const members: PlateFrameMember[] = cluster.memberIndices.map((memberIndex) => ({
+      direction: latLngToVec3(pins[memberIndex]),
+      reach: precisionReach(precisions[memberIndex]),
+    }))
+    /* The sheet's clear third is NOT reserved yet: stage D turns it on when a
+       sheet actually opens into it. Holding a third of the table empty for an
+       object that does not exist is how every cluster ended up crowded into
+       the other two thirds. */
+    const frame = fitPlateFrame(members, {
+      viewport: plateViewport(),
+      reserveSheetSpace: false,
+    })
+    d.center[0] = frame.center[0]
+    d.center[1] = frame.center[1]
+    d.center[2] = frame.center[2]
+    d.centerLat = frame.centerLatLng[0]
+    d.centerLng = frame.centerLatLng[1]
+    d.spread = frame.spread
+    d.capRadius = frame.capRadius
+    const basis = plateBasis(frame.center)
+    d.plateEast[0] = basis.east[0]
+    d.plateEast[1] = basis.east[1]
+    d.plateEast[2] = basis.east[2]
+    d.plateNorth[0] = basis.north[0]
+    d.plateNorth[1] = basis.north[1]
+    d.plateNorth[2] = basis.north[2]
+    /* Fold the spread into the map once, here, so the sampler's inner loop
+       multiplies radians straight into window halves. */
+    d.windowX[0] = frame.view.screenX[0] * frame.spread
+    d.windowX[1] = frame.view.screenX[1] * frame.spread
+    d.windowX[2] = frame.view.screenX[2]
+    d.windowY[0] = frame.view.screenY[0] * frame.spread
+    d.windowY[1] = frame.view.screenY[1] * frame.spread
+    d.windowY[2] = frame.view.screenY[2]
+    d.sampleArea = frame.sampleArea
+    return true
+  }
+
+  /**
    * Prepare the resumable cursor. This work is bounded by place/member counts;
    * the large world projection and rejection sampler live in advancePlateReseed
    * and yield against a per-frame deadline.
@@ -1334,56 +1451,9 @@ export function Globe({
   const preparePlateReseed = (clusterIndex: number) => {
     const d = dive.current
     const cluster = clusters[clusterIndex]
-    if (!cluster) return false
-    const c = cluster.centroid
-    let capRadius = MIN_CAP_RADIUS
-    for (let i = 0; i < cluster.memberIndices.length; i++) {
-      const point = pinPoints[cluster.memberIndices[i]]
-      const pointLength = point.length() || 1
-      capRadius = Math.max(
-        capRadius,
-        angularDistance(
-          point.x / pointLength,
-          point.y / pointLength,
-          point.z / pointLength,
-          c[0],
-          c[1],
-          c[2]
-        ) + CAP_PADDING
-      )
-    }
-    capRadius = THREE.MathUtils.clamp(capRadius, MIN_CAP_RADIUS, MAX_CAP_RADIUS)
-    d.capRadius = capRadius
-
-    let spread = THREE.MathUtils.clamp(TARGET_PLATE_RADIUS / capRadius, MIN_SPREAD, SPREAD_MAX)
-    if (cluster.memberIndices.length >= 2) {
-      let minPairwiseDistance = Infinity
-      for (let a = 0; a < cluster.memberIndices.length; a++) {
-        const pointA = pinPoints[cluster.memberIndices[a]]
-        const lengthA = pointA.length() || 1
-        for (let b = a + 1; b < cluster.memberIndices.length; b++) {
-          const pointB = pinPoints[cluster.memberIndices[b]]
-          const lengthB = pointB.length() || 1
-          minPairwiseDistance = Math.min(
-            minPairwiseDistance,
-            angularDistance(
-              pointA.x / lengthA,
-              pointA.y / lengthA,
-              pointA.z / lengthA,
-              pointB.x / lengthB,
-              pointB.y / lengthB,
-              pointB.z / lengthB
-            )
-          )
-        }
-      }
-      if (minPairwiseDistance * spread < MIN_PIN_SEPARATION) {
-        spread = minPairwiseDistance > 1e-6
-          ? Math.min(SPREAD_MAX, MIN_PIN_SEPARATION / minPairwiseDistance)
-          : SPREAD_MAX
-      }
-    }
-    d.spread = spread
+    if (!cluster || !applyPlateFrame(clusterIndex)) return false
+    const c = d.center
+    const capRadius = d.capRadius
     plateLayer.normal[0] = c[0]
     plateLayer.normal[1] = c[1]
     plateLayer.normal[2] = c[2]
@@ -1415,19 +1485,19 @@ export function Globe({
 
     const capDegrees = capRadius * (180 / Math.PI)
     d.gridStep = Math.max(1, capDegrees / 3)
-    d.boundsMinLat = Math.max(-90, cluster.centroidLatLng[0] - capDegrees)
-    d.boundsMaxLat = Math.min(90, cluster.centroidLatLng[0] + capDegrees)
+    d.boundsMinLat = Math.max(-90, d.centerLat - capDegrees)
+    d.boundsMaxLat = Math.min(90, d.centerLat + capDegrees)
     if (d.boundsMinLat <= -90 || d.boundsMaxLat >= 90) {
       d.lngRangeCount = 1
       reseedLngRanges[0] = -180
       reseedLngRanges[1] = 180
     } else {
-      const latitude = THREE.MathUtils.clamp(cluster.centroidLatLng[0], -90, 90)
+      const latitude = THREE.MathUtils.clamp(d.centerLat, -90, 90)
         * (Math.PI / 180)
       const lngRadius = Math.asin(
         THREE.MathUtils.clamp(Math.sin(capRadius) / Math.cos(latitude), -1, 1)
       ) * (180 / Math.PI)
-      const centreLng = wrapLongitude(cluster.centroidLatLng[1])
+      const centreLng = wrapLongitude(d.centerLng)
       const minLngUnwrapped = centreLng - lngRadius
       const maxLngUnwrapped = centreLng + lngRadius
       const minLng = wrapLongitude(minLngUnwrapped)
@@ -1445,19 +1515,13 @@ export function Globe({
       }
     }
 
-    /* Every cap is expanded to approximately the same landed screen radius,
-       so the old 2,048 floor became an area-starved SCREEN budget. Keep area
-       scaling for genuinely broad caps but enforce the measured landed floor;
-       the 24k resident buffer and resumable 6ms cursor remain unchanged. */
-    const capAreaRatio = (1 - Math.cos(capRadius)) / (1 - Math.cos(MAX_CAP_RADIUS))
-    d.activeTerrainCount = Math.min(
-      PLATE_TERRAIN_CAPACITY,
-      Math.max(MIN_PLATE_TERRAIN_POINTS, Math.round(PLATE_TERRAIN_CAPACITY * capAreaRatio))
-    )
-    d.activeGridCount = Math.min(
-      PLATE_GRID_POINTS,
-      Math.max(MIN_PLATE_GRID_POINTS, Math.round(PLATE_GRID_POINTS * capAreaRatio))
-    )
+    /* The budget follows the WINDOW, not the cap. Scaling by the cap's area
+       asked how much ground was sampled; what sets the landed pitch is how
+       much TABLE the visitor sees, and that is near enough the same rectangle
+       at every zoom. Every accepted mark now lands inside it, so the pitch is
+       the budget divided by an area the camera actually looks at. */
+    d.activeTerrainCount = plateTerrainBudget(d.sampleArea)
+    d.activeGridCount = plateGridBudget(d.activeTerrainCount)
     d.activePointCount = d.activeTerrainCount + d.activeGridCount
     d.venuePointBudget = Math.min(
       d.activeTerrainCount,
@@ -1487,7 +1551,7 @@ export function Globe({
     const cluster = clusters[scaleRef.current.cluster]
     const terrain = d.terrain
     if (!cluster || !terrain || d.reseedStage === 'idle') return false
-    const c = cluster.centroid
+    const c = d.center
     const deadline = performance.now() + RESEED_SLICE_MS
 
     while (true) {
@@ -1616,8 +1680,34 @@ export function Globe({
         const dz = reseedDirection[2]
         const distance = angularDistance(dx, dy, dz, c[0], c[1], c[2])
         const insideCap = distance <= d.capRadius
-        const landSample = insideCap && !gridPoint && terrain.landAt(lat, lng)
-        const accepted = insideCap && (
+
+        /* Where this candidate would land in the visible window, in window
+           halves. The tangent offset's DIRECTION is the candidate's east/north
+           components (the centre's own components are zero by construction)
+           and its LENGTH is the angular distance already in hand, so the whole
+           test costs two dot products, a hypot and the affine map — the
+           sampler runs tens of thousands of these inside a 6ms slice. */
+        const east = dx * d.plateEast[0] + dy * d.plateEast[1] + dz * d.plateEast[2]
+        const north = dx * d.plateNorth[0] + dy * d.plateNorth[1] + dz * d.plateNorth[2]
+        const lateral = Math.hypot(east, north)
+        const tangentScale = lateral > 1e-9 ? distance / lateral : 0
+        const tangentEast = east * tangentScale
+        const tangentNorth = north * tangentScale
+        const windowDistance = Math.max(
+          Math.abs(
+            d.windowX[0] * tangentEast + d.windowX[1] * tangentNorth + d.windowX[2]
+          ),
+          Math.abs(
+            d.windowY[0] * tangentEast + d.windowY[1] * tangentNorth + d.windowY[2]
+          )
+        )
+        /* A venue knot is a mark we promised to draw, not sampled ground: it
+           is inside the usable rect by construction, and exempting it means a
+           degenerate case can never spin the cursor looking for a slot. */
+        const insideWindow = venuePoint || windowDistance <= 1 + PLATE_SAMPLE_MARGIN
+
+        const landSample = insideCap && insideWindow && !gridPoint && terrain.landAt(lat, lng)
+        const accepted = insideCap && insideWindow && (
           gridPoint ||
           venuePoint ||
           landSample ||
@@ -1675,14 +1765,20 @@ export function Globe({
             plateLayer.pointScale[i] = 0.66
             plateLayer.shade[i] = 0.34
           }
-          plateLayer.edgeAlpha[i] = 1 - smoothstep(
-            PLATE_EDGE_FADE_START,
-            1,
-            radialSeed
-          )
+          /* The field now ENDS at the window, so it has to end softly or the
+             seeded rectangle becomes a visible one. Full alpha everywhere the
+             visitor can see, falling to nothing across the sampling margin
+             just outside it — the same falloff the cap's rim used to carry,
+             moved onto the edge that now exists. */
+          plateLayer.edgeAlpha[i] = 1 - smoothstep(1, 1 + PLATE_SAMPLE_MARGIN, windowDistance)
           plateLayer.alpha[i] = 0
 
-          let targetTint = landSample && d.broadPrecision ? BROAD_PRECISION_TINT : 0
+          /* Two channels, one attribute. A dot either carries a scarlet mark
+             (a point, a ring, a tinted feature) or the neutral wash of a broad
+             claim; a mark always wins the dot it lands on, so the wash is only
+             read where nothing sharper was declared. */
+          const washLift = landSample && d.broadPrecision ? BROAD_PRECISION_LIFT : 0
+          let markTint = 0
           if (!gridPoint) {
             for (let member = 0; member < d.memberCount; member++) {
               const memberOffset = member * 3
@@ -1708,10 +1804,10 @@ export function Globe({
                 const reach = code === PRECISION_ISLAND ? ISLAND_REACH : FIORD_REACH
                 featureTint = 1 - smoothstep(0, reach, memberDistance)
               }
-              targetTint = Math.max(targetTint, featureTint)
+              markTint = Math.max(markTint, featureTint)
             }
           }
-          plateLayer.targetTint[i] = targetTint
+          plateLayer.targetTint[i] = markTint > 0 ? markTint : washLift
           plateLayer.tint[i] = 0
           d.terrainPointIndex++
         }
@@ -1978,20 +2074,23 @@ export function Globe({
         d.terrainPointIndex = 0
         d.startYaw = group.rotation.y
         d.startTilt = group.rotation.x
-        const rawYaw = Math.atan2(cluster.centroid[2], cluster.centroid[0]) - Math.PI / 2
+        /* The steer and the table both aim at the fitted frame centre, so the
+           composition the fit solved for is the one that arrives on screen. */
+        applyPlateFrame(clusterIndex)
+        const rawYaw = Math.atan2(d.center[2], d.center[0]) - Math.PI / 2
         const yawDiff = Math.atan2(
           Math.sin(rawYaw - group.rotation.y),
           Math.cos(rawYaw - group.rotation.y)
         )
         d.sphereYaw = group.rotation.y + yawDiff
-        const latitude = (cluster.centroidLatLng[0] * Math.PI) / 180
+        const latitude = (d.centerLat * Math.PI) / 180
         d.sphereTilt = THREE.MathUtils.clamp(latitude, -0.62, 0.62) - PRESENT_BIAS
-        d.plateYaw = d.sphereYaw + TABLE_YAW
-        d.plateTilt = latitude - CAMERA_ELEVATION - TABLE_TILT
+        d.plateYaw = d.sphereYaw + PLATE_TABLE_YAW
+        d.plateTilt = latitude - PLATE_CAMERA_ELEVATION - PLATE_TABLE_TILT
         d.panYaw = 0
-        d.panTilt = LANDED_SAFE_PAN_TILT
+        d.panTilt = PLATE_LANDED_PAN_TILT
         d.panTargetYaw = 0
-        d.panTargetTilt = LANDED_SAFE_PAN_TILT
+        d.panTargetTilt = PLATE_LANDED_PAN_TILT
         activeRef.current = -1
         if (!cluster.congestedSingleton) selectedRef.current = -1
 
@@ -2514,8 +2613,16 @@ export function Globe({
           sphere 2 across, so the globe was being cut off top and bottom by its
           own frustum. z = 4.6 gives 2.64, i.e. the sphere plus ~30% air for the
           pin cards to sit in. */}
-      <PerspectiveCamera makeDefault position={[0, 0.3, 4.6]} fov={32} />
-      <group ref={groupRef} rotation={[0.22, 0, 0.05]}>
+      {/* Position and fov come from plate.ts, which is also where the fit reads
+          them: the landing frame IS this frustum seen through this pose, and a
+          camera that disagrees with the fit by a millimetre is a composition
+          that disagrees with it by a third of a screen. */}
+      <PerspectiveCamera
+        makeDefault
+        position={[...PLATE_CAMERA_POSITION]}
+        fov={PLATE_CAMERA_FOV_DEGREES}
+      />
+      <group ref={groupRef} rotation={[0.22, 0, PLATE_GROUP_ROLL]}>
         {/* The body. It exists to write depth, so that everything on the far
             side fails the depth test and disappears. Without it the shell is
             transparent and you read Africa through the Pacific, which was

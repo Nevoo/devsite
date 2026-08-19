@@ -760,6 +760,31 @@ body.lightbox-open {
   text-shadow: 0 2px 18px rgba(12, 12, 15, 0.68);
 }
 
+/* The landed meta line is two fields, not one sentence: which places are under
+   the cap, and how many of each. A dash between them was punctuation doing a
+   layout job (and a dash this site does not write), so the gap does it — the
+   member list and the count readout are siblings with air between them. */
+.hero-title-sub-selection {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1.4em;
+  white-space: nowrap;
+}
+
+/* a congested singleton is its own member list, and the title already said it:
+   the span goes empty and leaves the row rather than leaving a gap behind */
+.hero-title-sub-members:empty {
+  display: none;
+}
+
+.hero-title-sub-counts {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+
 .hero-title-sub {
   position: relative;
   margin: 1em 0 0;
@@ -1271,26 +1296,41 @@ body.lightbox-open {
   will-change: transform, opacity;
 }
 
+/* The cap's counts, in the instrument register and nothing else.
+   This was a bordered, filled panel with `4 places · 24 frames` sitting inside
+   it, which is a notification badge whatever colour it is filled with — the
+   exact shape P3 forbids at BOTH scales, and the one the plate's stack
+   captions had already stopped using (CONCEPT-COUNTRY-ZOOM-V2 §2.6, §6).
+   What is left is type: the scarlet dot marks where the cap is, the line
+   reads `4 places · [ 24 ]` with the digit in accent, and legibility over the
+   dot field comes from a shadow rather than a plate. Still a real button —
+   the global focus ring (bottom of this file) finds it, hover and focus lift
+   the whole line into accent, and the dot's halo opens with them. */
 .globe-cluster-chip {
   position: absolute;
   left: 0;
   bottom: 0;
   margin: 0;
-  padding: 0.5rem 0.65rem 0.48rem 1.55rem;
-  border: 1px solid rgba(244, 239, 233, 0.28);
-  border-radius: 2px;
-  background: rgba(16, 16, 19, 0.9);
+  padding: 0.12rem 0 0.12rem 0.95rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
   color: var(--text);
   white-space: nowrap;
+  /* the knockout the plate used to do, done with light instead of a box */
+  text-shadow:
+    0 0 3px rgba(12, 12, 15, 0.95),
+    0 1px 9px rgba(12, 12, 15, 0.9);
   transform: translate(-50%, 0);
   cursor: pointer;
   pointer-events: auto;
+  transition: color 0.25s ease;
 }
 
 .globe-cluster-chip::before {
   content: '';
   position: absolute;
-  left: 0.7rem;
+  left: 0.1rem;
   top: 50%;
   width: 5px;
   height: 5px;
@@ -1298,11 +1338,17 @@ body.lightbox-open {
   background: var(--accent);
   box-shadow: 0 0 0 3px rgba(255, 45, 26, 0.16);
   transform: translateY(-50%);
+  transition: box-shadow 0.25s ease;
 }
 
 .globe-cluster-chip:hover,
 .globe-cluster-chip:focus-visible {
-  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.globe-cluster-chip:hover::before,
+.globe-cluster-chip:focus-visible::before {
+  box-shadow: 0 0 0 5px rgba(255, 45, 26, 0.24);
 }
 
 /* The waypoint layer: flown-through cities as instrument-register labels.
@@ -1404,6 +1450,10 @@ body.lightbox-open {
   height: 0;
   will-change: transform, opacity;
   transition: none;
+  /* the rAF loop writes this per pin when a plate label would collide with the
+     hero title; it lives on the pin so the label AND the stack's caption, which
+     stand in the same place at different scales, are both covered by one write */
+  --label-safe-opacity: 1;
   /* Starts hidden, and this is load-bearing. The rAF loop writes both the
      transform and the opacity, but it cannot write anything until the lazy 3D
      chunk has mounted and reported a first projection. Defaulting to opacity 1
@@ -1466,12 +1516,13 @@ body.lightbox-open {
 }
 
 /* the hand: the square every card of this place lives in, stacked at rest,
-   fanned when the place is selected */
+   fanned when the place is selected. At plate scale the same square grows
+   into a 3:2 print — see "the plate-scale print stack" below. */
 .globe-pickup-hand {
   position: relative;
   display: block;
-  width: 3.4rem;
-  height: 3.4rem;
+  width: var(--print-world-size);
+  height: var(--print-world-size);
   transition: scale 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1546,17 +1597,11 @@ body.lightbox-open {
   scale: 1.15;
 }
 
-/* Return does not launch a CSS clock. The same plate-presence scalar that
-   unwraps the scene closes the hand positionally, landing on each card's
-   original loose-stack jitter on the final world frame. */
-.globe-frame[data-phase='return'] .globe-pin-selected .globe-pickup-card {
-  rotate: calc(
-    var(--jitter) * 1deg * (1 - var(--plate-presence)) +
-    (var(--i) - (var(--n) - 1) / 2) * 20deg * var(--plate-presence)
-  );
-  scale: calc(1 + 0.15 * var(--plate-presence));
-  transition: none;
-}
+/* (The fan is a WORLD-scale grammar only now. What used to close it on the
+   way back out — a return-phase interpolation off --plate-presence — still
+   exists, generalised: it lives in the print-stack block below and runs
+   across the dive, the plate and the return, folding the arc into a stack of
+   prints on the way down and dealing it back out on the way up.) */
 
 /* The pop rides the IMAGE, never the button. The image is pointer-events:
    none, so the hit geometry under the pointer stays exactly where it was —
@@ -1589,31 +1634,11 @@ body.lightbox-open {
   animation-play-state: paused;
 }
 
-/* the cards themselves are the count once they're spread */
-.globe-pin-selected .globe-pickup-count {
-  opacity: 0;
-}
-
-.globe-pickup-count {
-  position: absolute;
-  z-index: 20;
-  top: -0.45rem;
-  right: -0.45rem;
-  transition: opacity 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 0.3rem;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 700;
-  line-height: 1;
-}
+/* No .globe-pickup-count any more. A filled scarlet pill with a bare number
+   in it is a notification alert, not a count of photographs, and it was the
+   loudest thing on the plate (CONCEPT-COUNTRY-ZOOM-V2 §6, "no shape ever
+   contains a number"). The count lives in typography at both scales now: the
+   pickup's own meta line at world scale, the stack caption at plate scale. */
 
 .globe-dive-count {
   position: absolute;
@@ -1632,7 +1657,6 @@ body.lightbox-open {
 /* the label hangs below the dot and only speaks when addressed: hovered,
    presented by the tour, or tapped */
 .globe-pickup-label {
-  --label-safe-opacity: 1;
   position: absolute;
   top: calc(100% + 0.4rem);
   left: 50%;
@@ -1679,6 +1703,216 @@ body.lightbox-open {
   letter-spacing: 0.1em;
   color: var(--text-muted);
   text-shadow: 0 1px 8px rgba(12, 12, 15, 0.85);
+}
+
+/* ---------- the plate-scale print stack ---------- */
+
+/* At world scale a pickup is a map chip: a thumbnail hand you fan open. On the
+   landed plate it is the subject, so it becomes what it depicts — a stack of
+   photographic prints laid on the table, top print about a ninth of the
+   viewport tall, two or three prints peeking out beneath it (CONCEPT-COUNTRY-
+   ZOOM-V2 §6, figure layer 2). The v1 plate rendered the same 3.4rem chips at
+   the same size it uses on the globe, which is how the photographs ended up
+   as 2.1% of the frame on the cap they were supposed to be about.
+
+   Every rule below interpolates on --plate-presence and is the identity at
+   presence 0, which is why they are scoped to the three non-world phases
+   rather than to 'plate' alone: the growth then rides the landing and unwinds
+   on the way out instead of snapping at the phase flips. No CSS clock touches
+   any of it — the scalar is written per frame by the rAF loop. */
+.globe-frame {
+  /* the thumbnail hand, as a token, so the plate can interpolate out of it */
+  --print-world-size: 3.4rem;
+  /* concept §6: top print 10–12vh tall, 3:2 */
+  --print-plate-h: 11vh;
+  --print-plate-w: 16.5vh;
+  /* the outer bound of the under-print scatter — prints under a print (±2–4°),
+     not a hand of cards */
+  --print-scatter: 4deg;
+  /* a print's corner is nearly square; the chip's 0.55rem is an app icon at
+     this size */
+  --print-radius: 3px;
+}
+
+.globe-frame[data-phase='dive'] .globe-pickup-hand,
+.globe-frame[data-phase='plate'] .globe-pickup-hand,
+.globe-frame[data-phase='return'] .globe-pickup-hand {
+  width: calc(
+    var(--print-world-size) +
+    (var(--print-plate-w) - var(--print-world-size)) * var(--plate-presence, 0)
+  );
+  height: calc(
+    var(--print-world-size) +
+    (var(--print-plate-h) - var(--print-world-size)) * var(--plate-presence, 0)
+  );
+  transition:
+    scale 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    translate 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* THE STACK, not the fan. The under-prints keep the resting pile's --jitter
+   so the scatter stays per-card, but clamped to ±4° and rotated about their
+   own centres instead of the hand-pivot 240% below — a pile of prints turns
+   on the table, it does not deal out of a palm. transform-origin interpolates
+   too, or the pivot swap alone would shift every jittered card sideways at
+   the world→dive flip. */
+.globe-frame[data-phase='dive'] .globe-pickup-card,
+.globe-frame[data-phase='plate'] .globe-pickup-card,
+.globe-frame[data-phase='return'] .globe-pickup-card {
+  transform-origin: 50% calc(240% - 190% * var(--plate-presence, 0));
+  rotate: calc(
+    var(--jitter) * 1deg * (1 - var(--plate-presence, 0)) +
+    clamp(calc(-1 * var(--print-scatter)), calc(var(--jitter) * 0.45deg), var(--print-scatter)) *
+      var(--plate-presence, 0)
+  );
+  scale: 1;
+  translate:
+    calc(var(--i) * 0.6% * var(--plate-presence, 0))
+    calc(var(--i) * 0.8% * var(--plate-presence, 0));
+  border-radius: calc(
+    0.55rem + (var(--print-radius) - 0.55rem) * var(--plate-presence, 0)
+  );
+  transition: none;
+}
+
+/* A hand that was ALREADY fanned when the dive began — the congested
+   singleton's, the only spread that survives into a dive — folds shut on the
+   same scalar instead of snapping at the phase flip, and deals itself back
+   open on the way out. Return does not launch a CSS clock, and neither does
+   the descent: one value drives both directions. */
+.globe-frame[data-phase='dive'] .globe-pin-selected .globe-pickup-card,
+.globe-frame[data-phase='plate'] .globe-pin-selected .globe-pickup-card,
+.globe-frame[data-phase='return'] .globe-pin-selected .globe-pickup-card {
+  rotate: calc(
+    (var(--i) - (var(--n) - 1) / 2) * 20deg * (1 - var(--plate-presence, 0)) +
+    clamp(calc(-1 * var(--print-scatter)), calc(var(--jitter) * 0.45deg), var(--print-scatter)) *
+      var(--plate-presence, 0)
+  );
+  scale: calc(1.15 - 0.15 * var(--plate-presence, 0));
+}
+
+/* the print's edge: a bone hairline that comes up as the print grows, and a
+   shadow that lengthens with it because a bigger print sits higher off the
+   table.
+
+   :where() on the phase, and that is load-bearing. Written plainly this
+   selector scores 0-3-1 — the same as `.globe-pin-active .globe-pickup-card
+   :first-child img` above and later in the file, so it won on source order and
+   silently ate the tour's accent ring for the whole dive/plate/return stretch:
+   the one place the ring matters most is where it disappeared. :where()
+   contributes nothing to specificity, so this drops to 0-2-1, the active ring
+   and the selected edge both outrank it again, and the phase scoping still
+   does its job. Every value below is the identity at presence 0, alpha
+   included (0.45 is the world rule's shadow exactly, not 0.5), so a print at
+   world scale is untouched by this rule whether it wins or loses. */
+.globe-frame:where([data-phase='dive'], [data-phase='plate'], [data-phase='return'])
+  .globe-pickup-card
+  img {
+  border-color: rgba(244, 239, 233, calc(0.3 + 0.42 * var(--plate-presence, 0)));
+  box-shadow:
+    0 calc(6px + 10px * var(--plate-presence, 0)) calc(18px + 20px * var(--plate-presence, 0))
+    rgba(0, 0, 0, calc(0.45 + 0.05 * var(--plate-presence, 0)));
+}
+
+/* Three under-prints peek; the rest of the pile is inside it. A 15-frame
+   place shows a stack of four and says fifteen in its caption — the sheet
+   that spreads the other eleven is a later stage, and until it exists a
+   wreath of fifteen thumbnails is not an improvement on a closed stack.
+   They stay in the tab order and in the DOM order (nothing here is inert);
+   a keyboard visitor who tabs into one gets it back on screen. */
+.globe-frame[data-phase='dive'] .globe-pickup-card:nth-child(n + 5),
+.globe-frame[data-phase='plate'] .globe-pickup-card:nth-child(n + 5),
+.globe-frame[data-phase='return'] .globe-pickup-card:nth-child(n + 5) {
+  opacity: calc(1 - var(--plate-presence, 0));
+}
+
+.globe-frame[data-phase='plate'] .globe-pickup-card:nth-child(n + 5) {
+  pointer-events: none;
+}
+
+.globe-frame[data-phase='plate'] .globe-pickup-card:nth-child(n + 5):focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 40;
+}
+
+/* Selection at plate scale lifts and marks the stack; it does not spread it.
+   The click plumbing is untouched — the top print still opens FramePop, and
+   FramePop still steps through every frame the place holds. The hover grow
+   comes down with it: 1.12 was written for a 3.4rem chip, and at print size
+   it walks the stack off the edge of the table the clamp reserved for it. */
+.globe-frame[data-phase='plate'] .globe-pickup:hover .globe-pickup-hand,
+.globe-frame[data-phase='plate'] .globe-pin-active .globe-pickup-hand,
+.globe-frame[data-phase='plate'] .globe-pin-selected .globe-pickup-hand {
+  scale: 1.04;
+}
+
+.globe-frame[data-phase='plate'] .globe-pin-selected .globe-pickup-hand {
+  translate: 0 -0.8vh;
+}
+
+.globe-frame[data-phase='plate'] .globe-pin-selected .globe-pickup-card:first-child img {
+  border-color: var(--accent);
+}
+
+/* the hover pop, print-scaled: 1.3× and 0.85rem were written for a 3.4rem
+   chip and throw a 16vh print halfway across the table */
+.globe-frame[data-phase='plate'] .globe-pickup-card:hover img,
+.globe-frame[data-phase='plate'] .globe-pickup-card:focus-visible img {
+  translate: 0 -0.5vh;
+  scale: 1.02;
+  border-color: var(--accent);
+}
+
+/* one line per stack, and the caption is it: the label the pickup used to
+   whisper on hover is redundant under a print that names itself */
+.globe-frame[data-phase='plate']
+  .globe-pickup:hover
+  .globe-pickup-label:not(.globe-pickup-label-bare),
+.globe-frame[data-phase='plate']
+  .globe-pin-active
+  .globe-pickup-label:not(.globe-pickup-label-bare),
+.globe-frame[data-phase='plate']
+  .globe-pin-selected
+  .globe-pickup-label:not(.globe-pickup-label-bare) {
+  opacity: 0;
+}
+
+/* the dive count is a world-scale invitation ("[ 15 frames ]", under a
+   congested singleton). On the plate the caption says the same thing better */
+.globe-frame[data-phase='dive'] .globe-dive-count,
+.globe-frame[data-phase='plate'] .globe-dive-count,
+.globe-frame[data-phase='return'] .globe-dive-count {
+  opacity: calc(0.58 * (1 - var(--plate-presence, 0)));
+}
+
+/* THE CAPTION: `vienna, at · to the town · [ 2 ]`. What the stack is, how
+   well the site knows where it was made, and how many prints are in it —
+   the count as type, in the same register as the rail and the slate.
+   Label-lagged behind its own ground the way the pins are, and lagged again
+   per stack so three captions do not arrive on one frame. The lag is carried
+   by the presence scalar rather than a transition-delay: --plate-presence is
+   rewritten every frame, and a delay would smear the value instead of
+   holding the line back. */
+.globe-print-caption {
+  position: absolute;
+  top: calc(100% + 1.1rem);
+  left: 50%;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  text-shadow: 0 1px 8px rgba(12, 12, 15, 0.85);
+  opacity: calc(
+    (var(--plate-presence, 0) - 0.6 - var(--caption-lag, 0)) * 4 * var(--label-safe-opacity, 1)
+  );
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* brackets muted with the rest of the line, digits in accent — the .index-mark
+   recipe, applied where a shape used to hold the number */
+.globe-print-count-num {
+  color: var(--accent);
 }
 
 /* Shown until an outing has coordinates. The cameras have no GPS, so this is
@@ -2516,10 +2750,12 @@ body.drench .site-footer .ticker {
     margin-left: 0;
   }
 
-  /* The 15-frame country hand spans almost a full circle. At plate scale the
-     anchor stays honest while the hand scales as one object to clear a phone. */
-  .globe-frame[data-phase='plate'] .globe-pin-selected .globe-pickup-hand {
-    scale: 0.72;
+  /* The prints are sized off viewport height, and a phone held upright is
+     narrow rather than short: 16.5vh of width is most of the screen. The
+     stack steps down a size so three of them can sit on the same table. */
+  .globe-frame {
+    --print-plate-h: 8vh;
+    --print-plate-w: 12vh;
   }
 
   .cursor {
