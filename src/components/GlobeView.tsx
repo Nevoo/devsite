@@ -3,6 +3,7 @@ import { View } from '@react-three/drei'
 import {
   Globe,
   type GlobeCluster,
+  type GlobePointer,
   type PinProjection,
   type ScaleState,
 } from '@/canvas/Globe'
@@ -27,6 +28,8 @@ interface GlobeViewProps {
   scaleRef: { current: ScaleState }
   enterRef: { current: number }
   exitRef: { current: boolean }
+  pointerRef?: { current: GlobePointer }
+  hoverCountryRef?: { current: number }
 }
 
 /**
@@ -54,6 +57,8 @@ export default function GlobeView({
   scaleRef,
   enterRef,
   exitRef,
+  pointerRef,
+  hoverCountryRef,
 }: GlobeViewProps) {
   return (
     <View className="gl-view">
@@ -75,6 +80,8 @@ export default function GlobeView({
           scaleRef={scaleRef}
           enterRef={enterRef}
           exitRef={exitRef}
+          pointerRef={pointerRef}
+          hoverCountryRef={hoverCountryRef}
         />
       </Suspense>
     </View>

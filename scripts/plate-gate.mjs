@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { decodeBorders } from '../src/canvas/borders.ts'
 import { clusters, lonePlaceSlugs } from '../src/content/clusters.ts'
 import { places } from '../src/content/places.ts'
+import { decodeTerrain } from '../src/content/terrain.ts'
 import {
   BORDER_POINT_BUDGET,
   BORDER_SPACING_PITCHES,
@@ -19,12 +20,21 @@ import {
   MIN_PIN_SEPARATION,
   MIN_PLATE_TERRAIN_POINTS,
   MIN_SPREAD,
+  PLATE_CAMERA_POSITION,
   PLATE_GRID_CAPACITY,
+  PLATE_LANDED_PAN_TILT,
+  PLATE_LIGHT_ELEVATION,
+  PLATE_LIGHT_FRAME_AZIMUTH,
+  PLATE_RELIEF_AMBIENT,
+  PLATE_RELIEF_EXAGGERATION,
   PLATE_SAMPLE_MARGIN,
+  PLATE_SHADE_FLOOR,
+  PLATE_TABLE_TILT,
   PLATE_TERRAIN_CAPACITY,
   PRINT_MARGIN_FRACTION,
   SPREAD_MAX,
   TARGET_PLATE_RADIUS,
+  TERRAIN_ELEVATION_CEILING_M,
   TITLE_BAND_FRACTION,
   ZOOM_FLOOR_SPAN,
   angularDistanceVec3,
@@ -32,12 +42,15 @@ import {
   latLngToVec3,
   plateBasis,
   plateBorderSpacing,
+  plateFrameLight,
   plateFramePosition,
   plateFromLocal,
   plateGridBudget,
+  plateHillshade,
   plateLocal,
   plateProject,
   plateTerrainBudget,
+  plateTerrainSlopeInto,
   plateUnproject,
   plateUsableRect,
   precisionReach,
@@ -545,6 +558,240 @@ console.log('\nGermany cap: v1 centred cap vs v2 fitted frame')
     `(target ${(BOX_FILL_TARGET * 100).toFixed(0)}%), ` +
     `${(after.boxFill * 100).toFixed(0)}% of the visible window's`
   )
+}
+
+/* ---------- the lamp (stage C) ----------
+
+   Relief ships as illumination, not as size (§2.4, R1), and P5 is the test that
+   decides whether it shipped at all: a flat cap and an alpine cap must be
+   distinguishable at a glance. That is a stills judgement, but it has a
+   measurable precondition, and this is it — the gate decodes the SHIPPED
+   terrain.bin, lights it with the SHIPPED lamp through the SHIPPED functions,
+   and reads the shade distribution over named boxes of real ground.
+
+   Two questions, per landed window:
+     1. does the alpine box actually range, and by more than the flat one?
+     2. does the flat box stay EVEN — §6's honest farmland, not amplified
+        quantization noise?
+   A lamp that fails 1 is invisible; a lamp that fails 2 is a noise machine, and
+   the second failure is the quieter one, which is why it has its own bound. */
+
+const terrainPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'public',
+  'terrain.bin'
+)
+let terrain
+try {
+  const file = readFileSync(terrainPath)
+  terrain = decodeTerrain(
+    file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength)
+  )
+} catch (error) {
+  console.error(`FAIL relief asset: cannot decode ${terrainPath}`)
+  throw error
+}
+
+const cellLat = 180 / terrain.height
+const cellLng = 360 / terrain.width
+const elevationMetres = (lat, lng) =>
+  terrain.elevationAt(lat, lng) * TERRAIN_ELEVATION_CEILING_M
+
+/* Named ground, not sampled windows. A whole window is mostly landform nobody
+   argues about; these are the two the concept names — the flat north the plate
+   must render calmly, and the alpine arc it must render as light. Boxes are
+   [minLat, maxLat, minLng, maxLng] and deliberately inland, so a coastline's
+   own step is not what the flat box ends up measuring. */
+const RELIEF_BOXES = {
+  /* lüneburg heath → mecklenburg: the flattest large inland box in germany's window */
+  'north german plain': { kind: 'flat', box: [52.2, 53.6, 8.5, 12.5] },
+  /* bavarian + tyrolean alps, the arc that has to read as light */
+  'alpine arc': { kind: 'alpine', box: [46.4, 47.6, 10.0, 13.0] },
+  /* ashburton → christchurch, inland of the coast and short of the foothills */
+  'canterbury plains': { kind: 'flat', box: [-44.05, -43.45, 171.6, 172.4] },
+  /* aoraki and its divide */
+  'southern alps': { kind: 'alpine', box: [-44.2, -43.2, 169.4, 170.9] },
+}
+
+const RELIEF_WINDOWS = [
+  { slug: 'germany', flat: 'north german plain', alpine: 'alpine arc' },
+  { slug: 'milford-sound', flat: 'canterbury plains', alpine: 'southern alps' },
+]
+
+/** A plain may not range further than this, or the lamp is amplifying noise. */
+const EVEN_GROUND_SPREAD = 0.06
+/** …and the alpine arc must out-range the plain by at least this much (P5). */
+const RELIEF_CONTRAST_RATIO = 2
+
+/**
+ * Shade over every land cell of a box, under one window's lamp.
+ * `slopeGain` is the perturbation hook: at 0 the lambert term is fed flat
+ * ground everywhere, which is what the negative control below runs.
+ */
+const shadeStats = (name, light, slopeGain = 1) => {
+  const [minLat, maxLat, minLng, maxLng] = RELIEF_BOXES[name].box
+  const slope = new Float64Array(2)
+  const shades = []
+  let elevationSum = 0
+  for (let lat = minLat; lat <= maxLat; lat += cellLat) {
+    for (let lng = minLng; lng <= maxLng; lng += cellLng) {
+      if (!terrain.landAt(lat, lng)) continue
+      plateTerrainSlopeInto(lat, lng, cellLat, cellLng, elevationMetres, slope)
+      shades.push(plateHillshade(slope[0] * slopeGain, slope[1] * slopeGain, light))
+      elevationSum += elevationMetres(lat, lng)
+    }
+  }
+  shades.sort((a, b) => a - b)
+  const at = (p) => shades[Math.min(shades.length - 1, Math.floor(p * shades.length))]
+  return {
+    name,
+    cells: shades.length,
+    meanElevation: shades.length ? elevationSum / shades.length : 0,
+    min: shades[0] ?? 0,
+    max: shades[shades.length - 1] ?? 0,
+    p5: at(0.05),
+    p50: at(0.5),
+    p95: at(0.95),
+    get spread() {
+      return this.p95 - this.p5
+    },
+  }
+}
+
+/** what the fragment does with a shade, before any mark or wash */
+const brightness = (shade) => PLATE_SHADE_FLOOR + (1 - PLATE_SHADE_FLOOR) * shade
+
+/**
+ * The gradient relief has to out-shout, measured rather than assumed: the rake
+ * carries the far edge of the table further from the camera than the near one,
+ * so the same ground draws with a smaller footprint up there. This is that
+ * ratio, near edge over far edge, per window — the "36° perspective gradient"
+ * of P5, in a number.
+ */
+const rakeGradient = (frame) => {
+  const rake = PLATE_TABLE_TILT - PLATE_LANDED_PAN_TILT
+  const distance = Math.hypot(PLATE_CAMERA_POSITION[1], PLATE_CAMERA_POSITION[2])
+  const reach = (frame.frameHeight / 2) * Math.sin(rake)
+  return (distance + reach) / Math.max(1e-6, distance - reach)
+}
+
+try {
+  console.log(
+    `\nThe lamp — ${terrain.width}×${terrain.height} grid, ` +
+    `${(cellLat * 111.32).toFixed(1)}km cells, azimuth ` +
+    `${Math.round((PLATE_LIGHT_FRAME_AZIMUTH * 180) / Math.PI)}° in the FRAME ` +
+    `(upper left), elevation ${Math.round((PLATE_LIGHT_ELEVATION * 180) / Math.PI)}°, ` +
+    `ambient ${PLATE_RELIEF_AMBIENT}, exaggeration ${PLATE_RELIEF_EXAGGERATION}×, ` +
+    `shade floor ${PLATE_SHADE_FLOOR}`
+  )
+  for (const window of RELIEF_WINDOWS) {
+    const cluster = clusters.find((candidate) => candidate.memberSlugs.includes(window.slug))
+    const frame = fitPlateFrame(frameMembers(cluster))
+    const light = plateFrameLight(frame.view)
+    /* The lamp is fixed in FRAME space, so its compass bearing is whatever the
+       table's yaw and rake make of "upper left" — printed because a bearing
+       that drifts between caps is the thing this design is buying. */
+    const bearing = ((Math.atan2(light.east, light.north) * 180) / Math.PI + 360) % 360
+    const gradient = rakeGradient(frame)
+    console.log(
+      `\n${cluster.memberSlugs.join(', ')} — spread ${frame.spread.toFixed(2)}, ` +
+      `${Math.round(frame.groundSpan * 6371)}km across; lamp bears ` +
+      `${bearing.toFixed(0)}° true (east ${light.east.toFixed(2)}, north ` +
+      `${light.north.toFixed(2)}, up ${light.up.toFixed(2)}); rake gradient ` +
+      `${gradient.toFixed(2)}×`
+    )
+    console.log(
+      'box                  | cells | mean m |    p5 |   p50 |   p95 | spread | value near→far'
+    )
+    const rows = [window.flat, window.alpine].map((name) => shadeStats(name, light))
+    for (const row of rows) {
+      console.log([
+        row.name.padEnd(20),
+        pad(row.cells, 5),
+        pad(Math.round(row.meanElevation), 6),
+        pad(row.p5.toFixed(3), 5),
+        pad(row.p50.toFixed(3), 5),
+        pad(row.p95.toFixed(3), 5),
+        pad(row.spread.toFixed(3), 6),
+        `${(brightness(row.p95) / brightness(row.p5)).toFixed(2)}×`,
+      ].join(' | '))
+    }
+    const [flat, alpine] = rows
+
+    for (const row of [flat, alpine]) {
+      assert.ok(
+        row.cells > 0,
+        `${window.slug}: the ${row.name} box holds no land — the box moved off its ground`
+      )
+      assert.ok(
+        row.min >= 0 && row.max <= 1,
+        `${window.slug}: ${row.name} shade escaped [0, 1] at ` +
+        `${row.min.toFixed(3)}…${row.max.toFixed(3)}`
+      )
+    }
+
+    /* P5, as a precondition. The alpine box has to range further than the plain
+       by a clear factor, or the two caps are the same still. */
+    assert.ok(
+      alpine.spread >= RELIEF_CONTRAST_RATIO * flat.spread,
+      `${window.slug}: ${alpine.name} ranges ${alpine.spread.toFixed(3)} against ` +
+      `${flat.name}'s ${flat.spread.toFixed(3)} — under the ` +
+      `${RELIEF_CONTRAST_RATIO}× the lamp has to make an alpine cap read by. ` +
+      `Raise PLATE_RELIEF_EXAGGERATION or lower the lamp.`
+    )
+    /* …and it has to beat the tilt's own gradient in VALUE, which is the
+       condition §6 states. Brightness alone here: the fill alpha ladder widens
+       the same range further, and a gate that counted it would be claiming
+       credit twice. */
+    const valueRatio = brightness(alpine.p95) / brightness(alpine.p5)
+    assert.ok(
+      valueRatio >= gradient,
+      `${window.slug}: the lamp moves ${alpine.name}'s value by ${valueRatio.toFixed(2)}×, ` +
+      `under the rake's own ${gradient.toFixed(2)}× perspective gradient — relief would ` +
+      `read as tilt. Lower PLATE_SHADE_FLOOR or raise PLATE_RELIEF_EXAGGERATION.`
+    )
+    /* Even ground is the honest rendering of farmland (§6). A plain that
+       ranges is the lamp amplifying 50m quantization steps. */
+    assert.ok(
+      flat.spread <= EVEN_GROUND_SPREAD,
+      `${window.slug}: ${flat.name} ranges ${flat.spread.toFixed(3)}, past the ` +
+      `${EVEN_GROUND_SPREAD} that keeps flat ground even — the lamp is amplifying ` +
+      `the grid's 50m steps, not lighting terrain`
+    )
+  }
+
+  /* The negative control, run every time rather than once by hand: with the
+     lambert term fed flat ground, the alpine box must FAIL the contrast assert
+     above. An assertion that cannot fail is a comment. */
+  {
+    const cluster = clusters.find((candidate) => candidate.memberSlugs.includes('germany'))
+    const frame = fitPlateFrame(frameMembers(cluster))
+    const light = plateFrameLight(frame.view)
+    const flattened = shadeStats('alpine arc', light, 0)
+    const lit = shadeStats('alpine arc', light, 1)
+    assert.ok(
+      flattened.spread < RELIEF_CONTRAST_RATIO * EVEN_GROUND_SPREAD &&
+        brightness(flattened.p95) / brightness(flattened.p5) < rakeGradient(frame),
+      `the perturbation control passed: with the lambert term zeroed the alpine arc ` +
+      `still ranges ${flattened.spread.toFixed(3)} — the relief asserts are not ` +
+      `measuring the lamp`
+    )
+    console.log(
+      `\nperturbation control: slopes zeroed → alpine arc spread ` +
+      `${flattened.spread.toFixed(3)} (lit: ${lit.spread.toFixed(3)}), value ` +
+      `${(brightness(flattened.p95) / brightness(flattened.p5)).toFixed(2)}× — the ` +
+      `asserts above fail on it, as they must`
+    )
+  }
+  console.log(
+    `PASS relief: alpine ground out-ranges flat ground past ${RELIEF_CONTRAST_RATIO}× ` +
+    `and past the rake, flat ground stays inside ${EVEN_GROUND_SPREAD}, ` +
+    `all shade in [0, 1]`
+  )
+} catch (error) {
+  console.error('FAIL relief')
+  throw error
 }
 
 console.log('\nClusters')

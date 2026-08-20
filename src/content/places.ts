@@ -401,6 +401,18 @@ export const places: Place[] = [...photographed, ...route]
 /** the places that actually hold photographs — the projection panel's tray */
 export const placesWithFrames = places.filter((p) => p.frames.length > 0)
 
+/**
+ * ISO-3166 alpha-2 country of a place, parsed from its label's final comma
+ * segment ('bromo, east java, id' → 'ID'). The label is the single source of
+ * country identity on purpose: a separate field would be a second place for
+ * the same fact to rot. Returns null when the suffix is not a 2-letter code —
+ * no such place exists today, and the country grouping treats one as loose.
+ */
+export const countryOf = (place: Place): string | null => {
+  const tail = place.label.split(',').at(-1)?.trim() ?? ''
+  return /^[a-z]{2}$/i.test(tail) ? tail.toUpperCase() : null
+}
+
 /* The arc layer no longer derives from this file: the legs the globe draws
    are the real flights in flights.ts, airport to airport, not a chain drawn
    through the route stops. This sheet stays the authority on WHERE the work

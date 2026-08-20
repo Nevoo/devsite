@@ -1915,6 +1915,183 @@ body.lightbox-open {
   color: var(--accent);
 }
 
+/* ---------- the contact sheet ---------- */
+
+/* THE SURVEY OBJECT (CONCEPT-COUNTRY-ZOOM-V2 §6 figure layer 3, R7). Fifteen
+   frames at one anchor is not a fan — an arc built for 3–5 cards turns fifteen
+   into a wreath of wedges, which is exactly what v1 shipped and what §2.1
+   indicts. A contact sheet is the grammar the problem already has an answer
+   for: uniform undistorted frames, all of them visible at once, edge numbers
+   down the strip, marks in grease pencil.
+
+   Everything about its POSITION is written by the layout solver
+   (plateLayout.ts) in screen space: this file only says what a sheet looks
+   like, never where it goes. And it is an object on the table, so there is no
+   panel here — no fill, no border, no card. The grid is the object. */
+.globe-sheet-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.globe-sheet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 4px; /* SHEET_PAD in plateLayout.ts — the two must agree */
+  /* .globe-frame-live takes no pointer events; the frames inside do */
+  pointer-events: auto;
+}
+
+/* A sheet ARRIVES at its place (the frames glide in from their stack, which is
+   the develop below); it does not fly in from the corner of the frame. So the
+   position transition is added one frame after the first placement, and from
+   then on a re-solve — a pan, a resize, a different stack spread — glides it to
+   its new pocket instead of teleporting it. Transform only: animating left/top
+   would relayout a fifteen-image grid every frame. */
+.globe-sheet-settled {
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.globe-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--sheet-cols, 5), calc(var(--sheet-frame-h, 9.5vh) * 1.5));
+  gap: 4px; /* SHEET_GAP */
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* THE DEVELOP. Same discipline as the stack captions: no CSS clock anywhere in
+   it. --sheet-presence is rewritten every frame by the rAF loop (and already
+   carries --plate-presence inside it), --frame-lag is a per-frame constant, and
+   the ramp between them is what staggers fifteen prints into the grid instead
+   of switching them on together. A transition or a keyframe would restart
+   itself on every re-render; this cannot. */
+.globe-sheet-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  --frame-p: clamp(0, (var(--sheet-presence, 0) - var(--frame-lag, 0)) * 3.4, 1);
+  /* opacity clamps itself, so the unclamped ramp is safe here and is the same
+     expression the caption uses */
+  opacity: calc((var(--sheet-presence, 0) - var(--frame-lag, 0)) * 3.4);
+  /* the glide: each print arrives from the direction of its own stack */
+  translate: calc(var(--glide-x, 0px) * (1 - var(--frame-p)))
+    calc(var(--glide-y, 0px) * (1 - var(--frame-p)));
+}
+
+.globe-sheet-frame {
+  display: block;
+  width: 100%;
+  height: var(--sheet-frame-h, 9.5vh);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--print-radius);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.globe-sheet-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  border: 1px solid rgba(244, 239, 233, 0.34);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition:
+    border-color 0.25s ease,
+    translate 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    scale 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none; /* the button is the hit target, not the image */
+}
+
+/* the same hover the prints get, one size down: the frame lifts a little off
+   the sheet and takes the accent edge */
+.globe-sheet-frame:hover img,
+.globe-sheet-frame:focus-visible img {
+  translate: 0 -3px;
+  scale: 1.03;
+  border-color: var(--accent);
+}
+
+.globe-sheet-frame:hover,
+.globe-sheet-frame:focus-visible {
+  z-index: 2;
+}
+
+/* the frame currently up at viewer scale has LEFT the sheet — its slot goes
+   empty, exactly as a lifted card's does in a hand */
+.globe-sheet-frame-lifted {
+  visibility: hidden;
+}
+
+/* the edge numbers, `01 … 15`, in the register the rail and the slate use.
+   Under the frame, never in a shape, never in accent: they are the strip's
+   own numbering, not a count of anything (§6, P3). */
+.globe-sheet-index {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  /* 11px line + the slot's 2px gap = SHEET_INDEX_ROW in plateLayout.ts */
+  line-height: 11px;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  opacity: 0.62;
+  text-shadow: 0 1px 6px rgba(12, 12, 15, 0.85);
+}
+
+/* ---------- the grease pencil: ties and the leader line ---------- */
+
+/* One element per mark, one pixel wide, rotated about its own left end. Scarlet
+   contracts to exactly this on the plate: a stack that stands beside its
+   precision geometry says so with a tie, and the open sheet says which stack it
+   belongs to with a leader line. Nothing else here is scarlet (§6.4). */
+.globe-plate-marks {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.globe-tie {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 1px;
+  transform-origin: 0 50%;
+  background: var(--accent);
+  /* lags its ground like every other label on this table, and unplots with it */
+  opacity: calc(var(--mark-on, 0) * (var(--plate-presence, 0) - 0.72) * 3.6);
+}
+
+.globe-sheet-leader {
+  opacity: calc(var(--mark-on, 0) * var(--sheet-presence, 0) * 0.85);
+}
+
+/* P8, the static half: with motion off the sheet still develops in, it just
+   does not travel. Same DOM, same grid, same edge numbers, same marks — the
+   survey is never behind an animation. */
+@media (prefers-reduced-motion: reduce) {
+  .globe-sheet-settled {
+    transition: none;
+  }
+
+  .globe-sheet-slot {
+    translate: none;
+  }
+
+  .globe-sheet-frame img {
+    transition: border-color 0.25s ease;
+  }
+}
+
 /* Shown until an outing has coordinates. The cameras have no GPS, so this is
    the honest state rather than a failure state — the site refuses to draw a
    world it cannot place anything on. */

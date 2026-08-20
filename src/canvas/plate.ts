@@ -619,6 +619,168 @@ export function plateViewFrame(
   }
 }
 
+/* ---------- the lamp ----------
+
+   Relief is illumination, not size (§2.4, R1). Swiss shaded relief renders
+   mountains as light from a fixed lamp at the upper left, because that is the
+   convention under which a viewer reads hills as hills instead of as pits, and
+   because brightness is a channel perspective does not already own — dot SIZE
+   is spoken for by the 36° rake, which is exactly why v1's ±20% size jitter
+   read as noise.
+
+   All four knobs live here, beside the frame map they are aimed through, so
+   `scripts/plate-gate.mjs` measures the lamp the reseed actually lights. */
+
+/** Metres in `terrain.bin`'s 7-bit elevation: 127 steps of 50m (see terrain.ts). */
+export const TERRAIN_ELEVATION_CEILING_M = 127 * 50
+/** For turning a cell's angular size into a run in metres. */
+const EARTH_RADIUS_M = 6_371_000
+
+/**
+ * KNOB 1a — where the lamp stands, as a compass azimuth in the FRAME: measured
+ * clockwise from the top of the window, so 315° is literally the upper left of
+ * the screen. Frame space, not world space: the table carries a yaw and a rake,
+ * and a light fixed to north would swing around the window as caps land at
+ * different longitudes. Imhof's strict convention is NNW (~337°); dead upper
+ * left is the reading of it §2.4 states, and the difference is taste.
+ */
+export const PLATE_LIGHT_FRAME_AZIMUTH = (315 * Math.PI) / 180
+/**
+ * KNOB 1b — how high the lamp sits above the table. Low enough to rake (a lamp
+ * overhead flattens every slope toward the same lambert term), high enough that
+ * the shadowed flanks of the Alps do not fall to ambient and disappear.
+ */
+export const PLATE_LIGHT_ELEVATION = (40 * Math.PI) / 180
+/**
+ * KNOB 2 — the floor under the lambert term: how much light a dot still gets
+ * with its back to the lamp. Zero would render the unlit flanks of the alpine
+ * arc as holes in the ground, which is drama, not relief.
+ */
+export const PLATE_RELIEF_AMBIENT = 0.25
+/**
+ * KNOB 3 — vertical exaggeration, and the one number that decides whether the
+ * lamp is visible at all.
+ *
+ * The grid is 15km per cell (2700×1350), and real ground at that pitch is
+ * nearly flat: the alpine arc climbs about 1500m across two cells, a true slope
+ * of 0.05, which tilts the surface normal by 3° and moves the lambert term by
+ * about 0.04 — under the tilt's own gradient, so relief would ship invisible
+ * (P5). At 6× that same ground tilts 17° and the lambert term moves ~0.25,
+ * which out-shouts the rake. The north german plain is unmoved by the same
+ * factor: 50m of quantization across 30km is a 0.0017 slope, 0.6° after
+ * exaggeration, and it stays the even ground §6 asks for. Exaggeration is
+ * therefore not a cheat here — it is the gain that puts a real signal above the
+ * frame's own noise, and the gate measures both ends of it.
+ */
+export const PLATE_RELIEF_EXAGGERATION = 6
+/**
+ * KNOB 4 — how dark a plate dot gets at shade zero, as a fraction of its own
+ * value. This is the range the lamp works in, and it is the whole P5 condition:
+ * the brightness spread has to visibly beat the 36° rake's own perspective
+ * gradient, so the 0.42 floor stage B shipped — which compressed all of relief
+ * into the top 58% of the ramp — could only ever render the Alps as a rumour.
+ *
+ * Read by the PLATE dot program alone (`patchPlateDots` in shaders/globe.ts).
+ * World-scale layers carry no aShade and keep their value ladder untouched. It
+ * lives here rather than in the shader so the gate prices the contrast it
+ * asserts on against the number the fragment actually mixes with.
+ */
+export const PLATE_SHADE_FLOOR = 0.18
+
+/** The lamp, as a unit vector in the table's own tangent frame. */
+export interface PlateLight {
+  east: number
+  north: number
+  up: number
+}
+
+/**
+ * The lamp's direction in table coordinates, so that on screen it stands at
+ * PLATE_LIGHT_FRAME_AZIMUTH. The frame's screen map is sheared by the rake, the
+ * table yaw and the group roll, so "upper left" is not "north west": the
+ * azimuth is pushed through the inverse of that map, which is what keeps the
+ * light literally upper-left in the window whatever the table is doing
+ * underneath.
+ *
+ * Baked once per reseed and read per dot; nothing here runs per frame.
+ */
+export function plateFrameLight(view: PlateViewFrame): PlateLight {
+  // the direction the light comes FROM, in frame halves (+y is up)
+  const towardX = Math.sin(PLATE_LIGHT_FRAME_AZIMUTH)
+  const towardY = Math.cos(PLATE_LIGHT_FRAME_AZIMUTH)
+  const [a11, a12] = view.screenX
+  const [a21, a22] = view.screenY
+  const determinant = a11 * a22 - a12 * a21
+  const safe = Math.abs(determinant) > 1e-9 ? determinant : 1e-9
+  const east = (a22 * towardX - a12 * towardY) / safe
+  const north = (-a21 * towardX + a11 * towardY) / safe
+  const lateral = Math.hypot(east, north)
+  const scale = lateral > EPSILON
+    ? Math.cos(PLATE_LIGHT_ELEVATION) / lateral
+    : 0
+  return {
+    east: east * scale,
+    north: north * scale,
+    up: Math.sin(PLATE_LIGHT_ELEVATION),
+  }
+}
+
+/**
+ * The terrain surface's slope at one sample, in metres per metre, by central
+ * differences on the elevation grid's own neighbouring cells.
+ *
+ * Raw grid differences, deliberately: at 15km cells any interpolation between
+ * samples invents a landform, and the quantization noise of the plain would be
+ * the first thing it amplified. `sampleMetres` is the caller's elevation
+ * lookup — the render path's decoded `terrain.bin`, or the gate's.
+ *
+ * Writes `[east, north]` into `out` rather than returning a pair: the reseed
+ * calls this once per accepted land dot inside a 6ms slice, and a tuple per dot
+ * is a megabyte of garbage per dive.
+ */
+export function plateTerrainSlopeInto(
+  lat: number,
+  lng: number,
+  cellLat: number,
+  cellLng: number,
+  sampleMetres: (lat: number, lng: number) => number,
+  out: Float64Array
+): void {
+  const east = sampleMetres(lat, lng + cellLng)
+  const west = sampleMetres(lat, lng - cellLng)
+  const north = sampleMetres(lat + cellLat, lng)
+  const south = sampleMetres(lat - cellLat, lng)
+  const metresPerDegree = EARTH_RADIUS_M * DEG
+  // a degree of longitude shortens with latitude; the floor is the pole, where
+  // the run would otherwise divide by nothing
+  const cosLat = Math.max(0.02, Math.cos(clamp(lat, -90, 90) * DEG))
+  const runEast = 2 * cellLng * metresPerDegree * cosLat
+  const runNorth = 2 * cellLat * metresPerDegree
+  out[0] = runEast > EPSILON ? (east - west) / runEast : 0
+  out[1] = runNorth > EPSILON ? (north - south) / runNorth : 0
+}
+
+/**
+ * Lambert against the lamp: `ambient + (1 − ambient)·max(0, N·L)`, where N is
+ * the exaggerated surface normal. Flat ground returns the same value everywhere
+ * (sin of the lamp's elevation, lifted by ambient), which is the point — even
+ * ground is the honest rendering of farmland (§6).
+ */
+export function plateHillshade(
+  slopeEast: number,
+  slopeNorth: number,
+  light: PlateLight
+): number {
+  const nx = -slopeEast * PLATE_RELIEF_EXAGGERATION
+  const ny = -slopeNorth * PLATE_RELIEF_EXAGGERATION
+  const inverseLength = 1 / Math.sqrt(nx * nx + ny * ny + 1)
+  const lambert = Math.max(
+    0,
+    (nx * light.east + ny * light.north + light.up) * inverseLength
+  )
+  return clamp(PLATE_RELIEF_AMBIENT + (1 - PLATE_RELIEF_AMBIENT) * lambert, 0, 1)
+}
+
 /** one member of a cluster, as the framing sees it: an anchor and its reach */
 export interface PlateFrameMember {
   direction: Vec3

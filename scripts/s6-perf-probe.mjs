@@ -372,9 +372,60 @@ async function main() {
       },
       'expanded NZ chip and keyboard-reachable world button'
     )
+    /* ESCAPE'S DEPTH ORDER (stage D). At plate scale Escape closes exactly one
+     * thing per keystroke, in this order:
+     *
+     *   a popped frame → the pop, back to the sheet
+     *   an open sheet  → the sheet folds, the table stays
+     *   neither        → the table returns to the world
+     *
+     * The shipped handler set exitRef on ANY Escape below world scale while
+     * FramePop closed itself on the same keystroke, so one Escape aimed at a
+     * popped frame closed two depths and dived the table out from under the
+     * visitor. Each rung below is walked and then measured, because "the pop
+     * closed" and "the pop closed and we are still on the table" are different
+     * facts and only the second one is the contract.
+     */
+    const escape = () =>
+      evaluate(cdp, sessionId, () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      })
+    const plateDepth = () =>
+      evaluate(cdp, sessionId, () => ({
+        phase: document.querySelector('.globe-frame-live')?.dataset.phase ?? null,
+        pop: Boolean(document.querySelector('.frame-pop')),
+        sheetFrames: document.querySelectorAll('#globe-contact-sheet .globe-sheet-frame').length,
+      }))
+    /* south island's twelve frames spread themselves on landing (R15), so the
+       ladder has all three rungs to walk without another click */
+    await waitFor(
+      () => document.querySelectorAll('#globe-contact-sheet .globe-sheet-frame').length === 12,
+      'the south island sheet to spread on landing'
+    )
     await evaluate(cdp, sessionId, () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      const frame = document.querySelectorAll('#globe-contact-sheet .globe-sheet-frame')[1]
+      if (!(frame instanceof HTMLButtonElement)) throw new Error('NZ sheet frame is missing')
+      frame.click()
     })
+    await waitFor(() => Boolean(document.querySelector('.frame-pop')), 'FramePop from a sheet frame')
+    await escape()
+    await waitFor(() => !document.querySelector('.frame-pop'), 'the pop to close on Escape')
+    const escapeDepths = { pop: await plateDepth() }
+    assert.equal(escapeDepths.pop.phase, 'plate', 'Escape on a popped frame must leave the plate landed')
+    assert.equal(
+      escapeDepths.pop.sheetFrames,
+      12,
+      'Escape on a popped frame must drop back to the sheet, not past it'
+    )
+    await escape()
+    await waitFor(
+      () => document.querySelectorAll('#globe-contact-sheet').length === 0,
+      'the sheet to fold on Escape'
+    )
+    escapeDepths.sheet = await plateDepth()
+    assert.equal(escapeDepths.sheet.phase, 'plate', 'folding the sheet must not leave the table')
+    assert.equal(escapeDepths.sheet.pop, false, 'no pop may survive the sheet fold')
+    await escape()
     await waitForState('world', 0, 0.001)
     const keyboardReturn = await waitFor(
       () => {
@@ -416,9 +467,24 @@ async function main() {
       card.click()
     })
     await waitForState('plate', 0.999, 1)
-    await evaluate(cdp, sessionId, () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-    })
+    /* tokyo holds nine frames, so the congested singleton lands with its own
+       sheet spread and its Escape ladder is two rungs deep, not one */
+    await waitFor(
+      () => document.querySelectorAll('#globe-contact-sheet .globe-sheet-frame').length === 9,
+      'the tokyo sheet to spread on landing'
+    )
+    await escape()
+    await waitFor(
+      () => document.querySelectorAll('#globe-contact-sheet').length === 0,
+      'the tokyo sheet to fold on Escape'
+    )
+    const singletonAfterFold = await plateDepth()
+    assert.equal(
+      singletonAfterFold.phase,
+      'plate',
+      'the singleton table must survive the Escape that folds its sheet'
+    )
+    await escape()
     await waitForState('world', 0, 0.001)
 
     off()
@@ -446,6 +512,12 @@ async function main() {
         return: keyboardReturn,
         focusAfterReturn: keyboardFocusAfter,
         congestedSingletonTwoEnterPass: true,
+        escapeDepthOrder: {
+          afterPopEscape: escapeDepths.pop,
+          afterSheetEscape: escapeDepths.sheet,
+          singletonAfterFold,
+          exitsOnThird: true,
+        },
       },
       platePinAriaLabel: {
         before: nzAriaBefore,

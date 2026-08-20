@@ -213,6 +213,41 @@ async function main() {
         maxMorph
       )
 
+    /* The v3 peel is compressed into the first DEVELOP_AT of the master clock
+       (the exit mirrored), so a node-side 40ms poll can hop straight over a
+       morph window that used to be wide enough to catch. Watch from the page
+       on rAF, same trick as interruptInMorphWindow, and screenshot on arrival. */
+    const waitOnPage = (targetPhase, minMorph, maxMorph, donePhase) =>
+      evaluate(cdp, sessionId, (target, min, max, done) =>
+        new Promise((resolve, reject) => {
+          const frame = document.querySelector('.globe-frame-live')
+          const started = performance.now()
+          const check = () => {
+            const phase = frame.dataset.phase
+            const morph = Number(frame.dataset.morph ?? 0)
+            if (phase === target && morph >= min && morph <= max) {
+              resolve(morph)
+              return
+            }
+            if (phase === done) {
+              reject(new Error(`${target} ${min}..${max} never rendered (now ${done})`))
+              return
+            }
+            if (performance.now() - started > 15000) {
+              reject(new Error(`${target} ${min}..${max} never reached (now ${phase}@${morph})`))
+              return
+            }
+            requestAnimationFrame(check)
+          }
+          check()
+        }),
+        targetPhase,
+        minMorph,
+        maxMorph,
+        donePhase
+      )
+    const waitForMorphOnPage = (minMorph) => waitOnPage('dive', minMorph, 1, 'plate')
+
     await waitFor(
       () => Boolean(
         document.querySelector('canvas')?.width &&
@@ -226,7 +261,7 @@ async function main() {
     await clickNz()
     await waitForState('dive', 0, 0.08)
     const screenshots = [await screenshot('s4-steer.png')]
-    await waitForState('dive', 0.42, 0.58)
+    await waitForMorphOnPage(0.42)
     screenshots.push(await screenshot('s4-peel-mid.png'))
     await waitForState('plate', 0.999, 1)
     screenshots.push(await screenshot('s4-plate-landed.png'))
@@ -260,7 +295,7 @@ async function main() {
       'the landed selection must own the existing hero title and document title'
     )
     await evaluate(cdp, sessionId, () => document.querySelector('.globe-world-button')?.click())
-    await waitForState('return', 0.35, 0.7)
+    await waitOnPage('return', 0.05, 0.7, 'world')
     screenshots.push(await screenshot('s4-return-mid.png'))
     await waitForState('world', 0, 0.001)
     screenshots.push(await screenshot('s4-world-restored.png'))

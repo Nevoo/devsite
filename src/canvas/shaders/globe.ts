@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 
+import { PLATE_SHADE_FLOOR } from '../plate'
+
 /**
  * Shared globe shader state. Keeping the patch in this small module lets the
  * persistent canvas warm the exact program cache keys used by route-owned
@@ -113,11 +115,21 @@ export const patchPlateDots = (shader: {
     .replace('gl_PointSize = size;', 'gl_PointSize = size * aPointScale;')
   /* Terrain value lands BEFORE the mark and the wash: relief shades the
      ground, marks sit on it, and the wash lifts whatever the ground came out
-     at — the one order in which a claim never turns into a light source. */
+     at — the one order in which a claim never turns into a light source.
+
+     aShade is the LAMP's term now (a lambert against a fixed raking light,
+     baked at reseed), not an elevation ramp, and the mix is re-anchored on
+     PLATE_SHADE_FLOOR so it has room to be seen. Spliced here rather than in
+     patchDotAlpha because only the plate carries relief: the world sphere's
+     dots keep the value ladder they shipped with, and their warmed program
+     key with it. */
   shader.fragmentShader = shader.fragmentShader
-    .replace('varying float vAlpha;', 'varying float vShade;\nvarying float vAlpha;')
+    .replace(
+      'varying float vAlpha;',
+      `varying float vShade;\n#define PLATE_SHADE_FLOOR ${PLATE_SHADE_FLOOR.toFixed(2)}\nvarying float vAlpha;`
+    )
     .replace(
       'float plateMark = clamp(vTint, 0.0, 1.0);',
-      'diffuseColor.rgb *= mix(0.42, 1.0, clamp(vShade, 0.0, 1.0));\n\tfloat plateMark = clamp(vTint, 0.0, 1.0);'
+      'diffuseColor.rgb *= mix(PLATE_SHADE_FLOOR, 1.0, clamp(vShade, 0.0, 1.0));\n\tfloat plateMark = clamp(vTint, 0.0, 1.0);'
     )
 }

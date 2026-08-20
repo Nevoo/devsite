@@ -2,7 +2,14 @@ import { lazy, Suspense, useEffect, useRef, useState, type RefObject } from 'rea
 import { webglAvailable } from '@/lib/webgl'
 import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { FramePop } from '@/components/FramePop'
-import type { PinProjection, ScaleState } from '@/canvas/Globe'
+import {
+  solvePlateLayout,
+  AUTO_OPEN_MIN_FRAMES,
+  type PlateLayout,
+  type StackInput,
+} from '@/components/plateLayout'
+import { useUI } from '@/stores/ui'
+import type { GlobePointer, PinProjection, ScaleState } from '@/canvas/Globe'
 import { clusters, type PlaceCluster } from '@/content/clusters'
 import { places, framesAt, firstAt, precisionWord, type Place } from '@/content/places'
 import { flightArcs, waypointAirports } from '@/content/flights'
@@ -30,6 +37,62 @@ const cardJitter = (k: number) => (k === 0 ? 0 : (k % 2 ? -1 : 1) * (2 + k * 2))
 const PRINT_SCATTER = 4
 const printAngle = (k: number) =>
   Math.max(-PRINT_SCATTER, Math.min(PRINT_SCATTER, cardJitter(k) * 0.45))
+
+/**
+ * The plate stack's own box, mirrored from site.css (--print-plate-h, 3:2, and
+ * the caption line beneath). One definition, three readers: the pin loop's
+ * viewport clamp, the layout solver's collision boxes, and the fallbacks the
+ * solver uses when a caption has not been measured yet.
+ */
+const PRINT_PLATE_VH = 0.11
+/**
+ * The widest caption any enterable cap prints is 41 characters
+ * (`milford sound, nz · to the region · [ 6 ]`); at 0.6rem mono that is ~276px,
+ * so ~140px each side of the anchor. Mirrors .globe-print-caption.
+ */
+const PRINT_CAPTION_HALF_W = 140
+
+const plateBounds = () => {
+  const printHeight = window.innerHeight * PRINT_PLATE_VH
+  const printWidth = printHeight * 1.5
+  return {
+    printHeight,
+    printWidth,
+    horizontalClearance: Math.min(
+      window.innerWidth * 0.44,
+      Math.max(window.innerWidth * 0.06, printWidth / 2 + 8, PRINT_CAPTION_HALF_W)
+    ),
+    verticalClearance: Math.min(
+      window.innerHeight * 0.44,
+      Math.max(window.innerHeight * 0.06, printHeight + 34)
+    ),
+  }
+}
+type PlateBounds = ReturnType<typeof plateBounds>
+const clampToTable = (x: number, y: number, bounds: PlateBounds) => ({
+  x: Math.max(
+    bounds.horizontalClearance,
+    Math.min(window.innerWidth - bounds.horizontalClearance, x)
+  ),
+  y: Math.max(bounds.verticalClearance, Math.min(window.innerHeight - bounds.verticalClearance, y)),
+})
+
+/**
+ * The landing beat the sheet spreads on, seconds after the plate settles.
+ * CONCEPT-COUNTRY-ZOOM-V2 §5 times the dive in one clock: stacks land at
+ * ~1.5s, the sheet spreads at ~2.0s — so the sheet lags its own ground by half
+ * a second, exactly the way the captions lag theirs.
+ */
+const AUTO_OPEN_DELAY_S = 0.5
+/** how long the sheet takes to develop in, and how far apart its frames arrive */
+const SHEET_DEVELOP_S = 0.85
+const SHEET_FRAME_LAG = 0.028
+/** the open sheet's id, so the stack that spread it can point at it (aria-controls) */
+const SHEET_DOM_ID = 'globe-contact-sheet'
+/** a pan of this many pixels invalidates the layout; under it the table has not moved */
+const RESOLVE_DRIFT_PX = 24
+/** and never more often than this, whatever the drag does */
+const RESOLVE_INTERVAL_S = 0.3
 
 const GlobeView = lazy(() => import('./GlobeView'))
 
@@ -67,28 +130,17 @@ clusters.forEach((cluster, clusterIndex) => {
 
 const regionNames = new Intl.DisplayNames('en', { type: 'region' })
 const withoutCountrySuffix = (label: string) => label.replace(/,\s*[a-z]{2}$/i, '')
-const countryCodeOf = (placeIndex: number) => {
-  const suffix = places[placeIndex].label.split(',').at(-1)?.trim()
-  return suffix?.length === 2 ? suffix.toUpperCase() : null
-}
 
 /**
- * The display title names the cap by ONE thing: the country of its heaviest
- * member. `germany · vienna · dolomites` mixed a country, a city and a
- * mountain range in the same line and read as a list of unrelated errands
- * (CONCEPT-COUNTRY-ZOOM-V2 §11 Q5). Heaviest = most frames, which is also the
- * collection the visitor is most likely to open, so the title names what the
- * plate is actually about. The member list is not lost — it demotes to the
- * instrument meta line under the title (below) and stays whole in the chip's
- * accessible name.
+ * The display title IS the unit now: a cluster is a country (v3), so the
+ * title is the country's display name, full stop. The heaviest-member
+ * heuristic this replaces existed to paper over cross-border caps like
+ * `germany · vienna · dolomites` — a grouping that can no longer be built.
+ * The member list still demotes to the instrument meta line under the title
+ * and stays whole in the chip's accessible name.
  */
-const clusterLabel = (cluster: PlaceCluster) => {
-  const heaviest = cluster.memberIndices.reduce((a, b) => (pinWeights[b] > pinWeights[a] ? b : a))
-  const countryCode = countryCodeOf(heaviest)
-  return countryCode
-    ? (regionNames.of(countryCode) ?? countryCode).toLocaleLowerCase('en')
-    : withoutCountrySuffix(places[heaviest].label)
-}
+const clusterLabel = (cluster: PlaceCluster) =>
+  (regionNames.of(cluster.countryCode) ?? cluster.countryCode).toLocaleLowerCase('en')
 /** the demoted line: every member of the cap, in travelled order */
 const clusterMemberList = (cluster: PlaceCluster) =>
   cluster.memberIndices
@@ -260,9 +312,22 @@ export function WorldGlobe({
   const selectedRef = sharedSelectedRef ?? internalSelectedRef
   const spinRef = useRef(0)
   const tiltRef = useRef(0)
-  const scaleRef = useRef<ScaleState>({ phase: 'world', cluster: -1, morph: 0, presence: 0 })
+  const scaleRef = useRef<ScaleState>({
+    phase: 'world',
+    cluster: -1,
+    morph: 0,
+    presence: 0,
+    scan: 0,
+  })
   const enterRef = useRef(-1)
   const exitRef = useRef(false)
+  /* the country pointer contract (v3 phase 2): the DOM writes where the
+     pointer is, the canvas answers which visited country is under it */
+  const globePointerRef = useRef<GlobePointer>({ x: 0, y: 0, active: false })
+  const hoverCountryRef = useRef(-1)
+  const frameRectRef = useRef<{ rect: DOMRect | null; at: number }>({ rect: null, at: 0 })
+  const wasDragRef = useRef(false)
+  const grabRef = useRef<HTMLDivElement>(null)
   const instrumentRef = useRef<HTMLSpanElement>(null)
   const worldButtonRef = useRef<HTMLButtonElement>(null)
   /* the two spans of the landed meta line, built once and then written in
@@ -281,11 +346,77 @@ export function WorldGlobe({
 
   /* the card currently popped out of its hand at viewer scale, or null. React
      state on purpose: it changes on taps, not per frame, and the fan below
-     needs to re-render so the lifted card's slot goes visibly empty. */
-  const [pop, setPop] = useState<{ pin: number; frame: number } | null>(null)
+     needs to re-render so the lifted card's slot goes visibly empty.
+     `from` says which surface it left: a stack print lies at its scatter
+     angle, a sheet frame lies flat, and the pop has to fly back into the one
+     it actually came out of. */
+  const [pop, setPop] = useState<{
+    pin: number
+    frame: number
+    from: 'stack' | 'sheet'
+  } | null>(null)
   /* the card buttons by `pin:frame`, so the pop can measure the exact card it
      flies out of — and, at close time, whatever that card's geometry is NOW */
   const cardRefs = useRef(new Map<string, HTMLButtonElement>())
+  /* the same contract for the open sheet's frames, kept in its own map so a
+     stack print and its sheet frame can both exist for the same `pin:frame` */
+  const sheetFrameRefs = useRef(new Map<string, HTMLButtonElement>())
+
+  /* THE SHEET (CONCEPT-COUNTRY-ZOOM-V2 §6 figure layer 3). Which stack is
+     spread lives in the UI store, not here, because Escape has to read it in
+     the same breath as `popOpen` to know which depth it is closing. */
+  const plateSheet = useUI((state) => state.plateSheet)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const marksRef = useRef<HTMLDivElement>(null)
+  const tieRefs = useRef<(HTMLSpanElement | null)[]>([])
+  const leaderRef = useRef<HTMLSpanElement>(null)
+  /* the solver's output, applied by the rAF loop: per-place displacement in
+     screen px, and the layout the marks were drawn from */
+  const nudgeRef = useRef(new Float64Array(places.length * 2))
+  const layoutRef = useRef<PlateLayout | null>(null)
+  const solveDirtyRef = useRef(true)
+  const solveAtRef = useRef(0)
+  const solveAnchorsRef = useRef(new Float64Array(places.length * 2))
+  const landedAtRef = useRef(-1)
+  const autoOpenDoneRef = useRef(false)
+  const sheetOwnerRef = useRef<number | null>(null)
+  const sheetOpenedAtRef = useRef(0)
+  /* false until the current layout's sheet rectangle has been written onto a
+     real element — the element is a render behind the solve that placed it */
+  const sheetPlacedRef = useRef(false)
+  /* the element the geometry was last written to, so a freshly mounted sheet
+     can arrive in place instead of gliding in from the frame's corner */
+  const placedElementRef = useRef<HTMLDivElement | null>(null)
+  /* set by keyboard activations only: a mouse click that yanked focus into the
+     sheet would be stealing it from the pointer */
+  const sheetFocusRef = useRef(false)
+
+  /* The sheet's two verbs, and the only two writers of its state. Both read
+     the store rather than the render's `plateSheet`, so a handler installed by
+     an effect with no dependencies is never holding a stale answer. */
+  const spreadSheet = (placeIndex: number, fromKeyboard: boolean) => {
+    sheetFocusRef.current = fromKeyboard
+    useUI.getState().openPlateSheet(placeIndex)
+  }
+  const foldSheet = (returnFocus: boolean) => {
+    const open = useUI.getState().plateSheet
+    if (open === null) return
+    useUI.getState().closePlateSheet()
+    /* the way back is the way in: the stack that spread the sheet takes the
+       focus back, so a keyboard visitor is never dropped on <body> */
+    if (returnFocus) cardRefs.current.get(`${open}:0`)?.focus()
+  }
+  const sheetHasFocus = () =>
+    Boolean(document.activeElement && sheetRef.current?.contains(document.activeElement))
+
+  /* focus follows the spread, but only when the spread was asked for by a key:
+     `detail === 0` on a click event is the browser's own tell that this was
+     Enter or Space on a button rather than a pointer */
+  useEffect(() => {
+    if (plateSheet === null || !sheetFocusRef.current) return
+    sheetFocusRef.current = false
+    sheetFrameRefs.current.get(`${plateSheet}:0`)?.focus()
+  }, [plateSheet])
 
   /* One loop for every label, reading the positions the canvas wrote on its
      own frame. Writing transforms straight to the nodes keeps a turning globe
@@ -297,6 +428,186 @@ export function WorldGlobe({
      on a second loop. */
   useEffect(() => {
     if (!has3D || places.length === 0) return
+
+    /* A mark is a 1px line, drawn the only way a 1px line should be drawn: one
+       element, rotated about its own left edge. Its opacity is NOT written
+       here — it rides --plate-presence / --sheet-presence in CSS, so marks lag
+       their ground on the way in and unplot with it on the way out. */
+    const drawMark = (
+      node: HTMLSpanElement | null,
+      mark: { x1: number; y1: number; x2: number; y2: number } | null,
+      rect: { top: number; left: number }
+    ) => {
+      if (!node) return
+      if (!mark) {
+        node.style.setProperty('--mark-on', '0')
+        node.style.width = '0px'
+        return
+      }
+      const dx = mark.x2 - mark.x1
+      const dy = mark.y2 - mark.y1
+      node.style.setProperty('--mark-on', '1')
+      node.style.width = `${Math.hypot(dx, dy).toFixed(1)}px`
+      node.style.transform =
+        `translate3d(${(mark.x1 - rect.left).toFixed(1)}px, ${(mark.y1 - rect.top).toFixed(1)}px, 0)` +
+        ` rotate(${Math.atan2(dy, dx).toFixed(4)}rad)`
+    }
+
+    /**
+     * The sheet's rectangle, written onto the element.
+     *
+     * Split out of the layout pass because of an ordering fact: opening the
+     * sheet is a store write, and the element it creates does not exist until
+     * React has rendered — one tick later than the solve that placed it. So
+     * the geometry is applied on whichever frame first finds the element, and
+     * then left alone until the next solve.
+     */
+    const applySheetGeometry = (rect: { top: number; left: number }) => {
+      const node = sheetRef.current
+      const layout = layoutRef.current
+      if (!node || !layout || sheetPlacedRef.current) return
+      sheetPlacedRef.current = true
+      const sheet = layout.sheet
+      /* No rectangle was free enough, even at the smaller frame size: the
+         sheet does not get to exist half-placed on top of someone's print or
+         caption, so it stays out of the layout and out of the reading order
+         until a re-solve (a pan, a resize) finds it room. The rectangle it
+         WANTED is still recorded in the layout, flagged violated, because a
+         sheet that cannot be placed is a fact worth being able to read. */
+      node.hidden = !sheet || sheet.violated
+      if (!sheet || sheet.violated) return
+      /* A sheet that has just been spread arrives AT its place; a sheet that
+         is already on the table glides to a new one when the table is panned
+         or when the visitor spreads a different stack. So the transition is a
+         class, added one frame after the first placement — without this the
+         sheet would fly in from the frame's top-left corner on every open. */
+      const firstPlacement = placedElementRef.current !== node
+      placedElementRef.current = node
+      if (firstPlacement) {
+        node.classList.remove('globe-sheet-settled')
+        requestAnimationFrame(() => node.classList.add('globe-sheet-settled'))
+      }
+      node.style.width = `${sheet.width.toFixed(1)}px`
+      node.style.height = `${sheet.height.toFixed(1)}px`
+      node.style.transform =
+        `translate3d(${(sheet.left - rect.left).toFixed(1)}px, ${(sheet.top - rect.top).toFixed(1)}px, 0)`
+      node.style.setProperty('--sheet-frame-h', `${sheet.frameH.toFixed(1)}px`)
+      node.style.setProperty('--sheet-cols', String(sheet.cols))
+      /* the prints glide in FROM their stack, so the sheet reads as a hand
+         spreading a pile rather than as a panel fading up */
+      const glideX = sheet.leader.x2 - (sheet.left + sheet.width / 2)
+      const glideY = sheet.leader.y2 - (sheet.top + sheet.height / 2)
+      const glide = Math.max(1, Math.hypot(glideX, glideY))
+      node.style.setProperty('--glide-x', `${((glideX / glide) * 26).toFixed(1)}px`)
+      node.style.setProperty('--glide-y', `${((glideY / glide) * 26).toFixed(1)}px`)
+    }
+
+    /**
+     * THE LAYOUT PASS. Measures (anchors, real box sizes, the title band and
+     * the hero's bottom rule), asks plateLayout.ts to decide, then writes the
+     * answer: displacements the pin loop applies below, the sheet's rectangle,
+     * its leader line and every tie.
+     */
+    const solveLayout = (
+      bounds: PlateBounds,
+      scaleState: ScaleState,
+      rect: { top: number; left: number; width: number; height: number }
+    ) => {
+      const cluster = clusters[scaleState.cluster]
+      nudgeRef.current.fill(0)
+      if (!cluster) {
+        layoutRef.current = null
+        return
+      }
+      const stacks: StackInput[] = []
+      for (const index of cluster.memberIndices) {
+        const projection = projectionRef.current[index]
+        const node = pinRefs.current[index]
+        if (!projection || !node || pinWeights[index] === 0) continue
+        const anchor = clampToTable(
+          rect.left + projection.x * rect.width,
+          rect.top + projection.y * rect.height,
+          bounds
+        )
+        solveAnchorsRef.current[index * 2] = anchor.x
+        solveAnchorsRef.current[index * 2 + 1] = anchor.y
+        /* measured, not assumed: the caption's width is whatever its own text
+           and the visitor's font stack make it, and the solver's whole job is
+           to keep that box off other people's claims */
+        const hand = node.querySelector('.globe-pickup-hand')?.getBoundingClientRect()
+        const caption = node.querySelector('.globe-print-caption')?.getBoundingClientRect()
+        stacks.push({
+          index,
+          x: anchor.x,
+          y: anchor.y,
+          printW: hand?.width || bounds.printWidth,
+          printH: hand?.height || bounds.printHeight,
+          captionW: caption?.width || PRINT_CAPTION_HALF_W * 2,
+          captionH: caption?.height || 14,
+          precision: places[index].precision,
+        })
+      }
+
+      const titleBounds = titleRef?.current?.getBoundingClientRect()
+      const subtitleBounds = subtitleRef?.current?.getBoundingClientRect()
+      const controlBounds = worldButtonRef.current?.getBoundingClientRect()
+      const bands = [titleBounds, subtitleBounds, controlBounds].filter(
+        (box): box is DOMRect => Boolean(box && box.width > 0)
+      )
+      const titleBand = bands.length
+        ? {
+            left: Math.min(...bands.map((box) => box.left)) - 10,
+            right: Math.max(...bands.map((box) => box.right)) + 10,
+            top: Math.min(...bands.map((box) => box.top)) - 10,
+            bottom: Math.max(...bands.map((box) => box.bottom)) + 14,
+          }
+        : null
+      /* the hero's own bottom edge: the rule and the index row are page
+         furniture, and a contact sheet printed over them is the "sheet as
+         modal" failure wearing a different hat */
+      const ruleTop = frameRef.current
+        ?.closest('.hero')
+        ?.querySelector('.hero-rule')
+        ?.getBoundingClientRect().top
+      const sheetOwner = useUI.getState().plateSheet
+
+      const layout = solvePlateLayout({
+        width: window.innerWidth,
+        height: window.innerHeight,
+        titleBand,
+        safeTop: titleBand ? Math.max(0, titleBand.bottom) : window.innerHeight * 0.06,
+        safeBottom: Math.min(
+          window.innerHeight - 14,
+          ruleTop && ruleTop > window.innerHeight * 0.5 ? ruleTop - 12 : window.innerHeight * 0.94
+        ),
+        clearanceX: bounds.horizontalClearance,
+        clearanceY: bounds.verticalClearance,
+        stacks,
+        sheetOwner: sheetOwner !== null && pinWeights[sheetOwner] > 0 ? sheetOwner : null,
+        sheetFrames: sheetOwner === null ? 0 : pinWeights[sheetOwner],
+      })
+      layoutRef.current = layout
+
+      for (const [index, nudge] of layout.nudges) {
+        nudgeRef.current[index * 2] = nudge.dx
+        nudgeRef.current[index * 2 + 1] = nudge.dy
+      }
+
+      sheetPlacedRef.current = false
+      applySheetGeometry(rect)
+      drawMark(
+        leaderRef.current,
+        layout.sheet && !layout.sheet.violated ? layout.sheet.leader : null,
+        rect
+      )
+      const tied = new Set(layout.ties.map((tie) => tie.index))
+      for (let index = 0; index < places.length; index++) {
+        if (tied.has(index)) continue
+        drawMark(tieRefs.current[index], null, rect)
+      }
+      for (const tie of layout.ties) drawMark(tieRefs.current[tie.index], tie, rect)
+    }
+
     const tick = () => {
       const frame = frameRef.current
       if (!frame) return
@@ -308,6 +619,14 @@ export function WorldGlobe({
       frame.dataset.phase = scaleState.phase
       frame.dataset.morph = scaleState.morph.toFixed(3)
       frame.dataset.presence = platePresence.toFixed(3)
+      frame.dataset.scan = scaleState.scan.toFixed(3)
+      frame.dataset.cluster = String(scaleState.cluster)
+      /* the country under the pointer, as affordance: the grab hand becomes a
+         pointing one over an enterable country (canvas answers per frame) */
+      if (grabRef.current) {
+        grabRef.current.style.cursor =
+          scaleState.phase === 'world' && hoverCountryRef.current >= 0 ? 'pointer' : ''
+      }
       frame.closest<HTMLElement>('.hero')?.style.setProperty('--plate-presence', String(platePresence))
       document.documentElement.style.setProperty('--plate-presence', String(platePresence))
       const titleBounds = titleRef?.current?.getBoundingClientRect()
@@ -326,6 +645,97 @@ export function WorldGlobe({
          perfectly while standing in the gradient under the page's text,
          half-buried but still clickable. */
       const horizonY = window.innerHeight * 0.78
+
+      /* ---- the landed table's one layout pass ----
+         Everything below decides where stacks and the open sheet STAND. It
+         runs on landing, on a selection change and on a pan that actually
+         moved something — never per frame, which is the difference between a
+         composed table and a nervous one. */
+      const bounds = worldScale ? null : plateBounds()
+      const ui = useUI.getState()
+      const landed = scaleState.phase === 'plate' && platePresence > 0.999
+      const now = gsap.ticker.time
+      if (landed && landedAtRef.current < 0) {
+        landedAtRef.current = now
+        autoOpenDoneRef.current = false
+        solveDirtyRef.current = true
+      }
+      if (!landed && scaleState.phase !== 'plate' && landedAtRef.current >= 0) {
+        /* the table is leaving. The sheet folds with it rather than surviving
+           into the world, where it would be a grid of prints over a planet. */
+        landedAtRef.current = -1
+        autoOpenDoneRef.current = false
+        if (ui.plateSheet !== null) ui.closePlateSheet()
+        /* the displacements are NOT cleared here on purpose: they are applied
+           through the same boundsMix the viewport clamp rides, so they unwind
+           with the presence instead of snapping every stack back onto its
+           anchor on the first frame of the return */
+        layoutRef.current = null
+        solveDirtyRef.current = true
+      }
+      /* R15, mechanical and never editorial: the heaviest member of the cap
+         spreads itself on landing if its collection is congested enough to
+         have earned the dive in the first place. */
+      if (landed && !autoOpenDoneRef.current && now - landedAtRef.current >= AUTO_OPEN_DELAY_S) {
+        autoOpenDoneRef.current = true
+        const cluster = clusters[scaleState.cluster]
+        if (cluster && ui.plateSheet === null) {
+          const heaviest = cluster.memberIndices.reduce((a, b) =>
+            pinWeights[b] > pinWeights[a] ? b : a
+          )
+          if (pinWeights[heaviest] >= AUTO_OPEN_MIN_FRAMES) ui.openPlateSheet(heaviest)
+        }
+      }
+      if (ui.plateSheet !== sheetOwnerRef.current) {
+        sheetOwnerRef.current = ui.plateSheet
+        sheetOpenedAtRef.current = now
+        solveDirtyRef.current = true
+      }
+      if (landed && !solveDirtyRef.current && now - solveAtRef.current > RESOLVE_INTERVAL_S) {
+        /* a pan moves the anchors under a settled layout. Re-solve on real
+           movement only: the threshold is what keeps a drag from re-deciding
+           the composition sixty times a second. */
+        const cluster = clusters[scaleState.cluster]
+        if (cluster && bounds) {
+          for (const index of cluster.memberIndices) {
+            const projection = projectionRef.current[index]
+            /* frameless stops hold no stack, so the solver never recorded an
+               anchor for them and comparing against one would re-solve the
+               whole table three times a second for nothing */
+            if (!projection || pinWeights[index] === 0) continue
+            const anchor = clampToTable(
+              left + projection.x * width,
+              top + projection.y * height,
+              bounds
+            )
+            const drift = Math.hypot(
+              anchor.x - solveAnchorsRef.current[index * 2],
+              anchor.y - solveAnchorsRef.current[index * 2 + 1]
+            )
+            if (drift > RESOLVE_DRIFT_PX) {
+              solveDirtyRef.current = true
+              break
+            }
+          }
+        }
+      }
+      if (landed && solveDirtyRef.current && bounds) {
+        solveDirtyRef.current = false
+        solveAtRef.current = now
+        solveLayout(bounds, scaleState, { top, left, width, height })
+      } else if (landed) {
+        // the sheet element arriving a tick after the solve that placed it
+        applySheetGeometry({ top, left })
+      }
+      /* the develop clock: one value, written every frame like the plate's own
+         presence, so the sheet's frames arrive staggered without a CSS
+         animation that would restart itself on every re-render */
+      const sheetDevelop =
+        platePresence *
+        easeCubic(Math.max(0, Math.min(1, (now - sheetOpenedAtRef.current) / SHEET_DEVELOP_S)))
+      const sheetPresence = ui.plateSheet === null ? '0' : sheetDevelop.toFixed(3)
+      sheetRef.current?.style.setProperty('--sheet-presence', sheetPresence)
+      marksRef.current?.style.setProperty('--sheet-presence', sheetPresence)
       for (let i = 0; i < places.length; i++) {
         const node = pinRefs.current[i]
         const projection = projectionRef.current[i]
@@ -367,38 +777,21 @@ export function WorldGlobe({
           /* What has to stay on the table is a print, not a fan: the stack no
              longer spreads at plate scale, so the clearance is a function of
              the print's own size and stopped being a function of how many
-             frames the place holds. Mirrors --print-plate-h / --print-plate-w
-             in site.css (11vh tall, 3:2), plus the caption line beneath. */
-          const printHeight = window.innerHeight * 0.11
-          const printWidth = printHeight * 1.5
-          /* The caption is wider than the print it sits under, and it is
-             centred on the same anchor, so a stack clamped to the print's own
-             half-width still gets its caption sheared off at the frame edge.
-             The widest line any enterable cap prints is 41 characters
-             (`milford sound, nz · to the region · [ 6 ]`); at 0.6rem mono
-             (0.6em advance + 0.1em tracking = 0.7em ≈ 6.7px a character) that
-             is ~276px, so ~140px each side of the anchor. Defense in depth:
-             the fit solver reserves frame margins of its own and this catches
-             whatever it misses. Mirrors .globe-print-caption in site.css. */
-          const captionHalfWidth = 140
-          const horizontalClearance = Math.min(
-            window.innerWidth * 0.44,
-            Math.max(window.innerWidth * 0.06, printWidth / 2 + 8, captionHalfWidth)
-          )
-          const verticalClearance = Math.min(
-            window.innerHeight * 0.44,
-            Math.max(window.innerHeight * 0.06, printHeight + 34)
-          )
-          const boundedScreenX = Math.max(
-            horizontalClearance,
-            Math.min(window.innerWidth - horizontalClearance, rawScreenX)
-          )
-          const boundedScreenY = Math.max(
-            verticalClearance,
-            Math.min(window.innerHeight - verticalClearance, rawScreenY)
-          )
-          localX += (boundedScreenX - rawScreenX) * boundsMix
-          localY += (boundedScreenY - rawScreenY) * boundsMix
+             frames the place holds. plateBounds() mirrors --print-plate-h /
+             --print-plate-w in site.css (11vh tall, 3:2) plus the caption line
+             beneath, and the layout solver reads the very same numbers — one
+             definition, or the solver models a table that is not on screen. */
+          const table = bounds ?? plateBounds()
+          const bounded = clampToTable(rawScreenX, rawScreenY, table)
+          localX += (bounded.x - rawScreenX) * boundsMix
+          localY += (bounded.y - rawScreenY) * boundsMix
+          /* THE DECLUTTER, applied. Two stacks whose prints and captions would
+             print through each other stand apart instead, and the tie the
+             solver emitted alongside this offset is what keeps the move
+             honest (§9.3, "near, tied"). Blended on the same presence as the
+             clamp, so nothing steps sideways at a phase flip. */
+          localX += nudgeRef.current[i * 2] * boundsMix
+          localY += nudgeRef.current[i * 2 + 1] * boundsMix
         }
         node.style.transform = `translate3d(${localX}px, ${localY}px, 0) scale(${scale.toFixed(3)})`
         node.style.opacity = String(visible)
@@ -435,6 +828,29 @@ export function WorldGlobe({
         }
         node.classList.toggle('globe-pin-active', i === activeRef.current)
         node.classList.toggle('globe-pin-selected', i === selectedRef.current)
+        /* The stack's top print IS the sheet's disclosure control at plate
+           scale: it spreads the collection and folds it again. Written here
+           rather than in the render because the phase it depends on is a
+           per-frame value the component never re-renders on. */
+        const topPrint = cardRefs.current.get(`${i}:0`)
+        if (topPrint) {
+          if (belongsOnPlate && scaleState.phase === 'plate') {
+            const expanded = ui.plateSheet === i ? 'true' : 'false'
+            if (topPrint.getAttribute('aria-expanded') !== expanded) {
+              topPrint.setAttribute('aria-expanded', expanded)
+            }
+            if (expanded === 'true') {
+              if (topPrint.getAttribute('aria-controls') !== SHEET_DOM_ID) {
+                topPrint.setAttribute('aria-controls', SHEET_DOM_ID)
+              }
+            } else if (topPrint.hasAttribute('aria-controls')) {
+              topPrint.removeAttribute('aria-controls')
+            }
+          } else if (topPrint.hasAttribute('aria-expanded')) {
+            topPrint.removeAttribute('aria-expanded')
+            topPrint.removeAttribute('aria-controls')
+          }
+        }
       }
       /* the waypoint labels: same projection ride, quieter thresholds. They
          start fading later round the limb than pickups do (they are texture,
@@ -498,7 +914,11 @@ export function WorldGlobe({
         worldButton.style.pointerEvents = landed && interfaceMix > 0.55 ? 'auto' : 'none'
         worldButton.tabIndex = landed && interfaceMix > 0.55 ? 0 : -1
         if (activeCluster) {
-          if (scaleState.phase === 'dive' && scaleState.morph < 0.58) {
+          /* The instrument mirrors the scan front itself now — the canvas
+             publishes the wave's real progress in scaleState.scan, so the
+             lat/lng sweep hands off to the percentage exactly when the front
+             starts plotting, however late its assets arrived. */
+          if (scaleState.phase === 'dive' && scaleState.scan <= 0) {
             const position = instrumentPositionRef.current
             const targetLat = activeCluster.centroidLatLng[0]
             const targetLng = activeCluster.centroidLatLng[1]
@@ -506,13 +926,8 @@ export function WorldGlobe({
             position.lat += (targetLat - position.lat) * step
             position.lng += (targetLng - position.lng) * step
             instrument.textContent = `${position.lat.toFixed(3)}° / ${position.lng.toFixed(3)}°`
-          } else if (scaleState.phase === 'dive') {
-            const scan = Math.round(
-              Math.max(0, Math.min(1, (scaleState.morph - 0.58) / 0.42)) * 100
-            )
-            instrument.textContent = `scan … ${String(scan).padStart(2, '0')}%`
-          } else if (scaleState.phase === 'return') {
-            const scan = Math.round(Math.max(0, Math.min(1, scaleState.morph)) * 100)
+          } else if (scaleState.phase === 'dive' || scaleState.phase === 'return') {
+            const scan = Math.round(Math.max(0, Math.min(1, scaleState.scan)) * 100)
             instrument.textContent = `scan … ${String(scan).padStart(2, '0')}%`
           }
         } else {
@@ -597,10 +1012,33 @@ export function WorldGlobe({
 
   useEffect(() => {
     let lastScrollY = window.scrollY
+    /**
+     * ESCAPE HAS THREE DEPTHS at plate scale, and they are closed one at a
+     * time (CONCEPT-COUNTRY-ZOOM-V2 §8, "esc now has three depths"):
+     *
+     *   pop open      → FramePop's own handler closes the pop. Nothing here.
+     *   sheet open    → the sheet folds back into its stack. Still on the plate.
+     *   nothing open  → the plate returns to the world.
+     *
+     * The shipped bug this replaces: the handler set `exitRef` whenever the
+     * phase was not 'world', so an Escape aimed at a popped frame closed the
+     * pop AND dived the whole table out from under it — two depths on one
+     * keystroke, which is the one thing a depth order must never do.
+     */
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && scaleRef.current.phase !== 'world') {
-        exitRef.current = true
+      if (event.key !== 'Escape' || scaleRef.current.phase === 'world') return
+      const ui = useUI.getState()
+      if (ui.popOpen) return
+      if (ui.plateSheet !== null) {
+        foldSheet(sheetHasFocus())
+        return
       }
+      exitRef.current = true
+    }
+    /* the composition is decided in screen space, so a resized window is a
+       different composition */
+    const onResize = () => {
+      solveDirtyRef.current = true
     }
     const onScroll = () => {
       const nextScrollY = window.scrollY
@@ -617,10 +1055,13 @@ export function WorldGlobe({
     }
     window.addEventListener('keydown', onKey)
     window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onResize)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -628,6 +1069,33 @@ export function WorldGlobe({
     const devWindow = window as typeof window & {
       __dive?: (clusterIndex: number) => void
       __exitDive?: () => void
+      __plateLayout?: () => unknown
+      __hoverCountry?: () => number
+      __clusterIndexOf?: (slug: string) => number
+    }
+    /* what the layout pass decided, for the gates: which stacks were moved,
+       which ties were drawn, where the sheet went and whether it had to come
+       down a size. Measurement in the probes is still done off the DOM — this
+       is the solver's own account of itself, so a failing still can be read
+       without guessing. */
+    devWindow.__plateLayout = () => {
+      const layout = layoutRef.current
+      if (!layout) return null
+      return {
+        nudges: [...layout.nudges].map(([index, nudge]) => ({
+          slug: places[index].slug,
+          dx: Number(nudge.dx.toFixed(1)),
+          dy: Number(nudge.dy.toFixed(1)),
+        })),
+        ties: layout.ties.map((tie) => ({
+          slug: places[tie.index].slug,
+          length: Number(Math.hypot(tie.x2 - tie.x1, tie.y2 - tie.y1).toFixed(1)),
+        })),
+        sheet: layout.sheet,
+        owner: useUI.getState().plateSheet === null
+          ? null
+          : places[useUI.getState().plateSheet as number].slug,
+      }
     }
     /* Probe-only intent hooks. They deliberately do not mutate scaleRef, so
        Globe's useFrame remains the state machine's single writer. */
@@ -637,9 +1105,18 @@ export function WorldGlobe({
     devWindow.__exitDive = () => {
       exitRef.current = true
     }
+    /* read-only: which visited country's cluster is under the pointer (v3) */
+    devWindow.__hoverCountry = () => hoverCountryRef.current
+    /* probe door for chipless (one-place) countries: slug → cluster index */
+    devWindow.__clusterIndexOf = (slug) => {
+      const placeIndex = places.findIndex((place) => place.slug === slug)
+      return placeIndex >= 0 ? clusterForPlace[placeIndex] : -1
+    }
     return () => {
       delete devWindow.__dive
       delete devWindow.__exitDive
+      delete devWindow.__hoverCountry
+      delete devWindow.__plateLayout
     }
   }, [])
 
@@ -655,6 +1132,7 @@ export function WorldGlobe({
     // mouse only: on touch the browser owns the gesture until touch-action says
     // otherwise, and preventing the default there would eat the page scroll
     if (e.pointerType === 'mouse') e.preventDefault()
+    wasDragRef.current = false
     pressRef.current = { x: e.clientX, y: e.clientY }
     lastXRef.current = e.clientX
     lastYRef.current = e.clientY
@@ -671,6 +1149,20 @@ export function WorldGlobe({
      scroll and never reaches this handler. Taking it would mean trapping the
      page inside the hero. */
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    /* the hover half runs pressed or not: the canvas resolves this to a
+       country every frame. The rect is cached — a getBoundingClientRect per
+       move would thrash layout for a value that changes on resize only. */
+    const rectCache = frameRectRef.current
+    const at = performance.now()
+    if (!rectCache.rect || at - rectCache.at > 300) {
+      rectCache.rect = e.currentTarget.getBoundingClientRect()
+      rectCache.at = at
+    }
+    const pointer = globePointerRef.current
+    pointer.x = (e.clientX - rectCache.rect.left) / Math.max(1, rectCache.rect.width)
+    pointer.y = (e.clientY - rectCache.rect.top) / Math.max(1, rectCache.rect.height)
+    pointer.active = true
+
     const press = pressRef.current
     if (!press) return
     if (!draggingRef.current) {
@@ -697,6 +1189,9 @@ export function WorldGlobe({
     pressRef.current = null
     if (!draggingRef.current) return
     draggingRef.current = false
+    // the click that composes after this pointerup is the drag's echo, not an
+    // intent — the grab's click handler reads and clears this
+    wasDragRef.current = true
     e.currentTarget.releasePointerCapture?.(e.pointerId)
     if (
       scaleRef.current.phase === 'plate' &&
@@ -779,12 +1274,35 @@ export function WorldGlobe({
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onPointerLeave={() => {
+        globePointerRef.current.active = false
+      }}
     >
       {/* The drag surface. The frame itself takes no pointer events any more —
           it spans most of the section and would swallow clicks on everything
           the sphere bleeds behind — so the grab circle IS the planet's hit
-          area, and its events bubble up to the frame's handlers above. */}
-      <div className="globe-grab" data-cursor="spin" aria-hidden />
+          area, and its events bubble up to the frame's handlers above.
+
+          It is also the click-anywhere-in-the-country door (v3): a tap on the
+          sphere over a visited country dives into it. Chips and pickup cards
+          sit ABOVE this surface, so their taps never reach it — and it stays
+          aria-hidden on purpose: the chips and stacks remain the accessible,
+          named doors; this is the pointing hand's shortcut. */}
+      <div
+        ref={grabRef}
+        className="globe-grab"
+        data-cursor="spin"
+        aria-hidden
+        onClick={() => {
+          if (wasDragRef.current) {
+            wasDragRef.current = false
+            return
+          }
+          if (scaleRef.current.phase !== 'world') return
+          const hovered = hoverCountryRef.current
+          if (hovered >= 0) enterRef.current = hovered
+        }}
+      />
 
       {/* mounted immediately, NOT gated on the reveal: the entrance's seed
           must already be idling under the loader's veil when it lifts —
@@ -808,6 +1326,8 @@ export function WorldGlobe({
             scaleRef={scaleRef}
             enterRef={enterRef}
             exitRef={exitRef}
+            pointerRef={globePointerRef}
+            hoverCountryRef={hoverCountryRef}
           />
         </Suspense>
       )}
@@ -929,7 +1449,7 @@ export function WorldGlobe({
                             else cardRefs.current.delete(key)
                           }}
                           className={`globe-pickup-card${
-                            pop && pop.pin === i && pop.frame === k
+                            pop && pop.from === 'stack' && pop.pin === i && pop.frame === k
                               ? ' globe-pickup-card-lifted'
                               : ''
                           }`}
@@ -947,7 +1467,28 @@ export function WorldGlobe({
                               ? `${place.label} — ${meta(place)}`
                               : `${place.label}, frame ${k + 1} of ${frames.length}`
                           }
-                          onClick={() => {
+                          onClick={(event) => {
+                            /* THE PLATE LADDER. A stack on the table is a
+                               disclosure control before it is a photograph:
+                               the first tap picks the place up and spreads its
+                               contact sheet, a second tap on the TOP print
+                               folds it again, and a tap on any print under the
+                               top one opens that frame. One sheet at a time —
+                               spreading this one folds whichever was open,
+                               because the store holds a single slot. */
+                            if (scaleRef.current.phase === 'plate') {
+                              const keyboard = event.detail === 0
+                              if (selectedRef.current !== i) {
+                                selectedRef.current = i
+                                spreadSheet(i, keyboard)
+                              } else if (k === 0) {
+                                if (useUI.getState().plateSheet === i) foldSheet(keyboard)
+                                else spreadSheet(i, keyboard)
+                              } else {
+                                setPop({ pin: i, frame: k, from: 'stack' })
+                              }
+                              return
+                            }
                             // first tap picks the place up; a tap on the
                             // presented congested singleton dives instead.
                             // Sparse lone pins keep the existing fan ladder.
@@ -959,7 +1500,7 @@ export function WorldGlobe({
                             ) {
                               enterRef.current = placeClusterIndex
                             } else {
-                              setPop({ pin: i, frame: k })
+                              setPop({ pin: i, frame: k, from: 'stack' })
                             }
                           }}
                         >
@@ -1032,6 +1573,93 @@ export function WorldGlobe({
         })}
       </ul>
 
+      {/* THE CONTACT SHEET (CONCEPT-COUNTRY-ZOOM-V2 §6 figure layer 3, R7).
+          One sheet, one stack, flat: fifteen frames at survey-legible size in
+          a 5×3 grid, edge-numbered like a negative strip, each one a button
+          straight into FramePop. It is an object ON the table — the solver
+          places it in clear space and never over another stack's print or
+          caption — and never a full-viewport overlay, which would make the
+          dive a lightbox with extra steps (§2.6, "the sheet as modal").
+
+          Sits after the pins in DOM order, so a keyboard visitor reaches the
+          stacks first and their spread sheet after; aria-controls on the stack
+          that opened it carries the relationship the distance loses. */}
+      {plateSheet !== null &&
+        (() => {
+          const place = places[plateSheet]
+          const frames = framesAt(place)
+          if (frames.length === 0) return null
+          return (
+            <div className="globe-sheet-layer">
+              <div
+                ref={sheetRef}
+                id={SHEET_DOM_ID}
+                className="globe-sheet"
+                role="group"
+                aria-label={`${place.label}, contact sheet of ${frames.length} frames`}
+              >
+                <ul className="globe-sheet-grid">
+                  {frames.map((frame, k) => (
+                    <li
+                      key={frame.src}
+                      className="globe-sheet-slot"
+                      style={{ '--frame-lag': (k * SHEET_FRAME_LAG).toFixed(3) } as React.CSSProperties}
+                    >
+                      <button
+                        type="button"
+                        ref={(el) => {
+                          const key = `${plateSheet}:${k}`
+                          if (el) sheetFrameRefs.current.set(key, el)
+                          else sheetFrameRefs.current.delete(key)
+                        }}
+                        className={`globe-sheet-frame${
+                          pop && pop.from === 'sheet' && pop.pin === plateSheet && pop.frame === k
+                            ? ' globe-sheet-frame-lifted'
+                            : ''
+                        }`}
+                        aria-label={`${place.label}, frame ${k + 1} of ${frames.length}`}
+                        onClick={() => setPop({ pin: plateSheet, frame: k, from: 'sheet' })}
+                      >
+                        <img
+                          src={frame.src}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                        />
+                      </button>
+                      {/* the edge number, film-strip register: mono, muted,
+                          tiny, and never inside a shape (§6, P3) */}
+                      <span className="globe-sheet-index" aria-hidden>
+                        {String(k + 1).padStart(2, '0')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )
+        })()}
+
+      {/* THE GREASE PENCIL. Every mark the layout pass draws: one tie per
+          displaced or point-precision stack, one leader line from the sheet's
+          nearest corner back to its stack's anchor. 1px, scarlet, and short —
+          a mark, never a shape (§2.6, "leader-line spaghetti"). Geometry is
+          written by the layout pass; presence is CSS, so they lag their ground
+          on the way in and unplot with it on the way out. */}
+      <div ref={marksRef} className="globe-plate-marks" aria-hidden>
+        {places.map((place, i) => (
+          <span
+            key={place.slug}
+            ref={(node) => {
+              tieRefs.current[i] = node
+            }}
+            className="globe-tie"
+          />
+        ))}
+        <span ref={leaderRef} className="globe-tie globe-sheet-leader" />
+      </div>
+
       {/* the popped card, portaled to <body> (this frame is inside a
           transformed ancestor, which would capture position:fixed) */}
       {pop &&
@@ -1043,11 +1671,19 @@ export function WorldGlobe({
               label={place.label}
               photos={frames}
               index={pop.frame}
-              sourceEl={() => cardRefs.current.get(`${pop.pin}:${pop.frame}`) ?? null}
+              sourceEl={() =>
+                (pop.from === 'sheet'
+                  ? sheetFrameRefs.current.get(`${pop.pin}:${pop.frame}`)
+                  : cardRefs.current.get(`${pop.pin}:${pop.frame}`)) ?? null
+              }
               sourceAngle={
-                scaleRef.current.phase === 'world'
-                  ? (pop.frame - (frames.length - 1) / 2) * FAN_STEP
-                  : printAngle(pop.frame)
+                pop.from === 'sheet'
+                  ? /* a sheet frame lies flat on the table: it has no scatter
+                       angle to fly out of and none to slide back into */
+                    0
+                  : scaleRef.current.phase === 'world'
+                    ? (pop.frame - (frames.length - 1) / 2) * FAN_STEP
+                    : printAngle(pop.frame)
               }
               onStep={(dir) =>
                 setPop((p) => p && { ...p, frame: (p.frame + dir + frames.length) % frames.length })

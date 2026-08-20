@@ -1,63 +1,46 @@
 import {
-  greatCircleDistance,
   latLngToVec3,
   vec3ToLatLng,
   type LatLng,
   type Vec3,
 } from '../canvas/plate.ts'
-import { places } from './places.ts'
+import { countryOf, places } from './places.ts'
 
+/**
+ * THE COUNTRY IS THE UNIT (country view v3, 2026-08-20). A cluster is a
+ * visited country: every place belongs to exactly one, every country is
+ * enterable, and no frame count gates the door — a 2-frame country enters the
+ * same way a 15-frame one does. The old geometric union-find is gone with the
+ * two lies it told: a 637km threshold that welded germany, vienna and the
+ * dolomites into one cross-border cap, and a frame floor that left sydney and
+ * brisbane doorless on opposite sides of a near-miss.
+ */
 export interface PlaceCluster {
+  /** ISO-3166 alpha-2 — the identity of the unit, straight from the labels */
+  countryCode: string
   memberIndices: number[]
   memberSlugs: string[]
   centroid: Vec3
   centroidLatLng: LatLng
   totalFrameCount: number
   enterable: true
+  /**
+   * A one-place country. It gets no chip — its own pickup stack is the door
+   * (the stack carries the dive affordance), so the map keeps the photograph
+   * where the old model would have swapped it for a count.
+   */
   congestedSingleton: boolean
 }
 
-export const CLUSTER_ANGULAR_THRESHOLD = 0.1
-export const CONGESTED_SINGLETON_FRAMES = 8
-
-/**
- * Places are deployment data, so their connected components are deployment
- * data too. Building them here keeps an O(n²) truth out of every render loop
- * and lets route stops with no frames participate on geometry alone.
- */
-const parent = places.map((_, index) => index)
-
-const find = (index: number): number => {
-  let root = index
-  while (parent[root] !== root) root = parent[root]
-  while (parent[index] !== index) {
-    const next = parent[index]
-    parent[index] = root
-    index = next
-  }
-  return root
-}
-
-const merge = (a: number, b: number) => {
-  const aRoot = find(a)
-  const bRoot = find(b)
-  if (aRoot !== bRoot) parent[bRoot] = aRoot
-}
-
-for (let a = 0; a < places.length; a++) {
-  for (let b = a + 1; b < places.length; b++) {
-    if (greatCircleDistance(places[a].coords, places[b].coords) <= CLUSTER_ANGULAR_THRESHOLD) {
-      merge(a, b)
-    }
-  }
-}
-
-const components = new Map<number, number[]>()
+/* Insertion order = first appearance in `places`, which is the editorial
+   order of the sheet — the tour and the chips inherit it unchanged. */
+const byCountry = new Map<string, number[]>()
 for (let index = 0; index < places.length; index++) {
-  const root = find(index)
-  const members = components.get(root)
+  const code = countryOf(places[index])
+  if (!code) continue
+  const members = byCountry.get(code)
   if (members) members.push(index)
-  else components.set(root, [index])
+  else byCountry.set(code, [index])
 }
 
 const centroidOf = (memberIndices: number[]): Vec3 => {
@@ -70,35 +53,39 @@ const centroidOf = (memberIndices: number[]): Vec3 => {
   }, [0, 0, 0])
   const magnitude = Math.hypot(...sum)
 
-  // An exactly antipodal component has no unique spherical mean. It cannot
-  // occur below this threshold, but the first member is the honest fallback
-  // if future data or thresholds change that invariant.
+  // An exactly antipodal component has no unique spherical mean. No country
+  // sheet gets close, but the first member stays the honest fallback.
   return magnitude > 1e-12
     ? [sum[0] / magnitude, sum[1] / magnitude, sum[2] / magnitude]
     : latLngToVec3(places[memberIndices[0]].coords)
 }
 
-export const clusters: PlaceCluster[] = [...components.values()].flatMap((memberIndices) => {
-  const totalFrameCount = memberIndices.reduce(
-    (total, index) => total + places[index].frames.length,
-    0
-  )
-  const congestedSingleton = memberIndices.length === 1
-    && totalFrameCount >= CONGESTED_SINGLETON_FRAMES
-  if (memberIndices.length < 2 && !congestedSingleton) return []
+export const clusters: PlaceCluster[] = [...byCountry.entries()].map(
+  ([countryCode, memberIndices]) => {
+    const centroid = centroidOf(memberIndices)
+    return {
+      countryCode,
+      memberIndices,
+      memberSlugs: memberIndices.map((index) => places[index].slug),
+      centroid,
+      centroidLatLng: vec3ToLatLng(centroid),
+      totalFrameCount: memberIndices.reduce(
+        (total, index) => total + places[index].frames.length,
+        0
+      ),
+      enterable: true,
+      congestedSingleton: memberIndices.length === 1,
+    }
+  }
+)
 
-  const centroid = centroidOf(memberIndices)
-  return [{
-    memberIndices,
-    memberSlugs: memberIndices.map((index) => places[index].slug),
-    centroid,
-    centroidLatLng: vec3ToLatLng(centroid),
-    totalFrameCount,
-    enterable: true,
-    congestedSingleton,
-  }]
-})
+/** country code → cluster index, for the world-scale country pointer work */
+export const clusterIndexByCountry = new Map<string, number>(
+  clusters.map((cluster, index) => [cluster.countryCode, index])
+)
 
+/* Places whose label carries no country. None exist today; the exports stay
+   because the gates print them as a standing audit of that claim. */
 const clusteredIndices = new Set(clusters.flatMap((cluster) => cluster.memberIndices))
 export const lonePlaceIndices = places.flatMap((_, index) => clusteredIndices.has(index) ? [] : [index])
 export const lonePlaceSlugs = lonePlaceIndices.map((index) => places[index].slug)

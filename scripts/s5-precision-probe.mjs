@@ -62,6 +62,39 @@ const consoleArgument = (argument) => {
   return argument.description ?? argument.type
 }
 
+/**
+ * P2 needs the area photographs actually cover, and prints overlap each other
+ * (a stack is four cards deep) while sheet frames do not — so a sum of areas
+ * would flatter the number. This is the honest one: a swept union over
+ * compressed x coordinates, every rect already clipped to the viewport.
+ */
+const unionArea = (rects) => {
+  const xs = [...new Set(rects.flatMap((rect) => [rect.left, rect.right]))].sort((a, b) => a - b)
+  let area = 0
+  for (let i = 0; i < xs.length - 1; i++) {
+    const [x0, x1] = [xs[i], xs[i + 1]]
+    if (x1 <= x0) continue
+    const spans = rects
+      .filter((rect) => rect.left <= x0 && rect.right >= x1)
+      .map((rect) => [rect.top, rect.bottom])
+      .sort((a, b) => a[0] - b[0])
+    let covered = 0
+    let cursor = -Infinity
+    for (const [top, bottom] of spans) {
+      const start = Math.max(top, cursor)
+      if (bottom > start) {
+        covered += bottom - start
+        cursor = bottom
+      }
+    }
+    area += covered * (x1 - x0)
+  }
+  return area
+}
+
+const intersects = (a, b) =>
+  a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+
 async function main() {
   await mkdir(outputDir, { recursive: true })
   let server
@@ -163,13 +196,105 @@ async function main() {
       await writeFile(path, Buffer.from(capture.data, 'base64'))
       return path
     }
+    /* One read of the landed table: every visible stack's prints and caption,
+       the open sheet if there is one, and the solver's own account of what it
+       decided. Everything stage D asserts is measured off this. */
+    const readPlate = () =>
+      evaluate(cdp, sessionId, () => {
+        const boxOf = (element) => {
+          const rect = element.getBoundingClientRect()
+          return {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+          }
+        }
+        const sheet = document.querySelector('#globe-contact-sheet')
+        const stacks = [...document.querySelectorAll('.globe-pin')]
+          .filter(
+            (pin) =>
+              pin.querySelector('.globe-pickup-card') &&
+              Number(getComputedStyle(pin).opacity) > 0.6
+          )
+          .map((pin) => {
+            const top = pin.querySelector('.globe-pickup-card')
+            const caption = pin.querySelector('.globe-print-caption')
+            return {
+              slug: pin.dataset.placeSlug,
+              prints: [...pin.querySelectorAll('.globe-pickup-card')]
+                .filter((card) => Number(getComputedStyle(card).opacity) > 0.05)
+                .map(boxOf),
+              caption: caption ? boxOf(caption) : null,
+              expanded: top ? top.getAttribute('aria-expanded') : null,
+            }
+          })
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          stacks,
+          sheetCount: document.querySelectorAll('.globe-sheet').length,
+          sheet:
+            sheet && !sheet.hidden
+              ? {
+                  label: sheet.getAttribute('aria-label'),
+                  presence: Number(getComputedStyle(sheet).getPropertyValue('--sheet-presence')),
+                  cols: Number(getComputedStyle(sheet).getPropertyValue('--sheet-cols')),
+                  rect: boxOf(sheet),
+                  frames: [...sheet.querySelectorAll('.globe-sheet-frame')].map(boxOf),
+                  numbers: [...sheet.querySelectorAll('.globe-sheet-index')].map(
+                    (node) => node.textContent
+                  ),
+                }
+              : null,
+          layout: window.__plateLayout?.() ?? null,
+        }
+      })
+
+    /* The sheet spreads half a second after the table settles (R15's landing
+       beat), and develops its frames in over another beat. A landed still is
+       only the landed still once that has finished, so the wait is on the
+       develop clock rather than on a fixed sleep. */
+    const sheetSnapshot = () => {
+      const sheet = document.querySelector('#globe-contact-sheet')
+      if (!sheet) return { exists: false }
+      return {
+        exists: true,
+        hidden: sheet.hidden,
+        presence: Number(getComputedStyle(sheet).getPropertyValue('--sheet-presence')),
+        count: sheet.querySelectorAll('.globe-sheet-frame').length,
+        label: sheet.getAttribute('aria-label'),
+        owner: window.__plateLayout?.()?.owner ?? null,
+      }
+    }
+    const waitForSheet = async (frames, description) => {
+      const started = Date.now()
+      while (Date.now() - started < 20000) {
+        const snap = await evaluate(cdp, sessionId, sheetSnapshot)
+        if (snap.exists && !snap.hidden && snap.count === frames && snap.presence > 0.995) {
+          return { frames: snap.count, presence: snap.presence, label: snap.label }
+        }
+        await sleep(100)
+      }
+      throw new Error(
+        `timed out waiting for ${description}: ${JSON.stringify(await evaluate(cdp, sessionId, sheetSnapshot))}`
+      )
+    }
+
+    /* Multi-place countries dive from their chip; one-place countries have no
+       chip by design (v3 — the stack is the door), so the probe takes the same
+       __dive intent the stack's second tap would set. */
     const clickCluster = (slug) =>
       evaluate(cdp, sessionId, (memberSlug) => {
         const chip = document.querySelector(`[data-cluster-slugs~="${memberSlug}"] button`)
-        if (!(chip instanceof HTMLButtonElement)) {
-          throw new Error(`${memberSlug} cluster chip is missing`)
+        if (chip instanceof HTMLButtonElement) {
+          chip.click()
+          return
         }
-        chip.click()
+        const clusterIndex = window.__clusterIndexOf?.(memberSlug) ?? -1
+        if (clusterIndex < 0) throw new Error(`${memberSlug} has neither chip nor cluster`)
+        window.__dive(clusterIndex)
       }, slug)
     const exitPlate = async () => {
       await evaluate(cdp, sessionId, () => document.querySelector('.globe-world-button')?.click())
@@ -179,11 +304,12 @@ async function main() {
     await waitFor(
       () => Boolean(
         document.querySelector('canvas')?.width &&
-        document.querySelector('[data-cluster-slugs~="germany"] button') &&
+        // germany is a one-place country now: a stack, not a chip (v3)
+        document.querySelector('[data-place-slug="germany"]') &&
         document.querySelector('[data-cluster-slugs~="queenstown"] button') &&
         document.querySelector('[data-cluster-slugs~="da-nang"] button')
       ),
-      'canvas and S5 cluster chips'
+      'canvas and S5 doors'
     )
     await sleep(5000)
 
@@ -193,8 +319,110 @@ async function main() {
     // screenshot is the honesty gate: Germany itself must not gain a point.
     await clickCluster('germany')
     await waitForState('plate', 0.999, 1)
+    const germanySheetSettled = await waitForSheet(
+      15,
+      'the germany sheet to spread itself on landing (R15)'
+    )
     await sleep(250)
     screenshots.push(await screenshot('s5-germany-landed.png'))
+
+    /* ---- stage D: the survey (P7), photo-first (P2), and the solver's two
+       hard constraints. All of it measured, none of it judged off the still. */
+    const germanyTable = await readPlate()
+    assert.ok(germanyTable.sheet, 'the germany cap must land with a contact sheet spread')
+    assert.equal(
+      germanyTable.sheet.label,
+      'germany, de, contact sheet of 15 frames',
+      'the sheet must name the collection it spreads'
+    )
+    assert.equal(germanyTable.sheetCount, 1, 'exactly one sheet may be open at a time')
+    assert.equal(germanyTable.sheet.frames.length, 15, 'all 15 germany frames must be on the sheet')
+    assert.equal(germanyTable.sheet.cols, 5, '15 frames must lay out as 5 × 3')
+    assert.deepEqual(
+      [germanyTable.sheet.numbers[0], germanyTable.sheet.numbers[14]],
+      ['01', '15'],
+      'the sheet must carry film-edge numbers 01 … 15'
+    )
+    const { width: viewportWidth, height: viewportHeight } = germanyTable.viewport
+    assert.ok(
+      germanyTable.sheet.frames.every(
+        (frame) =>
+          frame.left >= -1 &&
+          frame.top >= -1 &&
+          frame.right <= viewportWidth + 1 &&
+          frame.bottom <= viewportHeight + 1
+      ),
+      'every sheet frame must be inside the viewport — a survey is all of it at once (P7)'
+    )
+    assert.ok(
+      germanyTable.sheet.frames.every((frame) => frame.width >= 40),
+      'a 40px thumbnail is an index, not a survey: every frame must be survey-legible (P7)'
+    )
+    const uniformity = germanyTable.sheet.frames.map((frame) =>
+      Math.abs(frame.width / frame.height - 1.5)
+    )
+    assert.ok(
+      Math.max(...uniformity) < 0.06,
+      'sheet frames must be uniform and undistorted 3:2, never wedges'
+    )
+    const sheetRect = germanyTable.sheet.rect
+    assert.ok(
+      (sheetRect.width * sheetRect.height) / (viewportWidth * viewportHeight) < 0.4,
+      'the sheet is an object on the table, never a full-frame overlay (§2.6)'
+    )
+    /* the solver's hard constraint, checked against the DOM rather than
+       against the solver: no other stack's print or caption may be underneath
+       the open sheet (§9.2) */
+    const sheetOwner = 'germany'
+    for (const stack of germanyTable.stacks) {
+      if (stack.slug === sheetOwner) continue
+      for (const print of stack.prints) {
+        assert.ok(
+          !intersects(sheetRect, print),
+          `the sheet covers ${stack.slug}'s print — print scale drops before honesty does`
+        )
+      }
+      if (stack.caption) {
+        assert.ok(
+          !intersects(sheetRect, stack.caption),
+          `the sheet covers ${stack.slug}'s caption — the solver must never do this`
+        )
+      }
+    }
+    /* and the stacks against each other: the NZ overlap bug, gated on the cap
+       that has three of them */
+    for (let a = 0; a < germanyTable.stacks.length; a++) {
+      for (let b = a + 1; b < germanyTable.stacks.length; b++) {
+        assert.ok(
+          !intersects(germanyTable.stacks[a].prints[0], germanyTable.stacks[b].prints[0]),
+          `${germanyTable.stacks[a].slug} and ${germanyTable.stacks[b].slug} prints overlap`
+        )
+      }
+    }
+    // P2: photographs, by area, on the worst cap there is
+    const clip = (box) => ({
+      left: Math.max(0, box.left),
+      top: Math.max(0, box.top),
+      right: Math.min(viewportWidth, box.right),
+      bottom: Math.min(viewportHeight, box.bottom),
+    })
+    const photoBoxes = [
+      ...germanyTable.sheet.frames,
+      ...germanyTable.stacks.flatMap((stack) => stack.prints),
+    ]
+      .map(clip)
+      .filter((box) => box.right > box.left && box.bottom > box.top)
+    const photoFraction = unionArea(photoBoxes) / (viewportWidth * viewportHeight)
+    assert.ok(
+      photoFraction >= 0.15,
+      `photographs cover ${(photoFraction * 100).toFixed(1)}% of the germany landing; ` +
+        'P2 asks for 15% on the worst cap (v1 shipped 2.1%)'
+    )
+    assert.equal(
+      germanyTable.stacks.find((stack) => stack.slug === 'germany')?.expanded,
+      'true',
+      'the stack that spread the sheet must report aria-expanded=true'
+    )
 
     /* The plotted outline, counted off the shipped attribute buffer rather
        than judged off the still. P1 is a human call on the screenshot, but
@@ -277,12 +505,76 @@ async function main() {
       backdrop.click()
     })
     await waitFor(() => !document.querySelector('.frame-pop'), 'FramePop return to fan')
+
+    /* P7's second half: every frame on the sheet is ONE tap from the viewer.
+       The fifth frame, chosen because it is neither the first nor the last —
+       a sheet where only the corners work is not a survey. */
+    await evaluate(cdp, sessionId, () => {
+      const frame = document.querySelectorAll('#globe-contact-sheet .globe-sheet-frame')[4]
+      if (!(frame instanceof HTMLButtonElement)) throw new Error('sheet frame 05 is missing')
+      frame.click()
+    })
+    const sheetPopLabel = await waitFor(
+      () => document.querySelector('.frame-pop')?.getAttribute('aria-label') ?? null,
+      'FramePop from a sheet frame'
+    )
+    assert.equal(
+      sheetPopLabel,
+      'germany, de — frame 5 of 15',
+      'a sheet frame must open its own frame in the viewer'
+    )
+    await evaluate(cdp, sessionId, () => {
+      const backdrop = document.querySelector('.frame-pop-backdrop')
+      if (!(backdrop instanceof HTMLElement)) throw new Error('FramePop backdrop is missing')
+      backdrop.click()
+    })
+    await waitFor(() => !document.querySelector('.frame-pop'), 'FramePop return to the sheet')
+
+    /* ONE SHEET AT A TIME. Selecting the dolomites stack folds germany's sheet
+       back into its stack and spreads the dolomites' nine frames as 5 + 4 —
+       "a grease pencil that moves rather than multiplies" (§5). */
+    await evaluate(cdp, sessionId, () => {
+      const card = document.querySelector('[data-place-slug="dolomites"] .globe-pickup-card')
+      if (!(card instanceof HTMLButtonElement)) throw new Error('dolomites print stack is missing')
+      card.click()
+    })
+    const movedSheet = await waitForSheet(9, 'the dolomites sheet to replace the germany sheet')
+    assert.equal(
+      movedSheet.label,
+      'dolomites, it, contact sheet of 9 frames',
+      'the moved sheet must be the dolomites collection, whole'
+    )
+    await sleep(300)
+    screenshots.push(await screenshot('s5-germany-sheet-folded.png'))
+    const movedTable = await readPlate()
+    assert.ok(movedTable.sheet, 'the dolomites sheet must be placed, not merely mounted')
+    assert.equal(movedTable.sheetCount, 1, 'the germany sheet must fold as the dolomites one spreads')
+    assert.equal(movedTable.sheet.cols, 5, '9 frames must lay out as 5 + 4')
+    assert.equal(
+      movedTable.stacks.find((stack) => stack.slug === 'germany')?.expanded,
+      'false',
+      'the folded stack must report aria-expanded=false'
+    )
+    assert.equal(
+      movedTable.stacks.find((stack) => stack.slug === 'dolomites')?.expanded,
+      'true',
+      'the spread stack must report aria-expanded=true'
+    )
     await exitPlate()
 
     // NZ: the local fiord tint must sit on terrain, while adaptive spread is
     // visible in the four separate pickup anchors.
     await clickCluster('queenstown')
     await waitForState('plate', 0.999, 1)
+    /* south island holds twelve frames, so it is the heaviest member and its
+       sheet spreads on landing exactly as germany's does — the rule is
+       mechanical, and this is the cap that proves it is not special-cased */
+    const nzSheetSettled = await waitForSheet(12, 'the south island sheet to spread on landing')
+    assert.equal(
+      nzSheetSettled.label,
+      'south island, nz, contact sheet of 12 frames',
+      'the NZ cap must open its heaviest member, not its nearest one'
+    )
     await sleep(250)
     screenshots.push(await screenshot('s5-nz-landed.png'))
     /* The coastal cap: it got its edge free from the sea before the stroke
@@ -317,6 +609,46 @@ async function main() {
       }
     }
     assert.ok(nzMinSeparation >= 30, 'NZ pin anchors must keep a visible screen-space gap')
+
+    /* THE DECLUTTER, on the cap that needed it. Four stacks inside 250km
+       landed with their prints on top of each other and their captions printed
+       through each other (s5-nz-landed.png, stage B). Stacks that were moved
+       carry a tie back to their anchor, which is what keeps the move honest. */
+    const nzTable = await readPlate()
+    for (let a = 0; a < nzTable.stacks.length; a++) {
+      for (let b = a + 1; b < nzTable.stacks.length; b++) {
+        const first = nzTable.stacks[a]
+        const second = nzTable.stacks[b]
+        assert.ok(
+          !intersects(first.prints[0], second.prints[0]),
+          `${first.slug} and ${second.slug} prints still overlap on the NZ table`
+        )
+        assert.ok(
+          !first.caption ||
+            !second.caption ||
+            !intersects(first.caption, second.caption),
+          `${first.slug} and ${second.slug} captions still print through each other`
+        )
+      }
+    }
+    assert.ok(nzTable.sheet, 'the NZ table must still carry its spread sheet')
+    const nzSheetRect = nzTable.sheet.rect
+    for (const stack of nzTable.stacks) {
+      if (stack.slug === 'south-island') continue
+      assert.ok(
+        !intersects(nzSheetRect, stack.prints[0]) &&
+          (!stack.caption || !intersects(nzSheetRect, stack.caption)),
+        `the NZ sheet covers ${stack.slug}`
+      )
+    }
+    const nzTies = nzTable.layout?.ties ?? []
+    const nzNudged = (nzTable.layout?.nudges ?? []).filter(
+      (nudge) => Math.hypot(nudge.dx, nudge.dy) >= 5
+    )
+    assert.ok(
+      nzNudged.every((nudge) => nzTies.some((tie) => tie.slug === nudge.slug)),
+      'every displaced NZ stack must carry a tie back to its own anchor (P4)'
+    )
     await exitPlate()
 
     // Da Nang is an honest empty stop: the pin and label exist, a card stack
@@ -336,6 +668,14 @@ async function main() {
         hasBareLabel: Boolean(pin.querySelector('.globe-pickup-label-bare')),
       }
     })
+    /* R15 in its other direction: no member of this cap holds eight frames, so
+       the table lands with its stacks closed and nothing spreads itself. */
+    const quietCap = await readPlate()
+    assert.equal(
+      quietCap.sheetCount,
+      0,
+      'a cap with no congested member must land with its stacks closed'
+    )
     assert.ok(emptyStop, 'da-nang plate pin must exist')
     assert.ok(emptyStop.opacity > 0.6, 'da-nang plate pin must be visible')
     assert.equal(emptyStop.hasPickup, false, 'da-nang must not render a pickup stack')
@@ -359,6 +699,27 @@ async function main() {
       screenshots,
       germanyPlate,
       nzPlate,
+      sheet: {
+        germany: {
+          settled: germanySheetSettled,
+          cols: germanyTable.sheet.cols,
+          rect: germanyTable.sheet.rect,
+          frameSize: germanyTable.sheet.frames[0],
+          shrunk: germanyTable.layout?.sheet?.shrunk ?? null,
+          violated: germanyTable.layout?.sheet?.violated ?? null,
+          ties: germanyTable.layout?.ties ?? null,
+          nudges: germanyTable.layout?.nudges ?? null,
+          photoFraction: Number(photoFraction.toFixed(4)),
+        },
+        moved: { label: movedSheet.label, cols: movedTable.sheet.cols },
+        nz: {
+          settled: nzSheetSettled,
+          shrunk: nzTable.layout?.sheet?.shrunk ?? null,
+          ties: nzTies,
+          nudges: nzTable.layout?.nudges ?? null,
+        },
+        quietCap: quietCap.sheetCount,
+      },
       germanyFanBounds,
       nzPins,
       nzMinSeparation,

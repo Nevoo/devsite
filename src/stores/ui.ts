@@ -48,6 +48,22 @@ interface UIState {
    */
   popOpen: boolean
   setPopOpen: (v: boolean) => void
+
+  /**
+   * The plate's open contact sheet: the index into `places` whose collection is
+   * spread on the table, or null. One sheet at a time, by construction — this
+   * is a single slot, not a set, because "a grease pencil that moves rather
+   * than multiplies" (CONCEPT-COUNTRY-ZOOM-V2 §5) is a data-shape decision
+   * before it is a visual one.
+   *
+   * It lives here beside `popOpen` for one reason: Escape at plate scale has
+   * three depths (pop → sheet → world) and a keydown handler that has to read
+   * all three of them needs one place to read from. The sheet's own geometry
+   * stays in the layout solver; only its existence is state.
+   */
+  plateSheet: number | null
+  openPlateSheet: (placeIndex: number) => void
+  closePlateSheet: () => void
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -65,6 +81,10 @@ export const useUI = create<UIState>((set) => ({
   closeLightbox: () => set({ lightbox: null }),
   popOpen: false,
   setPopOpen: (v) => set({ popOpen: v }),
+
+  plateSheet: null,
+  openPlateSheet: (placeIndex) => set({ plateSheet: placeIndex }),
+  closePlateSheet: () => set({ plateSheet: null }),
 
   stepLightbox: (dir) =>
     set((s) =>
