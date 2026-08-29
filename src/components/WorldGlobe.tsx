@@ -128,6 +128,26 @@ clusters.forEach((cluster, clusterIndex) => {
   for (const placeIndex of cluster.memberIndices) clusterForPlace[placeIndex] = clusterIndex
 })
 
+/* ONE FACE PER COUNTRY (v4.1). At world scale a country shows exactly one
+   thing: a small photo preview standing on its heaviest place. Singleton
+   piles, chip-only clusters and bare text labels were three different rest
+   presentations for the same kind of object; now the heaviest member's stack
+   is the country's face, every other member presentation waits for the
+   landed table, and the preview's card count is capped in CSS. */
+const previewPlaceForCluster = new Int16Array(clusters.length).fill(-1)
+clusters.forEach((cluster, clusterIndex) => {
+  let best = -1
+  let bestFrames = 0
+  for (const placeIndex of cluster.memberIndices) {
+    const count = framesAt(places[placeIndex]).length
+    if (count > bestFrames) {
+      best = placeIndex
+      bestFrames = count
+    }
+  }
+  previewPlaceForCluster[clusterIndex] = best
+})
+
 const regionNames = new Intl.DisplayNames('en', { type: 'region' })
 const withoutCountrySuffix = (label: string) => label.replace(/,\s*[a-z]{2}$/i, '')
 
@@ -306,6 +326,11 @@ export function WorldGlobe({
   const chipRefs = useRef<(HTMLLIElement | null)[]>([])
   const chipButtonRefs = useRef<(HTMLButtonElement | null)[]>([])
   const chipProjectionRef = useRef<PinProjection[]>([])
+  /* v4: a chip is the HOVER LABEL of its country, not a resting billboard.
+     One damped presence per chip, driven by the canvas's hover answer (and by
+     keyboard focus, which must always be able to see what it is standing on). */
+  const chipFadeRef = useRef(new Float32Array(clusters.length))
+  const tickPrevRef = useRef(-1)
   const internalActiveRef = useRef(-1)
   const internalSelectedRef = useRef(-1)
   const activeRef = sharedActiveRef ?? internalActiveRef
@@ -611,6 +636,14 @@ export function WorldGlobe({
     const tick = () => {
       const frame = frameRef.current
       if (!frame) return
+      /* the loop's own delta, for the few damped values the DOM half owns
+         (chip fades). Clamped so a background-tab return cannot step a fade
+         across its whole range in one frame. */
+      const tickNow = gsap.ticker.time
+      const tickDelta = tickPrevRef.current < 0
+        ? 1 / 60
+        : Math.min(0.1, Math.max(0, tickNow - tickPrevRef.current))
+      tickPrevRef.current = tickNow
       const { top, left, width, height } = frame.getBoundingClientRect()
       const scaleState = scaleRef.current
       const worldScale = scaleState.phase === 'world'
@@ -752,11 +785,13 @@ export function WorldGlobe({
            most of what read as "and now the planet is here" (Globe.tsx, the
            seed pass). 1 on a formed mount, so nothing waits on a remount. */
         const clusterIndex = clusterForPlace[i]
-        const cluster = clusterIndex >= 0 ? clusters[clusterIndex] : undefined
-        const hiddenUnderChip = worldScale && cluster && !cluster.congestedSingleton
+        /* one face per country (v4.1): at world scale only the preview place
+           shows — bare labels and sibling stacks wait for the landed table */
+        const isCountryPreview =
+          clusterIndex >= 0 && previewPlaceForCluster[clusterIndex] === i
         const belongsOnPlate = !worldScale && clusterIndex === scaleState.cluster
         const scaleVisible = worldScale
-          ? (hiddenUnderChip ? 0 : 1)
+          ? (isCountryPreview ? 1 : 0)
           : belongsOnPlate || scaleState.phase === 'return'
             ? 1
             : 0
@@ -889,7 +924,20 @@ export function WorldGlobe({
         const limb = Math.max(0, Math.min(1, (projection.facing - 0.02) / 0.28))
         const screenY = top + projection.y * height
         const sink = Math.max(0, Math.min(1, (horizonY - screenY) / 60))
-        const visible = limb * sink * projection.form
+        /* v4: the chip is the country's hover label. At rest it is absent —
+           the resting statement of "where I've been" is the canvas's own
+           (outline, lift, photographs) — and it develops in when the canvas
+           answers that this country is under the pointer, or when the chip
+           itself holds keyboard focus. The damp keeps a pointer crossing a
+           border from strobing two labels. */
+        const chipFade = chipFadeRef.current
+        const wanted = worldScale &&
+          (hoverCountryRef.current === i || node.contains(document.activeElement))
+          ? 1
+          : 0
+        chipFade[i] += (wanted - chipFade[i]) * Math.min(1, 14 * tickDelta)
+        if (chipFade[i] < 0.001 && wanted === 0) chipFade[i] = 0
+        const visible = limb * sink * projection.form * chipFade[i]
         const depthScale = 0.72 + 0.28 * Math.max(0, Math.min(1, projection.facing))
         node.style.transform = `translate3d(${projection.x * width}px, ${projection.y * height}px, 0) scale(${depthScale.toFixed(3)})`
         node.style.opacity = visible.toFixed(3)
@@ -1374,10 +1422,14 @@ export function WorldGlobe({
                   enterRef.current = i
                 }}
               >
-                {/* the same count grammar as the stack captions, one scale up:
+                {/* v4: the chip is a hover label now, so it must SAY what the
+                    pointer is standing on — the country's name leads, and the
+                    count grammar of the stack captions follows one scale up:
                     brackets muted, digit in accent, no shape around either
                     (CONCEPT-COUNTRY-ZOOM-V2 §6, P3). The chip's whole member
                     list stays in aria-label above. */}
+                <span className="globe-cluster-name">{clusterLabels[i]}</span>
+                {' · '}
                 {countsLead(cluster.memberIndices.length)}
                 <span className="globe-print-count-num">{cluster.totalFrameCount}</span>
                 {COUNTS_TAIL}
@@ -1408,14 +1460,14 @@ export function WorldGlobe({
 
       {/* The pickups. Every place wears its photographs ON the globe as a
           small stack of cards over the dot — a game's pickup, not a map's
-          tooltip. First tap selects the place (globe swings it up the visible
-          arc) and the stack SPREADS into a hand-held fan, one card per frame;
-          hovering a fanned card pops it a little, tapping it lifts THAT card
-          out of the hand and flies it up to viewer scale above the planet
-          (FramePop) — a tap anywhere else slides it back into the fan. That
-          two-tap ladder is also the entire mobile story: no hover required
-          anywhere. A place with no frames yet stays a bare dot with its
-          label: visibly a different kind of object. */}
+          tooltip. At world scale the stack is TEXTURE with one door behind it:
+          tapping it dives into its country, exactly like tapping the sphere
+          around it — the world scale has a single interaction (v4). The
+          two-tap ladder (spread the sheet, pop a frame) lives on the landed
+          table, where the stack is a print pile and the first tap is a
+          disclosure. No hover required anywhere, which is the entire mobile
+          story. A place with no frames yet stays a bare dot with its label:
+          visibly a different kind of object. */}
       <ul className="globe-pins">
         {places.map((place, i) => {
           const frames = framesAt(place)
@@ -1489,18 +1541,17 @@ export function WorldGlobe({
                               }
                               return
                             }
-                            // first tap picks the place up; a tap on the
-                            // presented congested singleton dives instead.
-                            // Sparse lone pins keep the existing fan ladder.
-                            if (selectedRef.current !== i) {
-                              selectedRef.current = i
-                            } else if (
-                              placeCluster?.congestedSingleton &&
-                              scaleRef.current.phase === 'world'
+                            /* ONE DOOR (v4). At world scale a photograph is
+                               part of the country it stands on: tapping a card
+                               is the same gesture as tapping the sphere beside
+                               it, and both dive into that country. The pick-up
+                               fan and FramePop live on the landed table now —
+                               the world scale has exactly one interaction. */
+                            if (
+                              scaleRef.current.phase === 'world' &&
+                              placeClusterIndex >= 0
                             ) {
                               enterRef.current = placeClusterIndex
-                            } else {
-                              setPop({ pin: i, frame: k, from: 'stack' })
                             }
                           }}
                         >
@@ -1513,9 +1564,12 @@ export function WorldGlobe({
                           />
                         </button>
                       ))}
-                      {placeCluster?.congestedSingleton && (
+                      {/* every country's preview wears the same count line —
+                          the COUNTRY's total, since the stack is the door to
+                          the whole cap, not to this one place (v4.1) */}
+                      {placeCluster && previewPlaceForCluster[placeClusterIndex] === i && (
                         <span className="globe-dive-count" aria-hidden>
-                          [ {frames.length} frames ]
+                          [ {placeCluster.totalFrameCount} frames ]
                         </span>
                       )}
                       {/* The stack's caption, plate scale only (CSS fades it in

@@ -242,7 +242,7 @@ export const PLATE_SAMPLE_MARGIN = 0.15
  * ~12k dots across the 4.9 unit² landing disc — because that pitch is the one
  * the NZ coastline read as a figure at (§2.1, P1).
  */
-export const PLATE_LANDED_DENSITY = 2450
+export const PLATE_LANDED_DENSITY = 3700
 
 /** Padding around the content box, as a fraction of its long axis (§6.1). */
 export const BOX_PADDING = 0.12
@@ -1114,11 +1114,18 @@ export function plateFramePosition(
    how big that window is. */
 
 /** terrain marks the buffer can hold */
-export const PLATE_TERRAIN_CAPACITY = 22200
+export const PLATE_TERRAIN_CAPACITY = 22800
 /** graticule marks the buffer can hold */
 export const PLATE_GRID_CAPACITY = 1800
-/** Minimum accepted terrain marks needed for a 8–14px landed land-fill pitch. */
-export const MIN_PLATE_TERRAIN_POINTS = 12000
+/**
+ * Minimum accepted terrain marks. Raised from 12000 (v4): at the old floor the
+ * landed ground pitched 8–14px and the table read sparse next to the world
+ * sphere's own field — "low res" was the verdict from the stills. 18000 puts
+ * the pitch at 6.5–11.5px, still comfortably above the terrain grid's own
+ * ~15km cell (the source resolves it), and the stroke's spacing rides the same
+ * pitch down, so the figure sharpens with the ground it cuts through.
+ */
+export const MIN_PLATE_TERRAIN_POINTS = 18000
 export const MIN_PLATE_GRID_POINTS = 720
 
 /**
@@ -1133,8 +1140,13 @@ export const MIN_PLATE_GRID_POINTS = 720
  * first stills gate found a 1.2-pitch stroke invisible and the spacing came
  * down to 0.5 (see BORDER_SPACING_PITCHES). Headroom, not slack: a denser
  * stroke or a busier cap spends this fast, and the gate asserts on it.
+ *
+ * Raised with the v4 density lift: the stroke's spacing is priced off the
+ * terrain pitch, so an 18000-mark floor makes every stroke ~1.22× denser, and
+ * the finer borders.bin tolerance adds real coastline length on top. The gate
+ * re-prices every cap against this number from the shipped asset.
  */
-export const BORDER_POINT_BUDGET = 3600
+export const BORDER_POINT_BUDGET = 4800
 
 /**
  * How many terrain marks to seed for a given seeded-window area. v1 scaled

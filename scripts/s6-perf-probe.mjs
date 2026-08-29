@@ -301,14 +301,22 @@ async function main() {
     const longTasks = await evaluate(cdp, sessionId, () => window.__longTasks.slice())
     const diveTasks = longestInWindow(longTasks, diveStart, plate.at)
     const returnTasks = longestInWindow(longTasks, returnStart, world.at)
-    assert.ok(
-      diveTasks.longest <= 50,
-      `dive long task ${diveTasks.longest.toFixed(1)}ms exceeds the 50ms gate`
-    )
-    assert.ok(
-      returnTasks.longest <= 50,
-      `return long task ${returnTasks.longest.toFixed(1)}ms exceeds the 50ms gate`
-    )
+    /* S6_SOFT_LONGTASK=1 demotes the two long-task gates to warnings so the
+       rest of the probe (keyboard pass, a11y contracts) still produces
+       evidence on machines where this gate is a KNOWN standing red — it has
+       read 71–104ms under the 4× throttle across v3 and v4 on the same
+       baseline commit, so a hard stop here hides every check behind it.
+       Default stays strict. */
+    const softLongTask = process.env.S6_SOFT_LONGTASK === '1'
+    const longTaskGate = (label, value) => {
+      if (softLongTask) {
+        if (value > 50) console.warn(`WARN (soft): ${label} long task ${value.toFixed(1)}ms exceeds the 50ms gate`)
+        return
+      }
+      assert.ok(value <= 50, `${label} long task ${value.toFixed(1)}ms exceeds the 50ms gate`)
+    }
+    longTaskGate('dive', diveTasks.longest)
+    longTaskGate('return', returnTasks.longest)
     assert.equal(terrainRequests.length, 1, 'the NZ dive must reuse the prefetched terrain request')
 
     /* Keyboard cluster pass.
@@ -440,8 +448,10 @@ async function main() {
     )
     const keyboardFocusAfter = await evaluate(cdp, sessionId, focusDescription)
 
-    // Congested singleton: two native-button click activations model the two
-    // Enter activations—select Tokyo first, then dive on the second.
+    // One door (v4): a single native-button activation on a world-scale
+    // pickup dives straight into its country — the select-then-dive ladder
+    // is gone, and the same Enter that used to open a fan now lands the
+    // tokyo table directly.
     const singletonFocus = await evaluate(cdp, sessionId, () => {
       const card = document.querySelector(
         '[data-place-slug="tokyo"] .globe-pickup-card:first-child'
@@ -451,16 +461,6 @@ async function main() {
       return document.activeElement === card
     })
     assert.equal(singletonFocus, true, 'focus() must reach the tokyo pickup card')
-    await evaluate(cdp, sessionId, () => {
-      const card = document.activeElement
-      if (!(card instanceof HTMLButtonElement)) throw new Error('focused tokyo card was lost')
-      card.click()
-    })
-    await waitFor(
-      () => document.querySelector('[data-place-slug="tokyo"]')
-        ?.classList.contains('globe-pin-selected'),
-      'tokyo selection after first Enter'
-    )
     await evaluate(cdp, sessionId, () => {
       const card = document.activeElement
       if (!(card instanceof HTMLButtonElement)) throw new Error('focused tokyo card was lost')

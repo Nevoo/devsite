@@ -77,15 +77,20 @@ vTint = aTint;
      wash a country or region claim lays over its own land. The lift is the
      last thing multiplied, after any shade term, so it stays flat: even and
      unlit, a claim rather than a hillside. */
+  /* The WORLD's mark rides uFlat (1 at world, easing to 0 as the dive
+     unfolds): the visited-country accent belongs to the map at rest and must
+     not follow the cap's dots onto the landed table, where scarlet is
+     reserved for precision marks. patchPlateDots re-splices the plate's own
+     mark UNSCALED, so this fade costs the table nothing. */
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
-      `varying float vAlpha;\nvarying float vTint;\nuniform vec3 uAccent;\n#define PLATE_WASH_LIFT ${WASH_LIFT.toFixed(2)}\n#include <common>`
+      `varying float vAlpha;\nvarying float vTint;\nuniform vec3 uAccent;\nuniform float uFlat;\n#define PLATE_WASH_LIFT ${WASH_LIFT.toFixed(2)}\n#include <common>`
     )
     .replace(
       '#include <color_fragment>',
       `#include <color_fragment>
-\tfloat plateMark = clamp(vTint, 0.0, 1.0);
+\tfloat plateMark = clamp(vTint, 0.0, 1.0) * uFlat;
 \tfloat plateLift = clamp(-vTint, 0.0, 1.0);
 \tdiffuseColor.rgb = mix(diffuseColor.rgb, uAccent, plateMark);
 \tdiffuseColor.rgb *= 1.0 + plateLift * PLATE_WASH_LIFT;
@@ -129,7 +134,7 @@ export const patchPlateDots = (shader: {
       `varying float vShade;\n#define PLATE_SHADE_FLOOR ${PLATE_SHADE_FLOOR.toFixed(2)}\nvarying float vAlpha;`
     )
     .replace(
-      'float plateMark = clamp(vTint, 0.0, 1.0);',
+      'float plateMark = clamp(vTint, 0.0, 1.0) * uFlat;',
       'diffuseColor.rgb *= mix(PLATE_SHADE_FLOOR, 1.0, clamp(vShade, 0.0, 1.0));\n\tfloat plateMark = clamp(vTint, 0.0, 1.0);'
     )
 }

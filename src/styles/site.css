@@ -1346,6 +1346,15 @@ body.lightbox-open {
   color: var(--accent);
 }
 
+/* v4: the chip is the country's hover label, so the name is its head — the
+   text register, not the accent (the accent stays a mark, the digit). The
+   counts trail in the same line one register down. */
+.globe-cluster-name {
+  color: var(--text);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
 .globe-cluster-chip:hover::before,
 .globe-cluster-chip:focus-visible::before {
   box-shadow: 0 0 0 5px rgba(255, 45, 26, 0.24);
@@ -1652,6 +1661,15 @@ body.lightbox-open {
   opacity: 0.58;
   transform: translateX(-50%);
   pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+/* the presented pickup already says its count in the label's meta line —
+   two count readouts stacked under one pile is the site disagreeing with
+   itself, so the quiet one stands down while the label speaks (v4.1) */
+.globe-pin-active .globe-dive-count,
+.globe-pin-selected .globe-dive-count {
+  opacity: 0;
 }
 
 /* the label hangs below the dot and only speaks when addressed: hovered,
@@ -1812,6 +1830,17 @@ body.lightbox-open {
   box-shadow:
     0 calc(6px + 10px * var(--plate-presence, 0)) calc(18px + 20px * var(--plate-presence, 0))
     rgba(0, 0, 0, calc(0.45 + 0.05 * var(--plate-presence, 0)));
+}
+
+/* The world-scale preview is THREE cards, no more (v4.1): the pile is a
+   country's face, not its archive — the count line says how many frames the
+   door holds, and the landed table is where they all exist. Same DOM, same
+   tab order; the cap is presentation only. No data-phase attribute at all is
+   the pre-tick mount state, which is world by definition. */
+.globe-frame:not([data-phase]) .globe-pickup-card:nth-child(n + 4),
+.globe-frame[data-phase='world'] .globe-pickup-card:nth-child(n + 4) {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Three under-prints peek; the rest of the pile is inside it. A 15-frame

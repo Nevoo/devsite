@@ -187,16 +187,11 @@ async function main() {
           const opts = (x, y) => ({
             bubbles: true, clientX: x, clientY: y, pointerType: 'mouse', pointerId: 7, button: 0,
           })
-          const anchors = [...document.querySelectorAll('.globe-pin')]
-            .map((el) => {
-              const r = el.getBoundingClientRect()
-              return {
-                slug: el.dataset.placeSlug,
-                x: Math.round(r.left + r.width / 2),
-                y: Math.round(r.top + r.height / 2),
-              }
-            })
-            .filter((a) => a.x > 8 && a.x < innerWidth - 8 && a.y > 8 && a.y < innerHeight - 8)
+          /* elements once; rects LIVE per attempt — the tour keeps rotating
+             under the scan, and a rect captured at scan start can be tens of
+             degrees stale by the time its dispatch happens (the exact miss
+             that made this gate flake) */
+          const pinElements = [...document.querySelectorAll('.globe-pin')]
           const found = []
           const trace = []
           /* the pin point itself is often covered by its own pickup card, so
@@ -205,9 +200,19 @@ async function main() {
             [0, 0], [36, 0], [-36, 0], [0, 36], [0, -36], [64, 20], [-64, 20], [0, 64],
           ]
           const tryNext = (i, oi) => {
-            if (i >= anchors.length) { resolve({ found, trace, anchorCount: anchors.length }); return }
+            if (i >= pinElements.length) { resolve({ found, trace, anchorCount: pinElements.length }); return }
             if (oi >= offsets.length) { tryNext(i + 1, 0); return }
-            const a = anchors[i]
+            const el = pinElements[i]
+            const r = el.getBoundingClientRect()
+            const a = {
+              slug: el.dataset.placeSlug,
+              x: Math.round(r.left + r.width / 2),
+              y: Math.round(r.top + r.height / 2),
+            }
+            if (a.x <= 8 || a.x >= innerWidth - 8 || a.y <= 8 || a.y >= innerHeight - 8) {
+              tryNext(i + 1, 0)
+              return
+            }
             const x = a.x + offsets[oi][0]
             const y = a.y + offsets[oi][1]
             frame.dispatchEvent(new PointerEvent('pointermove', opts(x, y)))
@@ -228,7 +233,17 @@ async function main() {
       )
 
     await evaluate(cdp, sessionId, () => undefined) // settle eval channel
+    /* The tour decides which countries face the camera at any instant; a scan
+       that lands while the archive side is swung to the limb legitimately
+       finds nothing. Retry across a few swing periods before calling it a
+       failure — the assert is about resolution working, not about the phase
+       of the tour. */
     let scan = await findCandidates()
+    for (let attempt = 1; scan.found.length === 0 && attempt < 4; attempt++) {
+      console.log(`scan attempt ${attempt}: ${scan.anchorCount} anchors, 0 candidates — waiting out the swing`)
+      await sleep(2600)
+      scan = await findCandidates()
+    }
     console.log(`initial scan: ${scan.anchorCount} anchors, ${scan.found.length} candidates`)
     for (const line of scan.trace) console.log('  ' + line)
     let grabHits = scan.found

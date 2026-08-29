@@ -38,12 +38,15 @@
  * the simplification tolerance, so quantization never shows.
  *
  * Source lines are simplified with Douglas-Peucker in degree space. The first
- * tolerance tried is 0.13 degrees, the cell size of the 2700x1350 terrain grid
- * this asset is drawn against: finer than that is detail the plate cannot
- * resolve. The hard budget is 60KB on disk, and the builder climbs
- * 0.13 -> 0.2 -> 0.3 before it gives up 50m detail and falls back to 110m,
- * because a coarser line at full resolution beats a crisp line with whole
- * islands missing.
+ * tolerance tried is 0.05 degrees (v4). The old 0.13 was matched to the
+ * terrain grid's cell on the argument that the plate cannot resolve finer —
+ * but the outline is a FIGURE, a line drawing over the ground, not a terrain
+ * sample: a truer line reads sharper regardless of the relief under it, and
+ * the landed stills' "low res" verdict traced straight to the simplification.
+ * The budget is 150KB on disk (it gzips well and rides the idle prefetch);
+ * the builder climbs 0.05 -> 0.08 -> 0.13 -> 0.2 -> 0.3 before it gives up
+ * 50m detail and falls back to 110m, because a coarser line at full
+ * resolution beats a crisp line with whole islands missing.
  */
 import {
   existsSync,
@@ -65,8 +68,8 @@ const CACHE_DIR = join(ROOT, 'scripts/.cache')
 const OUTPUT = join(ROOT, 'public/borders.bin')
 
 const RESOLUTIONS = ['50m', '110m']
-const TOLERANCES = [0.13, 0.2, 0.3]
-const BUDGET_BYTES = 60 * 1024
+const TOLERANCES = [0.05, 0.08, 0.13, 0.2, 0.3]
+const BUDGET_BYTES = 150 * 1024
 
 const MAGIC = 'BRDR'
 const VERSION = 1

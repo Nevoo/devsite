@@ -397,9 +397,13 @@ try {
       }
 
       /* The landed pitch is what makes dots a figure rather than a starfield
-         (§2.1). It is allowed to differ from v1's, but not to collapse. */
+         (§2.1). It is allowed to differ from v1's, but not to collapse — and
+         not to run away either. The ceiling moved 1.6→2.2 with the v4 density
+         ruling (18000-mark floor, "low res" verdict on the landed stills);
+         the anchor stays v1's shipped density so the multiple keeps meaning
+         the same thing across rulings. */
       assert.ok(
-        density >= V1_DENSITY * 0.8 && density <= V1_DENSITY * 1.6,
+        density >= V1_DENSITY * 0.8 && density <= V1_DENSITY * 2.2,
         `${key}: landed pitch ${Math.round(density)} marks/unit² is ` +
         `${(density / V1_DENSITY).toFixed(2)}× v1's ${Math.round(V1_DENSITY)}`
       )
