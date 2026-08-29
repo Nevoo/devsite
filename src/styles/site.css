@@ -2968,3 +2968,90 @@ body.drench .site-footer .ticker {
     display: none;
   }
 }
+
+/* ── /lab/particles — dev-only dust sandbox ─────────────────────────────── */
+/* The stage is a transparent hole over the shared canvas, same contract as
+   every .gl-frame. The panel is deliberately raw instrument UI: it never
+   ships, it just needs to be readable against the cloud. */
+.lab-stage {
+  height: 100svh;
+}
+
+.lab-panel {
+  position: fixed;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 280px;
+  padding: var(--space-2);
+  background: rgba(16, 16, 19, 0.82);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.lab-panel-title {
+  color: var(--text);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.25rem;
+}
+
+.lab-row {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr 2.6rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lab-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.lab-row input[type='checkbox'] {
+  justify-self: start;
+  accent-color: var(--accent);
+}
+
+.lab-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.lab-sizes {
+  grid-column: 2 / 4;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.lab-size,
+.lab-copy {
+  font: inherit;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.lab-size.is-active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.lab-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.lab-copy:hover {
+  color: var(--text);
+}

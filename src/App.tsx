@@ -30,6 +30,12 @@ import { Privacy } from '@/pages/Privacy'
 // keep the three.js bundle off the critical path — the DOM shell paints first
 const CanvasRoot = lazy(() => import('@/canvas/CanvasRoot'))
 
+// dev-only particle sandbox; the guard is a compile-time constant, so the
+// chunk never even gets built for production
+const ParticleLab = import.meta.env.DEV
+  ? lazy(() => import('@/pages/ParticleLab'))
+  : null
+
 function RouteChangeEffects() {
   const { key, pathname } = useLocation()
   const navigationType = useNavigationType()
@@ -83,6 +89,16 @@ export default function App() {
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy" element={<Privacy />} />
+            {ParticleLab && (
+              <Route
+                path="/lab/particles"
+                element={
+                  <Suspense fallback={null}>
+                    <ParticleLab />
+                  </Suspense>
+                }
+              />
+            )}
             <Route path="*" element={<Home />} />
           </Routes>
           <Footer />
