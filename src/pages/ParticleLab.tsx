@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { webglAvailable } from '@/lib/webgl'
 import DustLabView from '@/components/DustLabView'
+import type { GlobePointer } from '@/canvas/Globe'
 import {
   DUST_DEFAULTS,
   DUST_SIZES,
@@ -42,6 +43,20 @@ export default function ParticleLab() {
   const [size, setSize] = useState<number>(128)
   const [copied, setCopied] = useState(false)
 
+  // the production pointer contract: frame-relative 0..1 over the stage,
+  // written from the DOM — the same shape WorldGlobe feeds the globe
+  const dustPointerRef = useRef<GlobePointer>({ x: 0, y: 0, active: false })
+  const onStagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const p = dustPointerRef.current
+    p.x = (e.clientX - rect.left) / Math.max(1, rect.width)
+    p.y = (e.clientY - rect.top) / Math.max(1, rect.height)
+    p.active = true
+  }
+  const onStagePointerLeave = () => {
+    dustPointerRef.current.active = false
+  }
+
   const update = (patch: Partial<DustSettings>) => {
     const next = { ...settingsRef.current, ...patch }
     settingsRef.current = next
@@ -61,12 +76,17 @@ export default function ParticleLab() {
 
   return (
     <section className="lab">
-      <div className="lab-stage gl-frame">
+      <div
+        className="lab-stage gl-frame"
+        onPointerMove={onStagePointerMove}
+        onPointerLeave={onStagePointerLeave}
+      >
         {hasWebGL && (
           <DustLabView
             settingsRef={settingsRef}
             size={size}
             bodies={settings.bodies}
+            pointerRef={dustPointerRef}
           />
         )}
       </div>

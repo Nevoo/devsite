@@ -221,12 +221,31 @@ export const dustPointsVertex = /* glsl */ `
   uniform vec3 uPointerView;
   uniform float uForce;
   uniform float uPointerRadius;
+  uniform float uBoundsMode;
+  uniform vec3 uBoundsA;
+  uniform vec3 uBoundsCenter;
   varying float vDistance;
   varying float vSeed;
   varying float vKick;
 
   void main() {
-    vec3 pos = texture2D(positions, position.xy).xyz;
+    // the FBO holds the canonical cloud (a blobby ball of radius ~2 around
+    // the origin); the bounds shape it into the mounting view's space.
+    // mode 0 ball: uniform scale (uBoundsA.x). radius 2 = identity = the lab.
+    // mode 1 shell: radial remap into the [uBoundsA.x, uBoundsA.y] band.
+    // mode 2 slab: canonical [-2,2] span squashed into half-extents uBoundsA.
+    vec3 c = texture2D(positions, position.xy).xyz;
+    vec3 pos;
+    if (uBoundsMode < 0.5) {
+      pos = c * uBoundsA.x;
+    } else if (uBoundsMode < 1.5) {
+      float len = max(length(c), 1e-4);
+      float band = clamp(len * 0.5, 0.0, 1.0);
+      pos = (c / len) * mix(uBoundsA.x, uBoundsA.y, band);
+    } else {
+      pos = c * uBoundsA * 0.5;
+    }
+    pos += uBoundsCenter;
 
     vSeed = fract(sin(dot(position.xy, vec2(127.1, 311.7))) * 43758.5453);
     vKick = 0.0;

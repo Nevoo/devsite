@@ -6,6 +6,12 @@ import { prefersReducedMotion } from '@/motion/gsap'
 import { softwareGL } from '@/lib/webgl'
 import { useUI } from '@/stores/ui'
 import { backgroundVertex, backgroundFragment } from './shaders/background'
+import {
+  dustSimVertex,
+  dustSimFragment,
+  dustPointsVertex,
+  dustPointsFragment,
+} from './shaders/dust'
 import { patchDotAlpha } from './shaders/globe'
 import { imagePlaneVertex, imagePlaneFragment } from './shaders/imagePlane'
 
@@ -77,7 +83,7 @@ export default function CanvasRoot() {
  *
  * WebGLRenderer.compileAsync() cannot solve that on devices without
  * KHR_parallel_shader_compile: it calls compile() synchronously before it
- * returns a Promise. Compile the five actual cache variants here instead, one
+ * returns a Promise. Compile the actual cache variants here instead, one
  * per frame, ahead of navigation. The retained objects contain no textures and
  * are disposed if the root canvas ever unmounts.
  */
@@ -131,6 +137,50 @@ function ShaderProgramWarmup() {
       new THREE.Mesh(planeGeometry, imageMaterial),
       new THREE.Mesh(planeGeometry, transparentImageMaterial),
     ]
+
+    // the dust programs (sim quad + points), same gate as <Dust> itself:
+    // where dust never renders there is nothing to keep warm
+    const dustMaterials: THREE.Material[] = []
+    if (!softwareGL() && !prefersReducedMotion()) {
+      const dustSimMaterial = new THREE.ShaderMaterial({
+        vertexShader: dustSimVertex,
+        fragmentShader: dustSimFragment,
+        uniforms: {
+          positions: { value: null },
+          uTime: { value: 0 },
+          uCurlFreq: { value: 0.25 },
+          uCondense: { value: 0 },
+          uCondenseRadius: { value: 1.2 },
+        },
+      })
+      const dustPointsMaterial = new THREE.ShaderMaterial({
+        vertexShader: dustPointsVertex,
+        fragmentShader: dustPointsFragment,
+        uniforms: {
+          positions: { value: null },
+          uFocus: { value: 5 },
+          uBlur: { value: 34 },
+          uSize: { value: 2 },
+          uDensity: { value: 0.35 },
+          uOpacity: { value: 0.5 },
+          uColor: { value: new THREE.Color() },
+          uAccent: { value: new THREE.Color() },
+          uAccentFrac: { value: 0 },
+          uPointerView: { value: new THREE.Vector3(0, 0, -1) },
+          uForce: { value: 0 },
+          uPointerRadius: { value: 0.3 },
+          uBoundsMode: { value: 0 },
+          uBoundsA: { value: new THREE.Vector3(1, 1, 1) },
+          uBoundsCenter: { value: new THREE.Vector3() },
+        },
+        transparent: true,
+      })
+      dustMaterials.push(dustSimMaterial, dustPointsMaterial)
+      warmups.push(
+        new THREE.Mesh(planeGeometry, dustSimMaterial),
+        new THREE.Points(pointGeometry, dustPointsMaterial)
+      )
+    }
     let index = 0
     let frame = window.requestAnimationFrame(function compileNext() {
       gl.compile(warmups[index], camera, scene)
@@ -148,6 +198,7 @@ function ShaderProgramWarmup() {
       occluderMaterial.dispose()
       imageMaterial.dispose()
       transparentImageMaterial.dispose()
+      for (const material of dustMaterials) material.dispose()
     }
   }, [gl, scene])
 
