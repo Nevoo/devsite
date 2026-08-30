@@ -25,6 +25,12 @@ interface DustProps {
   bounds: DustBounds
   /** the DOM's pointer over the mounting frame — same contract the globe reads */
   pointerRef: { current: GlobePointer }
+  /**
+   * optional scale coupling: dust fades out as presence rises (the dive is
+   * D3's job — until then the air belongs to the world scale only). Accepts
+   * the globe's ScaleState ref directly.
+   */
+  presenceRef?: { current: { presence: number } }
 }
 
 /** rejection-sample a point in the unit ball, project to the sphere surface */
@@ -73,7 +79,7 @@ export function Dust(props: DustProps) {
   return <DustField {...props} />
 }
 
-function DustField({ presetRef, size, bounds, pointerRef }: DustProps) {
+function DustField({ presetRef, size, bounds, pointerRef, presenceRef }: DustProps) {
   const timeRef = useRef(0)
   const camera = useThree((state) => state.camera)
 
@@ -209,6 +215,16 @@ function DustField({ presetRef, size, bounds, pointerRef }: DustProps) {
 
   useFrame((state, delta) => {
     const s = presetRef.current
+
+    // faded out (deep in the dive): stop paying for the sim entirely — the
+    // air freezes invisible and resumes when the return brings it back
+    const dim = 1 - (presenceRef?.current.presence ?? 0)
+    if (dim <= 0.01) {
+      points.object.visible = false
+      return
+    }
+    points.object.visible = true
+
     timeRef.current += delta * s.speed
 
     // ── the cursor ray, from the live view camera ──
@@ -261,7 +277,7 @@ function DustField({ presetRef, size, bounds, pointerRef }: DustProps) {
     u.uBlur.value = THREE.MathUtils.lerp(u.uBlur.value, s.blur, 0.1)
     u.uSize.value = s.size
     u.uDensity.value = s.density
-    u.uOpacity.value = s.opacity
+    u.uOpacity.value = s.opacity * dim
     u.uAccentFrac.value = s.accent
     ;(u.uPointerView.value as THREE.Vector3).set(p.smoothed.x, p.smoothed.y, -refDepth)
     u.uForce.value = p.force

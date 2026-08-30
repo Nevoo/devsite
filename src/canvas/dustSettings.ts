@@ -80,6 +80,28 @@ export const DUST_DEFAULTS: DustSettings = {
   additive: true,
 }
 
+/**
+ * The hero's air (plan stage D2): sparse room-atmosphere around the horizon
+ * planet, an order of magnitude under the lab's showpiece ball — ~600 drawn
+ * sprites against the lab's ~5700. Normal blending as the starting stance
+ * (additive glow competes with the scarlet accents; the taste gate compares
+ * both). Focus sits at the planet's depth from the plate camera (4.6), so
+ * the air is crisp beside the sphere and melts to bokeh toward the lens.
+ */
+export const DUST_HERO: DustPreset = {
+  speed: 0.3,
+  curl: 0.45,
+  focus: 4.6,
+  blur: 18,
+  size: 1.3,
+  density: 0.15,
+  opacity: 0.55,
+  condense: 0,
+  accent: 0.05,
+  pointerRadius: 0.35,
+  additive: false,
+}
+
 /** texture is N×N → N² particles; sandbox lets you feel the density cost */
 export const DUST_SIZES = [64, 128, 256, 512] as const
 

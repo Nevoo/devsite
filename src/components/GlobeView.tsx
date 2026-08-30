@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { View } from '@react-three/drei'
+import { Dust } from '@/canvas/Dust'
 import {
   Globe,
   type GlobeCluster,
@@ -7,6 +8,7 @@ import {
   type PinProjection,
   type ScaleState,
 } from '@/canvas/Globe'
+import { DUST_HERO, type DustBounds } from '@/canvas/dustSettings'
 import type { PlacePrecision } from '@/content/places'
 
 interface GlobeViewProps {
@@ -40,6 +42,15 @@ interface GlobeViewProps {
  * tracking div, so the View itself is the element that must fill the frame
  * (see .gl-view in global.css).
  */
+
+/* The hero's air (DUST-PLAN D2). A shell around the planet does band + room
+   in one: the occluder sphere writes depth, so the shell's far half vanishes
+   behind the planet and what survives is a band hugging the visible cap plus
+   soft foreground bokeh toward the lens. The preset is frozen — tuning
+   happens in /lab/particles, never here. Dust fades with scale presence: at
+   the plate the air is gone until D3 brings it into the dive on purpose. */
+const HERO_DUST_PRESET = { current: DUST_HERO }
+const HERO_DUST_BOUNDS: DustBounds = { kind: 'shell', inner: 1.06, outer: 2.2 }
 export default function GlobeView({
   pins,
   precisions,
@@ -83,6 +94,15 @@ export default function GlobeView({
           pointerRef={pointerRef}
           hoverCountryRef={hoverCountryRef}
         />
+        {pointerRef && (
+          <Dust
+            presetRef={HERO_DUST_PRESET}
+            size={64}
+            bounds={HERO_DUST_BOUNDS}
+            pointerRef={pointerRef}
+            presenceRef={scaleRef}
+          />
+        )}
       </Suspense>
     </View>
   )
