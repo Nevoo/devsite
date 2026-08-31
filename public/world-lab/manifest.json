@@ -1,0 +1,7 @@
+{
+  "places": [
+    { "file": "place-01.webp", "label": "milford sound", "lon": -36, "lat": 58, "height": 0.95 },
+    { "file": "place-02.webp", "label": "roys bay", "lon": 0, "lat": 66, "height": 1.1 },
+    { "file": "place-03.webp", "label": "dolomites", "lon": 36, "lat": 57, "height": 0.9 }
+  ]
+}

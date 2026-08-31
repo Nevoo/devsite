@@ -36,6 +36,11 @@ const ParticleLab = import.meta.env.DEV
   ? lazy(() => import('@/pages/ParticleLab'))
   : null
 
+// dev-only "little world" sandbox — billboards on a horizon planet
+const WorldLab = import.meta.env.DEV
+  ? lazy(() => import('@/pages/WorldLab'))
+  : null
+
 function RouteChangeEffects() {
   const { key, pathname } = useLocation()
   const navigationType = useNavigationType()
@@ -95,6 +100,16 @@ export default function App() {
                 element={
                   <Suspense fallback={null}>
                     <ParticleLab />
+                  </Suspense>
+                }
+              />
+            )}
+            {WorldLab && (
+              <Route
+                path="/lab/world"
+                element={
+                  <Suspense fallback={null}>
+                    <WorldLab />
                   </Suspense>
                 }
               />
