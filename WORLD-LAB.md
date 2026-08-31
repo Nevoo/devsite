@@ -71,6 +71,22 @@ screenshots.
 > centered on a solid #101013 background, front three-quarter view, no
 > text, no people.
 
+## Round one verdict (2026-08-31)
+
+Rouven's favourite by far: **isometric pixel diorama** (a T5 evolution —
+his own prompt, red/white Tokyo Tower on near-black, tiny base tile with
+trees). It lands dead on the scarlet-on-charcoal palette without trying.
+⚠ Paste the exact winning prompt here verbatim before generating more —
+consistency across places is the whole game, and the prompt currently
+lives only in Rouven's image-tool history.
+
+The 2.5D treatment for it is in the lab: **standees** — the sprite's
+silhouette is traced against its background (marching squares, holes
+ignored) and extruded into a thin slab, front textured, dark acrylic
+edge. Plus the DS trick as a toggle: boards yaw around their surface
+normal to face the lens while their feet stay planted, so nothing goes
+edge-on as the world spins.
+
 ## The lab (`/lab/world`, dev-only)
 
 Horizon sphere (radius 3.4, same near-charcoal as the globe's occluder),

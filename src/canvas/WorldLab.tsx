@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { PerspectiveCamera } from '@react-three/drei'
 import { Dust } from './Dust'
 import type { GlobePointer } from './Globe'
 import { DUST_HERO, type DustBounds } from './dustSettings'
+import { buildStandeeGeometry, traceSilhouette } from './worldStandee'
 
 /**
  * /lab/world — the "little world" experiment (globe-lab Gate 2 candidate).
@@ -42,6 +43,12 @@ export interface WorldLabSettings {
   autoSpin: number
   /** the darkroom air over the world */
   dust: boolean
+  /** 2.5D: silhouette-extruded slabs instead of flat cards */
+  standee: boolean
+  /** slab depth multiplier */
+  thickness: number
+  /** boards yaw around their surface normal to face the lens (the DS trick) */
+  faceCamera: boolean
 }
 
 export const WORLD_LAB_DEFAULTS: WorldLabSettings = {
@@ -50,6 +57,9 @@ export const WORLD_LAB_DEFAULTS: WorldLabSettings = {
   keySoft: 0.12,
   autoSpin: 0.02,
   dust: true,
+  standee: true,
+  thickness: 1,
+  faceCamera: true,
 }
 
 export interface WorldPlace {
@@ -103,7 +113,15 @@ interface Board {
   texture: THREE.Texture
   aspect: number
   material: THREE.ShaderMaterial
+  /** silhouette-extruded slab; null when the trace found no silhouette */
+  standee: THREE.BufferGeometry | null
 }
+
+/** slab depth before the thickness slider, in board-height units */
+const STANDEE_DEPTH = 0.07
+
+/** the acrylic edge of every standee — a shade off the world's charcoal */
+const standeeSideMaterial = new THREE.MeshBasicMaterial({ color: '#26262b' })
 
 const DEG = Math.PI / 180
 
@@ -126,8 +144,18 @@ const WORLD_DUST_BOUNDS: DustBounds = {
   center: WORLD_CENTER,
 }
 
+const faceScratch = {
+  worldPos: new THREE.Vector3(),
+  worldQuat: new THREE.Quaternion(),
+  normal: new THREE.Vector3(),
+  toCam: new THREE.Vector3(),
+  forward: new THREE.Vector3(),
+  cross: new THREE.Vector3(),
+}
+
 export function WorldLab({ settingsRef, places, generation, spinRef, pointerRef }: WorldLabProps) {
   const groupRef = useRef<THREE.Group>(null)
+  const camera = useThree((state) => state.camera)
   const [boards, setBoards] = useState<Board[]>([])
   const [dustOn, setDustOn] = useState(settingsRef.current.dust)
 
@@ -150,10 +178,25 @@ export function WorldLab({ settingsRef, places, generation, spinRef, pointerRef 
                   texture.repeat.set(displayAspect / aspect, 1)
                   texture.offset.x = (1 - displayAspect / aspect) / 2
                 }
+                // the 2.5D pass: silhouette → thin slab. Wide images skip it
+                // (they carry a crop transform the slab's UVs don't share and
+                // no silhouette worth tracing); a keyed sprite traces clean.
+                let standee: THREE.BufferGeometry | null = null
+                if (aspect <= MAX_BOARD_ASPECT) {
+                  try {
+                    const silhouette = traceSilhouette(image as HTMLImageElement)
+                    if (silhouette) {
+                      standee = buildStandeeGeometry(silhouette, STANDEE_DEPTH)
+                    }
+                  } catch {
+                    standee = null
+                  }
+                }
                 resolve({
                   place,
                   texture,
                   aspect: displayAspect,
+                  standee,
                   material: new THREE.ShaderMaterial({
                     vertexShader: billboardVertex,
                     fragmentShader: billboardFragment,
@@ -164,7 +207,9 @@ export function WorldLab({ settingsRef, places, generation, spinRef, pointerRef 
                       uSoft: { value: 0.12 },
                     },
                     transparent: true,
-                    depthWrite: false,
+                    // depth writes stay ON: keyed pixels discard (no write),
+                    // and the standee's edge walls need the front face's
+                    // depth to sort against
                     side: THREE.DoubleSide,
                   }),
                 })
@@ -187,6 +232,7 @@ export function WorldLab({ settingsRef, places, generation, spinRef, pointerRef 
       for (const board of boards) {
         board.texture.dispose()
         board.material.dispose()
+        board.standee?.dispose()
       }
     }
   }, [boards])
@@ -203,8 +249,32 @@ export function WorldLab({ settingsRef, places, generation, spinRef, pointerRef 
       board.material.uniforms.uThreshold.value = s.keyThreshold
       board.material.uniforms.uSoft.value = s.keySoft
     }
+    const v = faceScratch
     group?.traverse((node) => {
-      if (node.userData.billboard) node.scale.setScalar(s.heightScale)
+      if (node.userData.billboard) {
+        node.scale.setScalar(s.heightScale)
+        if (s.faceCamera && node.parent) {
+          /* yaw around the surface normal (the wrapper's local Y) until the
+             board's face points at the lens — planted feet, turned shoulders.
+             Incremental + damped so the turn eases as the world spins. */
+          node.getWorldPosition(v.worldPos)
+          node.getWorldQuaternion(v.worldQuat)
+          v.normal.set(0, 1, 0).applyQuaternion(v.worldQuat)
+          v.toCam.copy(camera.position).sub(v.worldPos)
+          v.toCam.addScaledVector(v.normal, -v.toCam.dot(v.normal))
+          if (v.toCam.lengthSq() > 1e-6) {
+            v.forward.set(0, 0, 1).applyQuaternion(v.worldQuat)
+            v.cross.crossVectors(v.forward, v.toCam)
+            const angle = Math.atan2(v.cross.dot(v.normal), v.forward.dot(v.toCam))
+            node.rotation.y += angle * Math.min(1, delta * 6)
+          }
+        } else if (!s.faceCamera) {
+          node.rotation.y = THREE.MathUtils.damp(node.rotation.y, 0, 6, delta)
+        }
+      }
+      if (node.userData.standeeHeight) {
+        node.scale.z = node.userData.standeeHeight * s.thickness
+      }
     })
     if (s.dust !== dustOn) setDustOn(s.dust)
   })
@@ -240,9 +310,18 @@ export function WorldLab({ settingsRef, places, generation, spinRef, pointerRef 
                 {/* the scaled node carries the base pivot, so the height
                     slider grows boards off the surface, not through it */}
                 <group userData={{ billboard: true }}>
-                  <mesh material={board.material} position={[0, height / 2, 0]}>
-                    <planeGeometry args={[height * board.aspect, height]} />
-                  </mesh>
+                  {settingsRef.current.standee && board.standee ? (
+                    <mesh
+                      geometry={board.standee}
+                      material={[board.material, standeeSideMaterial]}
+                      scale={[height, height, height]}
+                      userData={{ standeeHeight: height }}
+                    />
+                  ) : (
+                    <mesh material={board.material} position={[0, height / 2, 0]}>
+                      <planeGeometry args={[height * board.aspect, height]} />
+                    </mesh>
+                  )}
                 </group>
               </group>
             )

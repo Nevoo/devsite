@@ -9,13 +9,14 @@ import {
 } from '@/canvas/WorldLab'
 
 const SLIDERS: {
-  key: 'heightScale' | 'keyThreshold' | 'keySoft' | 'autoSpin'
+  key: 'heightScale' | 'keyThreshold' | 'keySoft' | 'autoSpin' | 'thickness'
   label: string
   min: number
   max: number
   step: number
 }[] = [
   { key: 'heightScale', label: 'height', min: 0.3, max: 2.5, step: 0.05 },
+  { key: 'thickness', label: 'thickness', min: 0.2, max: 3, step: 0.05 },
   { key: 'keyThreshold', label: 'key threshold', min: 0, max: 0.6, step: 0.01 },
   { key: 'keySoft', label: 'key softness', min: 0.01, max: 0.4, step: 0.01 },
   { key: 'autoSpin', label: 'auto spin', min: 0, max: 0.3, step: 0.005 },
@@ -138,6 +139,24 @@ export default function WorldLab() {
             type="checkbox"
             checked={settings.dust}
             onChange={(e) => update({ dust: e.target.checked })}
+          />
+        </label>
+
+        <label className="lab-row">
+          <span className="lab-label">standee (2.5d)</span>
+          <input
+            type="checkbox"
+            checked={settings.standee}
+            onChange={(e) => update({ standee: e.target.checked })}
+          />
+        </label>
+
+        <label className="lab-row">
+          <span className="lab-label">face camera</span>
+          <input
+            type="checkbox"
+            checked={settings.faceCamera}
+            onChange={(e) => update({ faceCamera: e.target.checked })}
           />
         </label>
 
