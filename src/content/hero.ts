@@ -28,15 +28,11 @@ export const heroPhoto: Photo = {
   src: '/images/hero-plate.jpg',
   width: 1920,
   height: 1080,
-  /* PLACEHOLDER. Generated from the still above with a slow push, purely to
-     prove the pipeline, and it should be the first thing replaced with real
-     footage. Point this at the delivery file and nothing else has to change:
-     `src` stays the poster, the grade wipe and the drag run on the video
-     unaltered, and reduced motion never downloads it. */
-  clip: '/videos/hero-plate.PLACEHOLDER.mp4',
   // shown in full in a 16:9 window, so the crop has no slack to art-direct;
   // centre is correct and the focus only bites during the in-frame parallax
   focus: [0.5, 0.5],
+  // no clip until the real delivery file exists: `clip: '/videos/<file>.mp4'`
+  // keeps `src` as the poster and the wipe/drag run on the footage unchanged
 }
 
 export const heroAlt =
@@ -57,6 +53,6 @@ export const heroSlate = {
   /** e.g. 'matukituki valley, nz' — rendered only when non-empty */
   location: '',
   /** the transform the entrance runs, start → end */
-  from: 'log-c',
+  from: 's-log3',
   to: 'rec.709',
 }

@@ -44,6 +44,27 @@ export const imagePlaneFragment = /* glsl */ `
     return vnoise(p) * 0.62 + vnoise(p * 2.7) * 0.26 + vnoise(p * 6.1) * 0.12;
   }
 
+  // Rec.709 → S-Gamut3.Cine, derived from both sets of primaries at D65 (columns)
+  const mat3 REC709_TO_SGAMUT3C = mat3(
+    0.645679, 0.087530, 0.036957,
+    0.259115, 0.759700, 0.129281,
+    0.095206, 0.152770, 0.833762
+  );
+
+  // Sony S-Log3: x = reflectance (0.18 = mid grey), returns the 10-bit code / 1023
+  vec3 sLog3(vec3 x) {
+    vec3 lin = (x * (171.2102946929 - 95.0) / 0.01125 + 95.0) / 1023.0;
+    vec3 curve = (420.0 + log2((x + 0.01) / 0.19) * 0.30103 * 261.5) / 1023.0;
+    return mix(lin, curve, step(vec3(0.01125), x));
+  }
+
+  // display code → linear, so colorspace_fragment re-encodes it to the same code
+  vec3 srgbToLinear(vec3 c) {
+    vec3 lo = c / 12.92;
+    vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4));
+    return mix(lo, hi, step(vec3(0.04045), c));
+  }
+
   // object-fit: cover, with object-position. The pan is clamped to the range the
   // crop actually has slack in, so a focus point can never expose empty edges.
   //
@@ -121,23 +142,16 @@ export const imagePlaneFragment = /* glsl */ `
       // 1 = graded (behind the front), 0 = still log (ahead of it)
       float graded = 1.0 - smoothstep(head - 0.07, head + 0.05, vUv.x);
 
-      // The log side. These numbers are the shape of a real log curve, not
-      // taste: the point is that it looks like footage nobody has touched yet,
-      // which is a specific and recognisable thing, rather than like a filter
-      // sitting on top of a finished picture.
-      float l = dot(color, vec3(0.299, 0.587, 0.114));
-      vec3 logc = mix(vec3(l), color, 0.34);   // desaturate toward luma
-      logc = logc * 0.58 + 0.175;              // lift the floor, drop the ceiling
-      logc *= vec3(0.965, 1.015, 1.0);         // the green cast log stock carries
+      // The log side is the real inverse of the slate's transform: Rec.709 →
+      // S-Gamut3.Cine, then the S-Log3 curve, displayed as code values.
+      vec3 sg = REC709_TO_SGAMUT3C * color;
+      vec3 code = sLog3(sg);
+      // sensor noise lives in the code values, not in linear light
+      float g = hash(vUv * uPlaneSize + fract(uTime) * 91.7) - 0.5;
+      code += g * 0.014;
+      vec3 logc = srgbToLinear(code);
 
       color = mix(logc, color, graded);
-
-      // Grain, with a reason: a still lifted off a timeline carries the grain
-      // of the footage it came from. Heaviest on the ungraded side, because log
-      // is where noise is still visible, and gone once the grade has passed —
-      // it is the material showing, not a texture laid over the top.
-      float g = hash(vUv * uPlaneSize + fract(uTime) * 91.7) - 0.5;
-      color += g * (0.05 + 0.055 * (1.0 - graded)) * (1.0 - smoothstep(0.72, 1.0, d));
 
       // The hairline. A gaussian rather than a hard step, so it reads as a lit
       // edge on a monitor instead of a 1px div sliding across a photograph, and
