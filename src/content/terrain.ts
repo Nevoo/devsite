@@ -62,6 +62,9 @@ export function loadTerrain(): Promise<Terrain> {
   terrainPromise ??= fetch('/terrain.bin').then(async (response) => {
     if (!response.ok) throw new Error(`terrain fetch failed: ${response.status} ${response.statusText}`)
     return decodeTerrain(await response.arrayBuffer())
+  }).catch((error) => {
+    terrainPromise = undefined
+    throw error
   })
   return terrainPromise
 }

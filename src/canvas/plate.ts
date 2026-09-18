@@ -281,6 +281,27 @@ export const SHEET_CLEAR_FRACTION = 1 / 3
 export const PLATE_CAMERA_POSITION: Vec3 = [0, 0.3, 4.6]
 /** …and its vertical field of view, in degrees, as the JSX takes it. */
 export const PLATE_CAMERA_FOV_DEGREES = 32
+/** The fit remains in its established reference frame. Applying the same
+ * similarity about the geographic centre to both geometry and camera keeps
+ * its composition, while the rendered country stays close to globe scale. */
+export const countryCameraZoom = (spread: number) => Math.max(1, spread / 1.05)
+/** Retain a shallow fraction of the source sphere in the final country patch. */
+export const COUNTRY_CURVATURE = 0.24
+
+export function countrySurfacePointInto(
+  target: Float32Array | Float64Array,
+  offset: number,
+  center: Vec3,
+  spread: number,
+  angularDistance: number
+): void {
+  const zoom = countryCameraZoom(spread)
+  const sag = COUNTRY_CURVATURE * (1 - Math.cos(Math.min(angularDistance, Math.PI / 2)))
+  for (let axis = 0; axis < 3; axis++) {
+    target[offset + axis] = center[axis] +
+      (target[offset + axis] - center[axis]) / zoom - center[axis] * sag
+  }
+}
 /** The camera looks down −Z from an elevated seat; this is how far above the
  * origin's horizon that seat sits, and the table's rake is measured off it. */
 export const PLATE_CAMERA_ELEVATION = Math.atan2(
@@ -790,6 +811,12 @@ export interface PlateFrameMember {
 
 
 export interface PlateFrameOptions {
+  /** Large country silhouettes keep their geographic centre; the camera composes them. */
+  composeCenter: boolean
+  /** Country collections reserve a stable photo column beside the geography. */
+  usable: PlateUsableRect
+  minSpread: number
+  minPinSeparation: number
   /** the render surface the landing is composed against */
   viewport: PlateViewport
   /** fraction of the binding USABLE axis the padded box should fill */
@@ -814,6 +841,25 @@ export interface PlateUsableRect {
   maxX: number
   minY: number
   maxY: number
+}
+
+/** One layout contract for the photo column, camera and terrain sampler. */
+export function countryFrameLayout(viewport: PlateViewport) {
+  const mobile = viewport.windowWidth <= 700
+  return {
+    focusX: mobile ? 0.5 : 0.24,
+    focusY: mobile ? 0.25 : 0.62,
+    frameOptions: {
+      viewport,
+      minSpread: 0.65,
+      minPinSeparation: 0,
+      composeCenter: false,
+      fill: mobile ? 0.82 : 1,
+      usable: mobile
+        ? { minX: -0.8, maxX: 0.8, minY: 0.15, maxY: 0.65 }
+        : { minX: -0.9, maxX: -0.16, minY: -0.8, maxY: 0.34 },
+    },
+  }
 }
 
 /** Constant in frame halves, because every margin is a fraction of the frame. */
@@ -892,7 +938,9 @@ export function fitPlateFrame(
   const viewport = options.viewport ?? DEFAULT_PLATE_VIEWPORT
   const fill = options.fill ?? BOX_FILL_TARGET
   const reserveSheetSpace = options.reserveSheetSpace ?? false
-  const usable = plateUsableRect(reserveSheetSpace)
+  const usable = options.usable ?? plateUsableRect(reserveSheetSpace)
+  const minSpread = options.minSpread ?? MIN_SPREAD
+  const minPinSeparation = options.minPinSeparation ?? MIN_PIN_SEPARATION
 
   const directions = members.map((member) => normalize(member.direction))
   const sum = directions.reduce<[number, number, number]>(
@@ -949,7 +997,7 @@ export function fitPlateFrame(
   )
 
   let minPairwise = Infinity
-  for (let a = 0; a < directions.length; a++) {
+  for (let a = 0; minPinSeparation > 0 && a < directions.length; a++) {
     for (let b = a + 1; b < directions.length; b++) {
       minPairwise = Math.min(minPairwise, angularDistanceVec3(directions[a], directions[b]))
     }
@@ -976,17 +1024,17 @@ export function fitPlateFrame(
       if (spread > SPREAD_MAX) {
         spread = SPREAD_MAX
         spreadLimit = 'max'
-      } else if (spread < MIN_SPREAD) {
-        spread = MIN_SPREAD
+      } else if (spread < minSpread) {
+        spread = minSpread
         spreadLimit = 'min'
       }
     }
 
     /* Two anchors closer together than the pickup cards are wide read as one
        place. The floor pushes them apart even when the box is happy. */
-    if (minPairwise < Infinity && minPairwise * spread < MIN_PIN_SEPARATION) {
+    if (minPairwise < Infinity && minPairwise * spread < minPinSeparation) {
       const separationSpread = minPairwise > 1e-6
-        ? Math.min(SPREAD_MAX, MIN_PIN_SEPARATION / minPairwise)
+        ? Math.min(SPREAD_MAX, minPinSeparation / minPairwise)
         : SPREAD_MAX
       if (separationSpread > spread) {
         spread = separationSpread
@@ -1001,11 +1049,13 @@ export function fitPlateFrame(
        projection nothing. */
     const east = view.centerEast + ((usable.minX + usable.maxX) / 4) * view.frameWidth
     const north = view.centerNorth + ((usable.minY + usable.maxY) / 4) * view.frameHeight
-    center = plateFromLocal(
-      [-east / spread, -north / spread],
-      boxCenter,
-      plateBasis(boxCenter)
-    )
+    if (options.composeCenter !== false) {
+      center = plateFromLocal(
+        [-east / spread, -north / spread],
+        boxCenter,
+        plateBasis(boxCenter)
+      )
+    }
   }
 
   /* Report the frame the landing actually gets, measured at the centre it

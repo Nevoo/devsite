@@ -1530,7 +1530,7 @@ body.lightbox-open {
 .globe-pickup-hand {
   position: relative;
   display: block;
-  width: var(--print-world-size);
+  width: var(--print-world-w);
   height: var(--print-world-size);
   transition: scale 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -1740,7 +1740,8 @@ body.lightbox-open {
    any of it — the scalar is written per frame by the rAF loop. */
 .globe-frame {
   /* the thumbnail hand, as a token, so the plate can interpolate out of it */
-  --print-world-size: 3.4rem;
+  --print-world-size: clamp(4.1rem, 7vw, 5.5rem);
+  --print-world-w: calc(var(--print-world-size) * 1.5);
   /* concept §6: top print 10–12vh tall, 3:2 */
   --print-plate-h: 11vh;
   --print-plate-w: 16.5vh;
@@ -1756,8 +1757,8 @@ body.lightbox-open {
 .globe-frame[data-phase='plate'] .globe-pickup-hand,
 .globe-frame[data-phase='return'] .globe-pickup-hand {
   width: calc(
-    var(--print-world-size) +
-    (var(--print-plate-w) - var(--print-world-size)) * var(--plate-presence, 0)
+    var(--print-world-w) +
+    (var(--print-plate-w) - var(--print-world-w)) * var(--plate-presence, 0)
   );
   height: calc(
     var(--print-world-size) +
@@ -1777,6 +1778,7 @@ body.lightbox-open {
 .globe-frame[data-phase='dive'] .globe-pickup-card,
 .globe-frame[data-phase='plate'] .globe-pickup-card,
 .globe-frame[data-phase='return'] .globe-pickup-card {
+  transition-delay: 0s;
   transform-origin: 50% calc(240% - 190% * var(--plate-presence, 0));
   rotate: calc(
     var(--jitter) * 1deg * (1 - var(--plate-presence, 0)) +
@@ -1918,11 +1920,8 @@ body.lightbox-open {
 /* THE CAPTION: `vienna, at · to the town · [ 2 ]`. What the stack is, how
    well the site knows where it was made, and how many prints are in it —
    the count as type, in the same register as the rail and the slate.
-   Label-lagged behind its own ground the way the pins are, and lagged again
-   per stack so three captions do not arrive on one frame. The lag is carried
-   by the presence scalar rather than a transition-delay: --plate-presence is
-   rewritten every frame, and a delay would smear the value instead of
-   holding the line back. */
+   Its presence follows the approach directly, so a photograph and the place
+   it names arrive together. */
 .globe-print-caption {
   position: absolute;
   top: calc(100% + 1.1rem);
@@ -1932,7 +1931,7 @@ body.lightbox-open {
   white-space: nowrap;
   text-shadow: 0 1px 8px rgba(12, 12, 15, 0.85);
   opacity: calc(
-    (var(--plate-presence, 0) - 0.6 - var(--caption-lag, 0)) * 4 * var(--label-safe-opacity, 1)
+    (var(--plate-presence, 0) - 0.28) * 2.4 * var(--label-safe-opacity, 1)
   );
   transform: translateX(-50%);
   pointer-events: none;
@@ -2878,10 +2877,8 @@ body.drench .site-footer .ticker {
     width: 100%;
   }
 
-  /* a smaller sphere carries smaller pickups, or they collide */
-  .globe-pickup-hand {
-    width: 2.7rem;
-    height: 2.7rem;
+  .globe-frame {
+    --print-world-size: clamp(3.5rem, 12vw, 4.1rem);
   }
 
   .hero-rule {
@@ -3055,3 +3052,240 @@ body.drench .site-footer .ticker {
 .lab-copy:hover {
   color: var(--text);
 }
+
+/* Country view: a quiet geographic context beside a stable photo collection. */
+.hero:has(.country-detail) :is(.hero-rail, .hero-rule, .hero-index) {
+  z-index: 4;
+}
+
+.country-detail {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  grid-template-rows: auto 1fr auto;
+  column-gap: clamp(2rem, 5vw, 6rem);
+  padding: clamp(6rem, 13vh, 8rem) var(--gutter) 5.5rem;
+  opacity: var(--country-presence, 0);
+  transform: translateY(calc((1 - var(--country-presence, 0)) * 18px));
+  pointer-events: none;
+}
+
+.country-detail::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, var(--bg) 0%, transparent 43%, transparent 78%, var(--bg) 98%),
+    linear-gradient(90deg, oklch(0.17 0.007 285 / 0.16) 0%, oklch(0.17 0.007 285 / 0.35) 30%, var(--bg) 48%);
+  pointer-events: none;
+}
+
+.country-heading { grid-area: 1 / 1; }
+.country-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 44px;
+  margin: -0.75rem 0 1.2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.country-back span { font-size: 1.2rem; transition: transform 180ms ease-out; }
+.country-back:hover { color: var(--text); }
+.country-back:hover span { transform: translateX(-3px); }
+.country-heading h2 {
+  max-width: 11ch;
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 4.6vw, 5rem);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.country-heading p {
+  display: flex;
+  gap: 0.8em;
+  margin-top: 1.1rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.country-heading p > span { color: var(--accent); }
+.country-map-note {
+  grid-area: 3 / 1;
+  align-self: end;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.country-photos {
+  grid-area: 1 / 2 / -1 / 3;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  pointer-events: auto;
+}
+.country-collection-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.country-collection-heading h3 {
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 1.9vw, 1.8rem);
+  line-height: 1.1;
+}
+.country-photo-total {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+.country-places {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 1.1rem;
+  padding: 0.65rem 0 0.85rem;
+}
+.country-places button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0.1rem 0;
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.country-places button span { font-family: var(--font-mono); font-size: 0.6rem; opacity: 0.65; }
+.country-places button[aria-pressed='true'] { color: var(--text); text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 0.5rem; }
+.country-places button:hover { color: var(--text); }
+.country-photo-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  padding: 5px 8px 8px 3px;
+  margin: 0 -8px 0 -3px;
+}
+.country-collection-heading + .country-photo-scroll { margin-top: 1.5rem; }
+.country-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem 1rem;
+  list-style: none;
+}
+.country-photo {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+.country-photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 2px;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.country-photo:hover img { transform: translateY(-3px); }
+.country-photo:hover { color: var(--text); }
+.country-photo-caption {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+.country-photo-number { font-family: var(--font-mono); font-size: 0.6rem; opacity: 0.65; }
+.country-photo-hint { display: flex; justify-content: space-between; gap: 1rem; padding-top: 1rem; font-size: 0.65rem; color: var(--text-muted); }
+.country-photo-empty { padding: 2rem 0; font-size: 0.9rem; color: var(--text-muted); }
+.country-detail :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.country-detail[inert] * { pointer-events: none; }
+
+@media (min-width: 1400px) {
+  .country-photo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .country-detail {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    row-gap: 1.75rem;
+    padding-top: 5.5rem;
+    padding-bottom: 4.5rem;
+  }
+  .country-detail::before {
+    background: linear-gradient(180deg, oklch(0.17 0.007 285 / 0.55), var(--bg) 38%);
+  }
+  .country-heading h2 { max-width: none; font-size: clamp(2.1rem, 9vw, 3rem); }
+  .country-back { margin-bottom: 0.55rem; }
+  .country-heading p { margin-top: 0.7rem; font-size: 0.7rem; }
+  .country-photos { grid-area: 2 / 1; }
+  .country-map-note { display: none; }
+  .country-collection-heading { padding-bottom: 0.75rem; }
+  .country-places { gap: 0 1rem; padding: 0.35rem 0 0.65rem; }
+  .country-places button { font-size: 0.72rem; }
+  .country-photo-grid { gap: 1rem 0.75rem; }
+  .country-photo-hint { font-size: 0.6rem; }
+}
+@media (max-height: 650px) and (min-width: 701px) {
+  .country-detail { padding-top: 5rem; padding-bottom: 4.25rem; }
+  .country-heading h2 { font-size: 2.75rem; }
+}
+
+.frame-pop-backdrop { background: oklch(0.13 0.007 285 / 0.94); }
+.frame-pop-close,
+.frame-pop-controls button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.frame-pop-close {
+  position: absolute;
+  top: 1.25rem;
+  right: var(--gutter);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.8rem;
+}
+.frame-pop-close span { font-size: 1.7rem; }
+.frame-pop-controls {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+.frame-pop-controls button { font-size: 1.4rem; }
+.frame-pop-controls > span { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); }
+.frame-pop button:hover { color: var(--accent); }
+.frame-pop button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.frame-pop-fig img { border-radius: 2px; }
+.frame-pop-caption { width: min(90vw, 50rem); text-align: center; white-space: normal; letter-spacing: 0.06em; }

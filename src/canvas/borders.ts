@@ -89,6 +89,9 @@ export function loadBorders(): Promise<BorderPolyline[]> {
   bordersPromise ??= fetch('/borders.bin').then(async (response) => {
     if (!response.ok) throw new Error(`borders fetch failed: ${response.status} ${response.statusText}`)
     return decodeBorders(await response.arrayBuffer())
+  }).catch((error) => {
+    bordersPromise = undefined
+    throw error
   })
   return bordersPromise
 }

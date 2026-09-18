@@ -10,12 +10,14 @@ import {
 } from '@/canvas/Globe'
 import { DUST_HERO, type DustBounds } from '@/canvas/dustSettings'
 import type { PlacePrecision } from '@/content/places'
+import { heroVisibility } from '@/canvas/heroVisibility'
 
 interface GlobeViewProps {
   pins: [number, number][]
   precisions: PlacePrecision[]
   /** frames placed at each pin — the opening view faces their weighted centre */
   weights: number[]
+  worldTour?: readonly number[]
   legs: [[number, number], [number, number]][]
   /** flown-through cities, projected for the DOM's waypoint labels */
   waypoints?: [number, number][]
@@ -32,6 +34,8 @@ interface GlobeViewProps {
   exitRef: { current: boolean }
   pointerRef?: { current: GlobePointer }
   hoverCountryRef?: { current: number }
+  onProjectRef: { current: ((delta: number) => void) | null }
+  viewportRef: { current: { rect: DOMRect | null; scrollY: number } }
 }
 
 /**
@@ -55,6 +59,7 @@ export default function GlobeView({
   pins,
   precisions,
   weights,
+  worldTour,
   legs,
   waypoints,
   waypointProjectionRef,
@@ -70,6 +75,8 @@ export default function GlobeView({
   exitRef,
   pointerRef,
   hoverCountryRef,
+  onProjectRef,
+  viewportRef,
 }: GlobeViewProps) {
   return (
     <View className="gl-view">
@@ -78,6 +85,7 @@ export default function GlobeView({
           pins={pins}
           precisions={precisions}
           weights={weights}
+          worldTour={worldTour}
           legs={legs}
           waypoints={waypoints}
           waypointProjectionRef={waypointProjectionRef}
@@ -93,6 +101,8 @@ export default function GlobeView({
           exitRef={exitRef}
           pointerRef={pointerRef}
           hoverCountryRef={hoverCountryRef}
+          onProjectRef={onProjectRef}
+          viewportRef={viewportRef}
         />
         {pointerRef && (
           <Dust
@@ -101,6 +111,7 @@ export default function GlobeView({
             bounds={HERO_DUST_BOUNDS}
             pointerRef={pointerRef}
             presenceRef={scaleRef}
+            visibilityRef={heroVisibility}
           />
         )}
       </Suspense>

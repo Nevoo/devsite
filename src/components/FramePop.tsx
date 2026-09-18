@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { gsap } from '@/motion/gsap'
+import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { useUI } from '@/stores/ui'
 import { lenisRef } from '@/motion/SmoothScroll'
 import type { Photo } from '@/content/categories'
@@ -29,8 +29,8 @@ interface FramePopProps {
 function fitRect(photo: Photo) {
   const vw = window.innerWidth
   const vh = window.innerHeight
-  const maxW = Math.min(vw * 0.84, 920)
-  const maxH = vh * 0.54
+  const maxW = Math.min(vw * 0.9, 1400)
+  const maxH = vh * 0.72
   const ar = photo.width / photo.height
   let w = maxW
   let h = w / ar
@@ -41,7 +41,7 @@ function fitRect(photo: Photo) {
   // portrait and landscape share a vertical centre, not a top line — the pop
   // always hangs in the same region of air whatever shape the frame is. The
   // floor clears the header pill (bottom edge ~70px) rather than kissing it.
-  const cy = Math.max(88, vh * 0.1) + maxH / 2
+  const cy = vh * 0.47
   return { left: (vw - w) / 2, top: cy - h / 2, width: w, height: h }
 }
 
@@ -72,6 +72,9 @@ export function FramePop({
   onStep,
   onClose,
 }: FramePopProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const [viewportVersion, setViewportVersion] = useState(0)
   const figRef = useRef<HTMLElement>(null)
   const skinRef = useRef<HTMLDivElement>(null)
   const backRef = useRef<HTMLDivElement>(null)
@@ -93,27 +96,40 @@ export function FramePop({
     const el = sourceEl()
     if (!el) return null
     const r = el.getBoundingClientRect()
-    const hand = el.parentElement?.getBoundingClientRect()
-    const size = (hand?.width ?? r.width) * 1.15
-    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: size, h: size }
+    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width, h: r.height }
   }
 
   /* same session contract as the Lightbox: page scroll stops, the canvas tour
      freezes (via popOpen), and everything restores on unmount */
   useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    const root = document.getElementById('root')
+    const wasInert = root?.inert ?? false
+    if (root) root.inert = true
+    closeRef.current?.focus({ preventScroll: true })
     setPopOpen(true)
     lenisRef.current?.stop()
     document.body.style.overflow = 'hidden'
     return () => {
-      document.body.style.overflow = ''
+      document.body.style.overflow = previousOverflow
+      if (root) root.inert = wasInert
+      previousFocus?.focus({ preventScroll: true })
       lenisRef.current?.start()
       setPopOpen(false)
     }
   }, [setPopOpen])
 
+  useEffect(() => {
+    const resize = () => setViewportVersion((version) => version + 1)
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
+
   const requestClose = () => {
     if (closingRef.current) return
     closingRef.current = true
+    if (prefersReducedMotion()) { onClose(); return }
     const fig = figRef.current
     const rect = rectRef.current
     const src = sourceGeom()
@@ -151,17 +167,31 @@ export function FramePop({
     tl.to(skinRef.current, { rotationX: 0, scaleY: 1, duration: 0.29, ease: 'power2.out' }, 0.16)
   }
 
-  /* keys re-attach every render so they always see the current step/close —
-     cheap, and never stale */
+  /* one listener for the pop's life; the ref keeps it seeing the current
+     step/close/total without re-attaching */
+  const keyHandlers = useRef({ onStep, requestClose, total })
+  useEffect(() => {
+    keyHandlers.current = { onStep, requestClose, total }
+  })
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') requestClose()
-      if (e.key === 'ArrowRight' && total > 1) onStep(1)
-      if (e.key === 'ArrowLeft' && total > 1) onStep(-1)
+      const { onStep, requestClose, total } = keyHandlers.current
+      if (e.key === 'Escape') { e.preventDefault(); requestClose() }
+      if (e.key === 'ArrowRight' && total > 1) { e.preventDefault(); onStep(1) }
+      if (e.key === 'ArrowLeft' && total > 1) { e.preventDefault(); onStep(-1) }
+      if (e.key === 'Tab') {
+        const buttons = dialogRef.current?.querySelectorAll<HTMLButtonElement>('button')
+        if (!buttons?.length) return
+        const first = buttons[0]
+        const last = buttons[buttons.length - 1]
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  })
+  }, [])
 
   /* first mount: fly out of the hand. Step: the figure is already up, so only
      glide to the new frame's rect and blink the picture over. */
@@ -170,6 +200,14 @@ export function FramePop({
     if (!fig || !photo) return
     const rect = fitRect(photo)
     rectRef.current = rect
+
+    if (prefersReducedMotion()) {
+      Object.assign(fig.style, {
+        left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
+      })
+      if (captionRef.current) captionRef.current.style.opacity = '1'
+      return
+    }
 
     if (!mountedRef.current) {
       mountedRef.current = true
@@ -215,18 +253,29 @@ export function FramePop({
       if (img) gsap.fromTo(img, { opacity: 0.25 }, { opacity: 1, duration: 0.3, ease: 'none' })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index])
+  }, [index, viewportVersion])
 
   if (!photo) return null
 
   return createPortal(
     <div
+      ref={dialogRef}
       className="frame-pop"
       role="dialog"
       aria-modal="true"
       aria-label={`${label} — frame ${index + 1} of ${total}`}
     >
       <div ref={backRef} className="frame-pop-backdrop" onClick={requestClose} aria-hidden />
+      <button ref={closeRef} type="button" className="frame-pop-close" onClick={requestClose}>
+        close <span aria-hidden>×</span>
+      </button>
+      {total > 1 && (
+        <nav className="frame-pop-controls" aria-label="photograph navigation">
+          <button type="button" onClick={() => onStep(-1)} aria-label="previous photograph">←</button>
+          <span aria-live="polite">{String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}</span>
+          <button type="button" onClick={() => onStep(1)} aria-label="next photograph">→</button>
+        </nav>
+      )}
       <figure
         ref={figRef}
         className="frame-pop-fig"

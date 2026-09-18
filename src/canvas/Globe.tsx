@@ -5,13 +5,20 @@ import { PerspectiveCamera } from '@react-three/drei'
 import { prefersReducedMotion } from '@/motion/gsap'
 import { isLand } from '@/content/land-mask'
 import { useUI } from '@/stores/ui'
-import { FLAT_OCC, MORPH, OCC_RADIUS, patchDotAlpha, patchPlateDots } from './shaders/globe'
+import { DETAIL, FLAT_OCC, MORPH, OCC_RADIUS, PLATE_NORMAL, patchDotAlpha, patchPlateDots } from './shaders/globe'
 import { loadBorders } from './borders'
+import GlobeSurface from './GlobeSurface'
+import { heroVisibility } from './heroVisibility'
 import type { BorderPolyline } from './borders'
 import { loadCountries } from './countries'
 import type { CountryAtlas } from './countries'
 import {
   BORDER_POINT_BUDGET,
+  COUNTRY_CURVATURE,
+  PLATE_RELIEF_EXAGGERATION,
+  countryCameraZoom,
+  countryFrameLayout,
+  countrySurfacePointInto,
   FIORD_REACH,
   ISLAND_REACH,
   MIN_CAP_RADIUS,
@@ -45,7 +52,6 @@ import {
 import type { PlateFrameMember, PlateLight, PlateViewport, Vec3 } from './plate'
 import type { Terrain } from '@/content/terrain'
 import type { PlacePrecision } from '@/content/places'
-import { AUTO_OPEN_MIN_FRAMES } from '@/components/plateLayout'
 
 /** live projected state of one pin, written every frame, read by the DOM half */
 export interface PinProjection {
@@ -54,11 +60,7 @@ export interface PinProjection {
   y: number
   /** 1 = facing the camera, 0 = edge on, <0 = round the back */
   facing: number
-  /**
-   * 0→1 as THIS label's own patch of map lands, 1 forever after. Per pin, not
-   * per globe: the entrance has no moment where "the labels come on", each one
-   * simply surfaces behind the sweep that built the ground under it.
-   */
+  /** Intro formation; selected geographic anchors stay present during approach. */
   form: number
 }
 
@@ -71,12 +73,7 @@ export interface ScaleState {
   morph: number
   /** 0 at world, 1 at the landed table; every DOM transition reads this. */
   presence: number
-  /**
-   * The scan front's own progress: 0 before the wave starts, 1 once the plate
-   * is fully plotted, running back 1→0 as the return unplots it. The DOM reads
-   * this instead of re-deriving the front from morph, because the wave has its
-   * own sub-clock and morph no longer implies it.
-   */
+  /** Compatibility alias for presence; country detail has no scan clock. */
   scan: number
 }
 
@@ -110,6 +107,8 @@ interface GlobeProps {
    * archive, instead of whichever place happens to be first in the array.
    */
   weights?: number[]
+  /** DOM-selected representatives: one visible photographic stop per country. */
+  worldTour?: readonly number[]
   /** consecutive legs of the route, drawn as great-circle arcs */
   legs?: [[number, number], [number, number]][]
   /**
@@ -131,9 +130,9 @@ interface GlobeProps {
    * never has to guess when a selection expired.
    */
   selectedRef: { current: number }
-  /** damped pointer-drag spin about Y, offered by the DOM half */
+  /** pointer-drag angular velocity about Y, radians/second */
   spinRef: { current: number }
-  /** damped pointer-drag tilt about X */
+  /** pointer-drag angular velocity about X, radians/second */
   tiltRef: { current: number }
   /** static enterable clusters, in the same order as the DOM chips */
   clusters?: GlobeCluster[]
@@ -150,9 +149,30 @@ interface GlobeProps {
   /** canvas-written: cluster index of the visited country under the pointer,
    *  or -1. The DOM reads it for the cursor and for click-anywhere-to-dive. */
   hoverCountryRef?: { current: number }
+  /** Called after the camera and every geographic projection are current. */
+  onProjectRef?: { current: ((delta: number) => void) | null }
+  viewportRef?: { current: { rect: DOMRect | null; scrollY: number } }
 }
 
 const RADIUS = 1
+/* stable identities for omitted list props — fresh literals would bust memos */
+const NO_LEGS: [[number, number], [number, number]][] = []
+const NO_WAYPOINTS: [number, number][] = []
+const NO_CLUSTERS: GlobeCluster[] = []
+const COARSE_TERRAIN: Terrain = {
+  width: 360, height: 180, data: new Uint8Array(0),
+  landAt: isLand, elevationAt: () => 0,
+}
+
+/* countryFrameLayout branches on window width alone; only its focus fields are
+   safe to read from this cache, since frameOptions.viewport goes stale */
+let frameLayoutCache: { width: number; layout: ReturnType<typeof countryFrameLayout> } | null = null
+const cachedCountryFrameLayout = (viewport: PlateViewport) => {
+  if (!frameLayoutCache || frameLayoutCache.width !== viewport.windowWidth) {
+    frameLayoutCache = { width: viewport.windowWidth, layout: countryFrameLayout(viewport) }
+  }
+  return frameLayoutCache.layout
+}
 
 /** total samples on the sphere before the land mask throws the sea away */
 const SHELL_POINTS = 36000
@@ -196,7 +216,6 @@ const PLATE_POINTS = PLATE_TERRAIN_CAPACITY + PLATE_GRID_CAPACITY
    a copy of them. Anything here that the camera or the table's rake depends on
    is imported, never redeclared: two homes for the tilt is how the gate ended
    up measuring a rake the render path was not using. */
-const PLATE_EXTENT = 0.35
 /**
  * The GEOMETRIC lift: how far a dot rises off the plate for its elevation
  * (`ELEVATION_UNIT` per unit, exaggerated). Kept exactly as it shipped — it is
@@ -209,35 +228,13 @@ const ELEVATION_UNIT = 0.012
 const ENTER_DUR = 1.6
 const STEER_DUR = 0.34
 const RETURN_DUR = 1.1
-const RETURN_FILL_END = 0.55
-/**
- * ONE GESTURE, NOT TWO ACTS (v4). The old schedule ran the peel to completion
- * and only then let the plot wave draw the ground — an empty table arrived,
- * then a second particle system filled it, and the seam between the two acts
- * was visible as exactly that: two systems. Now the wave OVERLAPS the morph.
- * The surface is still unfolding while the scan front condenses detail onto
- * it, so there is never an instant where "the plate" exists apart from "the
- * ground" — one field of dots, approached, unfolded, and developed in a
- * single continuous move.
- *
- * The entry is still the exit played in reverse, so its schedule is DERIVED
- * from the return's rather than owning numbers of its own: the plot wave
- * occupies the final RETURN_FILL_END of the gesture exactly as the unplot
- * wave occupies the first RETURN_FILL_END of the return; the morph runs
- * [STEER_FRAC, MORPH_END] and un-runs [1 - MORPH_END, 1 - STEER_FRAC]. All
- * fractions live on ONE master clock (d.clock / ENTER_DUR) — nothing gates on
- * an async load; a late asset delays only the wave's own sub-clock
- * (d.waveClock), never the camera.
- */
-const DEVELOP_AT = 1 - RETURN_FILL_END
-const STEER_FRAC = STEER_DUR / ENTER_DUR
-/** where the morph lands, in master-progress space — before the clock's end,
- *  so the wave's last beat plays over a surface that has already settled */
-const MORPH_END = 0.95
-const RETURN_MORPH_AT = 1 - MORPH_END
-const RETURN_MORPH_END = 1 - STEER_FRAC
-const FLARE_TAIL = 0.3
-const DEVELOP_DUR = ENTER_DUR * (1 - DEVELOP_AT)
+/** Camera, surface, detail and captions evaluate this one reversible path. */
+const SURFACE_START = 0.42
+const SURFACE_END = 0.96
+const journeyMorph = (progress: number) =>
+  ease(clamp01((progress - SURFACE_START) / (SURFACE_END - SURFACE_START)))
+const journeyDolly = (progress: number) => ease(clamp01((progress - 0.1) / 0.9))
+const journeyDetail = (progress: number) => smoothstep(0.48, 0.98, progress)
 /**
  * How much of the morph keeps the sphere's own occlusion. The old release was
  * linear in morph, which uncovered the far side while the globe still read as
@@ -322,14 +319,12 @@ const PLATE_SEA = 3
 const PLATE_GRID = 4
 /** the plotted outline: border and coastline as one stroke, drawn by the front */
 const PLATE_BORDER = 5
-const PLATE_FILL_MIN_ALPHA = 0.5
 /**
  * The top of the terrain ladder, and the whole reason it has a top: the stroke
  * settles at 1.0 and has to be the brightest thing on the table (§6, figure
  * layer 1). Without a ceiling the single highest relief dot in an alpine cap
  * settles at 1.0 too and ties the outline it is supposed to sit under.
  */
-const PLATE_FILL_MAX_ALPHA = 0.92
 /**
  * Terrain-derived coast dots keep existing — they are dense shore texture, and
  * on a coastal cap they are where the land actually stops — but they stop
@@ -380,7 +375,7 @@ const BORDER_JITTER_PITCHES = 0.18
  * NEGATIVE lag, so the return wave inherits it and the outline unplots one
  * beat ahead of the ground it drew.
  */
-const BORDER_SEED_LEAD = 0.2
+
 /**
  * How long the outline stage holds the reseed waiting for borders.bin before
  * it lands the ground without a figure, in milliseconds.
@@ -392,10 +387,9 @@ const BORDER_SEED_LEAD = 0.2
  * and the stroke is retrofitted into its reserved slots when the asset
  * arrives, so no branch here can end with a landed plate that has no outline.
  */
-const BORDER_WAIT_MS = 600
 
 /** seconds a place stays front-and-centre with its card open before the next */
-const HOLD = 2.6
+const HOLD = 4.6
 
 /**
  * Seconds a TAPPED place holds before the tour takes over again. Much longer
@@ -564,9 +558,9 @@ const schedulePlateAssetPrefetch = () => {
   const warm = () => {
     void import('@/content/terrain')
       .then((terrainModule) => terrainModule.loadTerrain())
-      .catch(() => {})
-    void loadBorders().catch(() => {})
-    void loadCountries().catch(() => {})
+      .catch(() => { })
+    void loadBorders().catch(() => { })
+    void loadCountries().catch(() => { })
   }
   if (window.requestIdleCallback) {
     window.requestIdleCallback(warm, { timeout: 2000 })
@@ -649,15 +643,8 @@ interface PlateLayer extends DotLayer {
   tint: Float32Array
   /** active plate normal, rewritten once per enter */
   normal: Float32Array
-}
-
-const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3)
-
-/** An ~8% settle overshoot, used on relief lift only. */
-const easeOutBack = (x: number) => {
-  const c1 = 1.6
-  const c3 = c1 + 1
-  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2)
+  sphereNormal: Float32Array
+  terrainNormal: Float32Array
 }
 
 const smoothstep = (edge0: number, edge1: number, value: number) => {
@@ -719,6 +706,7 @@ const plateProjectInto = (
   target[offset] = cx + tx * scale
   target[offset + 1] = cy + ty * scale
   target[offset + 2] = cz + tz * scale
+  countrySurfacePointInto(target, offset, centroid, spread, alpha)
 }
 
 const latLngToDirectionInto = (
@@ -797,169 +785,50 @@ const nextReseedRandom = (cursor: RandomCursor) => {
   return cursor.randomState / 0x1_0000_0000
 }
 
-/** No closures or allocations: the same typed buffers are rewritten in place.
- *
- * `surface` is the global morph at this frame. A dot's own arrival (`local`)
- * is clamped against it — min(local, surface) — so no detail dot can ever
- * LEAD the ground it belongs to: while the field is still unfolding, an
- * arrived dot rides the unfolding surface exactly, and it settles onto the
- * table at the same instant the table itself settles. This is what fuses the
- * wave and the morph into one body; without the clamp the front condensed
- * dots onto the FINISHED plate while the world's own dots were still in
- * flight, and the two schedules read as two particle systems. */
-function formPlateLayer(
-  layer: PlateLayer,
-  develop: number,
-  returning: boolean,
-  surface: number
-) {
-  const posAttr = layer.geometry.getAttribute('position') as THREE.BufferAttribute
-  const alphaAttr = layer.geometry.getAttribute('aAlpha') as THREE.BufferAttribute
-  const tintAttr = layer.geometry.getAttribute('aTint') as THREE.BufferAttribute
-  const pos = posAttr.array as Float32Array
-  const {
-    flat,
-    scatter,
-    seeds,
-    alpha,
-    elevation,
-    kind,
-    shade,
-    targetTint,
-    tint,
-    normal,
-    edgeAlpha,
-  } = layer
-  const returnFront = returning ? develop : 0
-  /* The lead is earned, not granted: a full negative lag evaluated at
-     wave-time 0 lights every border dot within LEAD/0.62 of the centre in a
-     single frame (entry), and steps the rim's stroke down by half its alpha on
-     the first return frame (exit) — the "plop", both ways. Scaling the lead by
-     the front's own progress until the front has travelled its own lead
-     distance keeps wave-time 0 identically dark and is a no-op from
-     develop >= BORDER_SEED_LEAD onward. */
-  const borderLead = -BORDER_SEED_LEAD *
-    Math.min(1, (returning ? returnFront : develop) / BORDER_SEED_LEAD)
-
-  for (let i = 0; i < seeds.length; i++) {
-    /* One clock, three places in it. The graticule lags its ground the way a
-       label does; the plotted outline LEADS it, because the front is drawing
-       the figure and the ground develops inside what it drew (§5). The lead is
-       a negative lag on purpose: the return wave reads the same term, so the
-       outline also unplots one beat ahead of the terrain, inward. */
-    const lag = kind[i] === PLATE_GRID
-      ? LABEL_LAG
-      : kind[i] === PLATE_BORDER
-        ? borderLead
-        : 0
-    /* the overlap's cost control: a dot the front has not reached (entry) or
-       has fully unplotted (return) contributes nothing — write its zero once
-       and skip the eases and the five buffer writes. Stale positions under a
-       zero alpha are invisible, and the dot's own frame rewrites them the
-       moment it lights. */
-    if (!returning) {
-      if (develop - seeds[i] * 0.62 - lag <= 0) {
-        if (alpha[i] !== 0) {
-          alpha[i] = 0
-          tint[i] = 0
-        }
-        continue
-      }
-    } else if (
-      alpha[i] === 0 &&
-      returnFront - (1 - seeds[i]) * 0.62 - lag >= 0.38
-    ) {
-      continue
-    }
-    const arrive = clamp01((develop - seeds[i] * 0.62 - lag) / 0.38)
-    const leave = returning
-      ? clamp01((returnFront - (1 - seeds[i]) * 0.62 - lag) / 0.38)
-      : 0
-    const local = returning ? 1 - ease(leave) : easeOutCubic(arrive)
-    const lift = returning ? local : easeOutBack(arrive)
-    const j = i * 3
-    /* the clamp described above: a dot is never further onto the table than
-       the table itself is */
-    const onto = Math.min(local, surface)
-    pos[j] = scatter[j] + (flat[j] - scatter[j]) * onto
-    pos[j + 1] = scatter[j + 1] + (flat[j + 1] - scatter[j + 1]) * onto
-    pos[j + 2] = scatter[j + 2] + (flat[j + 2] - scatter[j + 2]) * onto
-
-    const elevationLift = elevation[i] * ELEVATION_UNIT * EXAGGERATION * lift * surface
-    pos[j] += normal[0] * elevationLift
-    pos[j + 1] += normal[1] * elevationLift
-    pos[j + 2] += normal[2] * elevationLift
-
-    const sinceFront = develop - seeds[i] * 0.62
-    /* The front's flare is the one place a dot borrows scarlet. The stroke
-       never does: a scarlet national border reads political (§6), so the
-       outline is excluded here and its targetTint is zero at seed time — the
-       two together are what make `tint[i]` identically 0 for a border dot. */
-    const flare = returning ||
-      kind[i] === PLATE_GRID ||
-      kind[i] === PLATE_BORDER ||
-      sinceFront < 0
-      ? 0
-      : clamp01(1 - sinceFront / Math.max(0.001, FLARE_TAIL / DEVELOP_DUR))
-    const settled = kind[i] === PLATE_BORDER
-      ? BORDER_SETTLED_ALPHA
-      : kind[i] === PLATE_COAST
-        ? PLATE_COAST_SETTLED_ALPHA
-        : kind[i] === PLATE_FILL
-          ? PLATE_FILL_MIN_ALPHA + shade[i] * (PLATE_FILL_MAX_ALPHA - PLATE_FILL_MIN_ALPHA)
-          : kind[i] === PLATE_SEA
-            ? 0.18
-            : kind[i] === PLATE_GRID
-              ? 0.2
-              : 0
-    alpha[i] = clamp01(local * (settled + flare * 0.65) * edgeAlpha[i])
-    const tintArrive = returning
-      ? local
-      : ease(clamp01((develop - seeds[i] * 0.62 - LABEL_LAG) / 0.38))
-    // The scan front borrows only a trace of scarlet, then resolves to the
-    // precision target one label-lag behind the terrain it just exposed. The
-    // flare rides the MARK channel alone: a wash dot still catches the front's
-    // scarlet trace, and still resolves neutral behind it, because the lift is
-    // subtracted rather than competing for the same clamp.
-    const mark = targetTint[i] > 0 ? targetTint[i] : 0
-    const washLift = targetTint[i] < 0 ? -targetTint[i] : 0
-    tint[i] = local * (
-      clamp01(mark * tintArrive + flare * 0.16) - washLift * tintArrive
-    )
-  }
-  posAttr.needsUpdate = true
-  alphaAttr.needsUpdate = true
-  tintAttr.needsUpdate = true
+/** Geometry is prepared once; every dot rides the common surface in GLSL. */
+function formPlateLayer(_layer: PlateLayer, detail: number) {
+  DETAIL.value = detail
 }
 
-/**
- * The world's own dots during the dive (v4). They used to fade IN PLACE from
- * morph 0.08 — the globe dimmed where it stood while the cap detached, which
- * read as "a separate layer leaves the planet". But every world dot already
- * owns a projected target (the whole hemisphere goes through plateProject),
- * and a dot far from the cap lands far outside the frame: letting it RIDE the
- * morph means the entire field streams radially outward past the edges of the
- * view — the parallax of a camera plunging toward the surface. So the fade is
- * now late and short: dots keep flying until the unfold has mostly carried
- * them off-frame, then the stragglers just beyond the cap's rim dissolve. The
- * same curve runs backwards on the return — the world rushes back IN around
- * the rising sphere.
- */
-/** last fade formWorldPlate wrote, so a frame whose fade has not moved skips
- *  the whole pass — the overlap put this loop on the same frames as the
- *  develop pass, and most of the morph runs at fade 0. Reset when a dive
- *  begins: new projections mean the same fade no longer implies the same
- *  alphas. */
+/** Bake immutable endpoints and settled tone when a reseed/relief update lands. */
+function settlePlateLayer(layer: PlateLayer, zoom: number) {
+  const position = layer.geometry.getAttribute('position').array as Float32Array
+  for (let i = 0; i < layer.alpha.length; i++) {
+    const j = i * 3
+    const relief = layer.elevation[i] * ELEVATION_UNIT * EXAGGERATION / zoom
+    for (let axis = 0; axis < 3; axis++) {
+      position[j + axis] = layer.scatter[j + axis]
+      layer.sphereNormal[j + axis] = layer.scatter[j + axis] / 1.001
+      layer.plate[j + axis] = layer.flat[j + axis] + layer.normal[axis] * relief
+    }
+    const kind = layer.kind[i]
+    if (kind === PLATE_BORDER || kind === PLATE_SEA || kind === PLATE_GRID) {
+      for (let axis = 0; axis < 3; axis++) {
+        layer.terrainNormal[j + axis] = layer.normal[axis] * (1 - COUNTRY_CURVATURE) +
+          layer.sphereNormal[j + axis] * COUNTRY_CURVATURE
+      }
+    }
+    const settled = kind === PLATE_BORDER ? BORDER_SETTLED_ALPHA
+      : kind === PLATE_COAST ? PLATE_COAST_SETTLED_ALPHA
+      : kind === PLATE_FILL ? 0.52
+      : kind === PLATE_SEA ? 0.18 : kind === PLATE_GRID ? 0.2 : 0
+    layer.alpha[i] = settled * layer.edgeAlpha[i]
+    layer.tint[i] = layer.targetTint[i]
+  }
+  for (const attribute of Object.values(layer.geometry.attributes)) attribute.needsUpdate = true
+}
+
+/** Sparse cartography gives way to dense marks on the identical surface.
+ * Only alpha changes while the shared vertex shader owns all position motion. */
 let worldPlateFadeWritten = -1
-function formWorldPlate(layers: readonly DotLayer[], morph: number) {
-  const fade = ease(clamp01((morph - 0.55) / 0.4))
+function formWorldPlate(layers: readonly DotLayer[], progress: number) {
+  const fade = progress > 0 ? DETAIL.value : 0
   if (fade === worldPlateFadeWritten) return
   worldPlateFadeWritten = fade
   for (const layer of layers) {
-    const { alpha, plateDistance } = layer
+    const { alpha } = layer
     for (let i = 0; i < alpha.length; i++) {
-      const outside = smoothstep(PLATE_EXTENT, PLATE_EXTENT + 0.12, plateDistance[i])
-      alpha[i] = 1 - outside * fade
+      alpha[i] = 1 - fade
     }
     layer.geometry.getAttribute('aAlpha').needsUpdate = true
   }
@@ -1111,21 +980,24 @@ export function Globe({
   pins,
   precisions,
   weights,
-  legs = [],
-  waypoints = [],
+  worldTour,
+  legs = NO_LEGS,
+  waypoints = NO_WAYPOINTS,
   waypointProjectionRef,
   projectionRef,
   activeRef,
   selectedRef,
   spinRef,
   tiltRef,
-  clusters = [],
+  clusters = NO_CLUSTERS,
   chipProjectionRef,
   scaleRef,
   enterRef,
   exitRef,
   pointerRef,
   hoverCountryRef,
+  onProjectRef,
+  viewportRef,
 }: GlobeProps) {
   const groupRef = useRef<THREE.Group>(null)
   const reduced = useMemo(() => prefersReducedMotion(), [])
@@ -1178,8 +1050,8 @@ export function Globe({
       if (p.lat < ANTARCTIC) continue
       if (!isLand(p.lat, p.lng)) continue
       const coastDot = isCoast(p.lat, p.lng)
-      ;(coastDot ? edge : fill).push(p.x * RADIUS, p.y * RADIUS, p.z * RADIUS)
-      ;(coastDot ? edgeLL : fillLL).push(p.lat, p.lng)
+        ; (coastDot ? edge : fill).push(p.x * RADIUS, p.y * RADIUS, p.z * RADIUS)
+        ; (coastDot ? edgeLL : fillLL).push(p.lat, p.lng)
     }
     const water: number[] = []
     for (let i = 0; i < SEA_POINTS; i++) {
@@ -1232,14 +1104,14 @@ export function Globe({
   }, [])
   const layers = useMemo(() => [coast, shell, sea, grid] as const, [coast, shell, sea, grid])
 
-  /* One dense layer, compiled and resident from mount. At world scale every
-     aAlpha is zero, so it costs one invisible draw but never a first-dive
-     shader compile. Position and aPlate deliberately share one array: S4's
-     CPU wave owns the per-dot surface→relief schedule, while the shared morph
-     shader still sees the attribute shape every other globe material uses. */
+  /* One resident dense layer: immutable sphere/patch endpoints, shader-owned
+     interpolation and one shared detail uniform. No per-frame vertex uploads. */
   const plateLayer = useMemo<PlateLayer>(() => {
     const home = new Float32Array(PLATE_POINTS * 3)
     const position = new Float32Array(PLATE_POINTS * 3)
+    const plate = new Float32Array(PLATE_POINTS * 3)
+    const sphereNormal = new Float32Array(PLATE_POINTS * 3)
+    const terrainNormal = new Float32Array(PLATE_POINTS * 3)
     const alpha = new Float32Array(PLATE_POINTS)
     const tint = new Float32Array(PLATE_POINTS)
     const pointScale = new Float32Array(PLATE_POINTS)
@@ -1248,14 +1120,18 @@ export function Globe({
     const positionAttribute = new THREE.BufferAttribute(position, 3)
     geometry.setAttribute('position', positionAttribute)
     geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1))
-    geometry.setAttribute('aPlate', positionAttribute)
+    geometry.setAttribute('aPlate', new THREE.BufferAttribute(plate, 3))
+    geometry.setAttribute('aSphereNormal', new THREE.BufferAttribute(sphereNormal, 3))
+    geometry.setAttribute('aTerrainNormal', new THREE.BufferAttribute(terrainNormal, 3))
     geometry.setAttribute('aTint', new THREE.BufferAttribute(tint, 1))
     geometry.setAttribute('aPointScale', new THREE.BufferAttribute(pointScale, 1))
     geometry.setAttribute('aShade', new THREE.BufferAttribute(shade, 1))
     return {
       geometry,
       home,
-      plate: position,
+      plate,
+      sphereNormal,
+      terrainNormal,
       scatter: new Float32Array(PLATE_POINTS * 3),
       seeds: new Float32Array(PLATE_POINTS),
       alpha,
@@ -1370,13 +1246,17 @@ export function Globe({
   /** written dots, and the one damped presence the frame loop drives */
   const restStrokeState = useRef({ count: 0, fade: 0, written: -1 })
 
+  /* stroke-walk scratch — both fillers are synchronous, so one set serves both */
+  const strokeScratch = useMemo(
+    () => [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] as const,
+    []
+  )
+
   /** all visited countries' rings at an adaptive pitch; runs once per atlas */
   const fillRestStrokes = () => {
     const atlas = countryAtlasRef.current
     if (!atlas) return
-    const a = new THREE.Vector3()
-    const b = new THREE.Vector3()
-    const p = new THREE.Vector3()
+    const [a, b, p] = strokeScratch
     const deg = 180 / Math.PI
     /* first pass: the total arc of every visited outline, so the pitch can
        stretch to make the whole set fit the fixed budget */
@@ -1420,7 +1300,7 @@ export function Globe({
     restStrokeState.current.count = n
     restStrokeState.current.written = -1
     restStroke.geometry.setDrawRange(0, n)
-    ;(restStroke.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+      ; (restStroke.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
   }
   /* pointer-resolution temps, allocated once — the frame loop stays clean */
   const [hoverRaycaster, hoverNdc, hoverSphere, hoverHit, hoverLatLng] = useMemo(
@@ -1441,9 +1321,7 @@ export function Globe({
     const rings = atlas?.outlines.get(code)
     if (!rings) return 0
     const { position, seeds } = countryStroke
-    const a = new THREE.Vector3()
-    const b = new THREE.Vector3()
-    const p = new THREE.Vector3()
+    const [a, b, p] = strokeScratch
     const deg = 180 / Math.PI
     let n = 0
     let arc = 0
@@ -1471,7 +1349,7 @@ export function Globe({
     }
     if (arc > 0) for (let i = 0; i < n; i++) seeds[i] /= arc
     countryStroke.geometry.setDrawRange(0, n)
-    ;(countryStroke.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+      ; (countryStroke.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
     return n
   }
 
@@ -1538,8 +1416,10 @@ export function Globe({
       grid.geometry.dispose()
       plateLayer.geometry.dispose()
       arcs?.geometry.dispose()
+      countryStroke.geometry.dispose()
+      restStroke.geometry.dispose()
     },
-    [coast, shell, sea, grid, plateLayer, arcs]
+    [coast, shell, sea, grid, plateLayer, arcs, countryStroke, restStroke]
   )
 
   /* the entrance's one hand on the body: its tint. The mesh is visible and
@@ -1547,6 +1427,9 @@ export function Globe({
      mount rather than mid-gather, depth-silent so no naked black sphere ever
      sits in front of the dust. Only `depthWrite` moves at the seam. */
   const occluderMatRef = useRef<THREE.MeshBasicMaterial>(null)
+  const plateMaterialRef = useRef<THREE.PointsMaterial>(null)
+  const cameraCenter = useMemo(() => new THREE.Vector3(), [])
+  const worldCameraPosition = useMemo(() => new THREE.Vector3(...PLATE_CAMERA_POSITION), [])
 
   /* the entrance's senses: pointer position while the dust streams, and the
      skip that any committed input fires once the gather is running. Never
@@ -1562,11 +1445,11 @@ export function Globe({
     const skip = () => {
       if (intro.current.phase === 'gather') intro.current.skip = true
     }
-    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointermove', onMove, { passive: true })
     window.addEventListener('pointerdown', skip)
     window.addEventListener('keydown', skip)
-    window.addEventListener('wheel', skip)
-    window.addEventListener('touchstart', skip)
+    window.addEventListener('wheel', skip, { passive: true })
+    window.addEventListener('touchstart', skip, { passive: true })
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerdown', skip)
@@ -1618,6 +1501,10 @@ export function Globe({
     return new THREE.Vector3(0, Math.sin(elevation), Math.cos(elevation))
   }, [])
 
+  const tourStops = useMemo(() => worldTour?.length
+    ? worldTour : pinPoints.map((_, index) => index), [worldTour, pinPoints])
+  const tourStopSet = useMemo(() => new Set(tourStops), [tourStops])
+
   /* The opening view: the frame-weighted centre of the archive. Most of the
      placed work sits on one side of the world (SE Asia, currently), and a
      sphere that wakes up facing anywhere else opens the page on empty ocean.
@@ -1637,9 +1524,10 @@ export function Globe({
       return { rotation: 0, index: 0 }
     }
     const centroid = Math.atan2(cz, cx)
-    let index = 0
+    let index = tourStops[0] ?? 0
     let bestScore = -Infinity
     pinPoints.forEach((p, i) => {
+      if (!tourStopSet.has(i)) return
       const a = Math.atan2(p.z, p.x)
       const away = Math.atan2(Math.sin(a - centroid), Math.cos(a - centroid))
       const score = (weights?.[i] ?? 1) * Math.cos(away)
@@ -1651,7 +1539,7 @@ export function Globe({
     // same θ - π/2 that facingRotations uses: centroid dead centre
     return { rotation: centroid - Math.PI / 2, index }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinPoints])
+  }, [pinPoints, weights, tourStops, tourStopSet])
 
   /* Where the entrance ENDS: the first stop's presentation pose, minus the
      residual the tour is left to carry. The flywheel decelerates INTO this —
@@ -1663,9 +1551,9 @@ export function Globe({
       pinPoints.length === 0
         ? { yaw: opening.rotation, tilt: 0.22 }
         : {
-            yaw: facingRotations[opening.index] - SPIN_RESIDUAL,
-            tilt: facingTilts[opening.index],
-          },
+          yaw: facingRotations[opening.index] - SPIN_RESIDUAL,
+          tilt: facingTilts[opening.index],
+        },
     [pinPoints, facingRotations, facingTilts, opening]
   )
 
@@ -1758,9 +1646,13 @@ export function Globe({
   const dive = useRef({
     clock: 0,
     returnClock: 0,
-    /** the plot wave's own sub-clock: starts once seeded AND the master clock
-     *  reaches DEVELOP_AT, so a late asset delays the wave, never the camera */
-    waveClock: 0,
+    /** One reversible path coordinate, independent of optional assets. */
+    progress: 0,
+    returnFromProgress: 0,
+    entryIndex: 0,
+    cameraZoom: 1,
+    detail: 0,
+    reliefUpgradePending: false,
     loadId: 0,
     loading: false,
     seeded: false,
@@ -1789,8 +1681,6 @@ export function Globe({
     borderSpacing: 0,
     /** how many marks the stroke has actually spent, out of BORDER_POINT_BUDGET */
     borderPointCount: 0,
-    /** when the outline stage started waiting on borders.bin, or 0 */
-    borderWaitStartedAt: 0,
     /** this reseed landed without a figure and owes itself one */
     borderRetrofitPending: false,
     /** a retrofit pass is running now, over an already-seeded plate */
@@ -1842,12 +1732,6 @@ export function Globe({
     panTilt: 0,
     panTargetYaw: 0,
     panTargetTilt: 0,
-    returnFromMorph: 1,
-    returnStartYaw: 0,
-    returnStartTilt: 0,
-    returnYaw: 0,
-    returnTilt: 0,
-    nextIndex: 0,
   })
   const alive = useRef(true)
 
@@ -1856,6 +1740,7 @@ export function Globe({
     return () => {
       alive.current = false
       MORPH.value = 0
+      DETAIL.value = 0
       FLAT_OCC.value = 1
     }
   }, [])
@@ -1874,8 +1759,10 @@ export function Globe({
            loop only ever fades what this wrote */
         fillRestStrokes()
         const visitedIds = new Set<number>()
+        const idByCode = new Map<string, number>()
+        for (let i = 0; i < atlas.codes.length; i++) idByCode.set(atlas.codes[i], i + 1)
         for (const cluster of clusters) {
-          const id = atlas.codes.indexOf(cluster.countryCode) + 1
+          const id = idByCode.get(cluster.countryCode) ?? 0
           if (id > 0) visitedIds.add(id)
         }
         for (const layer of layers) {
@@ -1891,7 +1778,7 @@ export function Globe({
           tintAttribute.needsUpdate = true
         }
       })
-      .catch(() => {})
+      .catch(() => { })
     // layers/clusters are mount-stable deployment data
   }, [clusters, layers])
 
@@ -1940,6 +1827,9 @@ export function Globe({
         seaDots,
         gridDots,
         terrainBudget: d.activeTerrainCount,
+        center: [d.centerLat, d.centerLng],
+        spread: d.spread,
+        detail: d.detail,
       }
     }
     return () => {
@@ -1985,6 +1875,17 @@ export function Globe({
       ? REFERENCE_WINDOW_HEIGHT
       : window.innerHeight
     const fallback = heroGlobeViewport(windowWidth, windowHeight)
+    const measured = viewportRef?.current
+    if (measured?.rect) {
+      return {
+        viewWidth: measured.rect.width,
+        viewHeight: measured.rect.height,
+        viewLeft: measured.rect.left,
+        viewTop: measured.rect.top - (window.scrollY - measured.scrollY),
+        windowWidth,
+        windowHeight,
+      }
+    }
     const { width, height, left, top } = surface as {
       width: number
       height: number
@@ -2020,22 +1921,30 @@ export function Globe({
       direction: latLngToVec3(pins[memberIndex]),
       reach: precisionReach(precisions[memberIndex]),
     }))
-    /* The clear third is reserved exactly when this landing will spread a
-       sheet into it — the mechanical auto-open rule (R15), never editorial.
-       Caps that land with stacks closed keep the whole table for the stacks. */
-    const willAutoOpen =
-      weights !== undefined &&
-      cluster.memberIndices.some((i) => (weights[i] ?? 0) >= AUTO_OPEN_MIN_FRAMES)
-    const frame = fitPlateFrame(members, {
-      viewport: plateViewport(),
-      reserveSheetSpace: willAutoOpen,
-    })
+    // Include the country's silhouette, not just the distance between visits.
+    // Sydney and Brisbane alone used to frame a cropped east-coast rectangle.
+    const outlines = countryAtlasRef.current?.outlines.get(cluster.countryCode)
+    if (outlines) {
+      for (const ring of outlines) {
+        for (let i = 0; i < ring.length; i += 2) {
+          const direction = latLngToVec3([ring[i] * 180 / Math.PI, ring[i + 1] * 180 / Math.PI])
+          const alignment = direction[0] * cluster.centroid[0] + direction[1] * cluster.centroid[1] + direction[2] * cluster.centroid[2]
+          // Keep overseas dependencies from pulling the map away from the journey.
+          if (alignment > 0.65) members.push({ direction, reach: 0 })
+        }
+      }
+    }
+    const viewport = plateViewport()
+    const layout = countryFrameLayout(viewport)
+    const frame = fitPlateFrame(members, layout.frameOptions)
     d.center[0] = frame.center[0]
     d.center[1] = frame.center[1]
     d.center[2] = frame.center[2]
     d.centerLat = frame.centerLatLng[0]
     d.centerLng = frame.centerLatLng[1]
     d.spread = frame.spread
+    d.cameraZoom = countryCameraZoom(frame.spread)
+    if (plateMaterialRef.current) plateMaterialRef.current.size = 0.012 / d.cameraZoom
     d.capRadius = frame.capRadius
     const basis = plateBasis(frame.center)
     d.plateEast[0] = basis.east[0]
@@ -2048,10 +1957,10 @@ export function Globe({
        multiplies radians straight into window halves. */
     d.windowX[0] = frame.view.screenX[0] * frame.spread
     d.windowX[1] = frame.view.screenX[1] * frame.spread
-    d.windowX[2] = frame.view.screenX[2]
+    d.windowX[2] = layout.focusX * 2 - 1
     d.windowY[0] = frame.view.screenY[0] * frame.spread
     d.windowY[1] = frame.view.screenY[1] * frame.spread
-    d.windowY[2] = frame.view.screenY[2]
+    d.windowY[2] = 1 - layout.focusY * 2
     /* Light the table from the upper left of the WINDOW, through the same
        screen map the sampler frames against: the rake and the table yaw shear
        the plate's axes, so a lamp fixed to north would swing around the frame
@@ -2113,16 +2022,26 @@ export function Globe({
   const preparePlateReseed = (clusterIndex: number) => {
     const d = dive.current
     const cluster = clusters[clusterIndex]
-    if (!cluster || !applyPlateFrame(clusterIndex)) return false
+    if (!cluster) return false
     const c = d.center
     const capRadius = d.capRadius
     plateLayer.normal[0] = c[0]
     plateLayer.normal[1] = c[1]
     plateLayer.normal[2] = c[2]
+    PLATE_NORMAL.value.set(c[0], c[1], c[2])
 
     activeMembers.fill(0)
     pinPlate.fill(0)
     pinPlateSeeds.fill(0)
+    // Member count is small: prepare anchors before the sliced world pass so
+    // the chosen photograph remains attached from the very first approach frame.
+    for (const memberIndex of cluster.memberIndices) {
+      activeMembers[memberIndex] = 1
+      const point = pinPoints[memberIndex]
+      const j = memberIndex * 3
+      plateProjectInto(point.x, point.y, point.z, c, d.spread, pinPlate, j)
+      for (let axis = 0; axis < 3; axis++) pinPlate[j + axis] += c[axis] * 0.012 / d.cameraZoom
+    }
     d.memberCount = cluster.memberIndices.length
     d.venueMemberCount = 0
     d.broadPrecision = false
@@ -2194,13 +2113,11 @@ export function Globe({
     d.borderVertexIndex = 0
     d.borderCarry = 0
     d.borderPointCount = 0
-    d.borderWaitStartedAt = 0
     d.borderRetrofitPending = false
     d.borderRetrofit = false
     d.terrainPointIndex = 0
     d.reliefPointIndex = 0
     d.baseSeeded = false
-    d.waveClock = 0
     d.plateDrawn = false
     d.reseedStage = 'clear'
     return true
@@ -2218,20 +2135,21 @@ export function Globe({
        the outline are pure CPU over already-loaded data, so they run during
        the steer while terrain.bin is still in flight. The terrain stage below
        holds its cursor until the asset lands. */
-    const terrain = d.terrain
+    const terrain = d.terrain ?? COARSE_TERRAIN
+    const { landAt, elevationAt } = terrain
     if (!cluster || d.reseedStage === 'idle') return false
     const c = d.center
     const deadline = performance.now() + RESEED_SLICE_MS
     /* The elevation grid's own step, in degrees: the coast test and the lamp's
        central differences both walk cells, and neither may invent a finer one. */
-    const reliefLatCell = terrain ? 180 / terrain.height : 0
-    const reliefLngCell = terrain ? 360 / terrain.width : 0
+    const reliefLatCell = 180 / terrain.height
+    const reliefLngCell = 360 / terrain.width
     /* One closure per slice, not per dot. terrain.ts hands back the stored 0..1
        range on purpose; metres are what a slope is measured in. Only the
        terrain/relief stages call it, and they are gated on `terrain` above
        being present — the non-null assertion states that, not a hope. */
     const sampleElevationMetres = (lat: number, lng: number) =>
-      terrain!.elevationAt(lat, lng) * TERRAIN_ELEVATION_CEILING_M
+      elevationAt(lat, lng) * TERRAIN_ELEVATION_CEILING_M
 
     while (true) {
       if (d.reseedStage === 'clear') {
@@ -2301,9 +2219,9 @@ export function Globe({
         const point = pinPoints[memberIndex]
         const j = memberIndex * 3
         plateProjectInto(point.x, point.y, point.z, c, d.spread, pinPlate, j)
-        pinPlate[j] += c[0] * 0.012
-        pinPlate[j + 1] += c[1] * 0.012
-        pinPlate[j + 2] += c[2] * 0.012
+        pinPlate[j] += c[0] * 0.012 / d.cameraZoom
+        pinPlate[j + 1] += c[1] * 0.012 / d.cameraZoom
+        pinPlate[j + 2] += c[2] * 0.012 / d.cameraZoom
         const pointLength = point.length() || 1
         pinPlateSeeds[memberIndex] = clamp01(
           angularDistance(
@@ -2333,15 +2251,7 @@ export function Globe({
       if (d.reseedStage === 'outline') {
         const borders = d.borders
         if (!borders) {
-          /* The asset is still in flight. HOLD here rather than land a plate
-             that can never grow a figure: the peel is pinned at zero anyway,
-             so the cost of waiting is a held sphere, and the cost of not
-             waiting used to be a starfield for the rest of the visit. */
-          if (d.borderWaitStartedAt === 0) d.borderWaitStartedAt = performance.now()
-          if (performance.now() - d.borderWaitStartedAt < BORDER_WAIT_MS) return false
-          /* Waited long enough. Land the ground now and owe the stroke: the
-             FULL reserve is held back from terrain so the retrofit below has
-             its slots waiting when the asset finally lands. */
+          // Reserve border slots and keep moving with bundled coarse ground.
           d.borderRetrofitPending = true
           applyTerrainBudget(BORDER_POINT_BUDGET)
           d.reseedStage = 'terrain'
@@ -2483,6 +2393,8 @@ export function Globe({
             plateLayer.shade[i] = 1
             plateLayer.edgeAlpha[i] =
               1 - smoothstep(1, 1 + PLATE_SAMPLE_MARGIN, windowDistance)
+            const borderCountry = countryAtlasRef.current?.codeAt(lat * 180 / Math.PI, lon * 180 / Math.PI)
+            if (borderCountry && borderCountry !== cluster.countryCode) plateLayer.edgeAlpha[i] *= 0.12
             plateLayer.alpha[i] = 0
             /* Bone, always. Zero on both channels of aTint: no scarlet mark,
                no neutral wash. A scarlet national border reads political. */
@@ -2506,11 +2418,8 @@ export function Globe({
       }
 
       if (d.reseedStage === 'terrain') {
-        /* The asset-fed stage. HOLD the cursor while terrain.bin is in flight:
-           the peel keeps running on the master clock and the wave's sub-clock
-           simply starts late. A failed load exits the dive through loadTerrain's
-           catch, so this wait cannot strand the cursor. */
-        if (!terrain) return false
+        /* The bundled land mask provides coarse geometry immediately. The
+           terrain asset refines height/normals later at these same coordinates. */
         if (d.terrainPointIndex >= d.activePointCount) {
           d.reseedStage = 'relief'
           continue
@@ -2534,7 +2443,7 @@ export function Globe({
           lat = coordinate[0] + radius * Math.cos(angle) * (180 / Math.PI)
           lng = coordinate[1] +
             radius * Math.sin(angle) * (180 / Math.PI) /
-              Math.max(0.2, Math.cos(coordinate[0] * (Math.PI / 180)))
+            Math.max(0.2, Math.cos(coordinate[0] * (Math.PI / 180)))
         } else {
           lat = d.boundsMinLat + nextReseedRandom(d) * (d.boundsMaxLat - d.boundsMinLat)
           const rangeIndex = Math.min(
@@ -2544,7 +2453,7 @@ export function Globe({
           const rangeOffset = rangeIndex * 2
           lng = reseedLngRanges[rangeOffset] +
             nextReseedRandom(d) *
-              (reseedLngRanges[rangeOffset + 1] - reseedLngRanges[rangeOffset])
+            (reseedLngRanges[rangeOffset + 1] - reseedLngRanges[rangeOffset])
         }
         if (gridPoint) {
           if (i % 2 === 0) lat = Math.round(lat / d.gridStep) * d.gridStep
@@ -2571,7 +2480,7 @@ export function Globe({
            degenerate case can never spin the cursor looking for a slot. */
         const insideWindow = venuePoint || windowDistance <= 1 + PLATE_SAMPLE_MARGIN
 
-        const landSample = insideCap && insideWindow && !gridPoint && terrain.landAt(lat, lng)
+        const landSample = insideCap && insideWindow && !gridPoint && landAt(lat, lng)
         const accepted = insideCap && insideWindow && (
           gridPoint ||
           venuePoint ||
@@ -2585,7 +2494,7 @@ export function Globe({
           plateLayer.scatter[j] = dx * 1.001
           plateLayer.scatter[j + 1] = dy * 1.001
           plateLayer.scatter[j + 2] = dz * 1.001
-          const gridSink = gridPoint ? -0.004 : 0
+          const gridSink = gridPoint ? -0.004 / d.cameraZoom : 0
           plateLayer.flat[j] += c[0] * gridSink
           plateLayer.flat[j + 1] += c[1] * gridSink
           plateLayer.flat[j + 2] += c[2] * gridSink
@@ -2598,7 +2507,7 @@ export function Globe({
           const radialSeed = clamp01(distance / d.capRadius)
           plateLayer.seeds[i] = radialSeed
           plateLayer.plateDistance[i] = distance
-          const elevation = landSample ? terrain.elevationAt(lat, lng) : 0
+          const elevation = landSample ? elevationAt(lat, lng) : 0
           plateLayer.elevation[i] = elevation
           /* Where this dot read the grid, kept for the lamp: the 'relief'
              stage needs this dot's neighbouring CELLS, and only the sampler
@@ -2610,10 +2519,10 @@ export function Globe({
             plateKind = PLATE_GRID
           } else if (landSample || venuePoint) {
             const coastSample = landSample && (
-              !terrain.landAt(lat + reliefLatCell, lng) ||
-              !terrain.landAt(lat - reliefLatCell, lng) ||
-              !terrain.landAt(lat, lng + reliefLngCell) ||
-              !terrain.landAt(lat, lng - reliefLngCell)
+              !landAt(lat + reliefLatCell, lng) ||
+              !landAt(lat - reliefLatCell, lng) ||
+              !landAt(lat, lng + reliefLngCell) ||
+              !landAt(lat, lng - reliefLngCell)
             )
             plateKind = coastSample ? PLATE_COAST : PLATE_FILL
           }
@@ -2641,6 +2550,8 @@ export function Globe({
              just outside it — the same falloff the cap's rim used to carry,
              moved onto the edge that now exists. */
           plateLayer.edgeAlpha[i] = 1 - smoothstep(1, 1 + PLATE_SAMPLE_MARGIN, windowDistance)
+          const sampleCountry = countryAtlasRef.current?.codeAt(lat, lng)
+          if (sampleCountry && sampleCountry !== cluster.countryCode) plateLayer.edgeAlpha[i] *= 0.12
           plateLayer.alpha[i] = 0
 
           /* Two channels, one attribute. A dot either carries a scarlet mark
@@ -2693,6 +2604,13 @@ export function Globe({
         }
         const i = d.reliefPointIndex++
         const reliefKind = plateLayer.kind[i]
+        const j = i * 3
+        const c = d.center
+        // The patch retains shallow spherical curvature beneath terrain relief.
+        for (let axis = 0; axis < 3; axis++) {
+          plateLayer.terrainNormal[j + axis] = c[axis] * (1 - COUNTRY_CURVATURE) +
+            (plateLayer.scatter[j + axis] / 1.001) * COUNTRY_CURVATURE
+        }
         if (reliefKind === PLATE_FILL || reliefKind === PLATE_COAST) {
           /* THE LAMP. Not "how high is this dot" — how is the ground under it
              TURNED relative to a fixed raking light at the upper left of the
@@ -2711,13 +2629,20 @@ export function Globe({
             sampleElevationMetres,
             reliefSlope
           )
+          plateLayer.elevation[i] = elevationAt(reliefSampleLat[i], reliefSampleLng[i])
           plateLayer.shade[i] = plateHillshade(reliefSlope[0], reliefSlope[1], d.light)
+          for (let axis = 0; axis < 3; axis++) {
+            plateLayer.terrainNormal[j + axis] -= PLATE_RELIEF_EXAGGERATION * (
+              d.plateEast[axis] * reliefSlope[0] + d.plateNorth[axis] * reliefSlope[1]
+            )
+          }
         }
         if (performance.now() >= deadline) return false
         continue
       }
 
       if (d.reseedStage === 'finalize') {
+        settlePlateLayer(plateLayer, d.cameraZoom)
         for (const layer of layers) {
           layer.geometry.getAttribute('aPlate').needsUpdate = true
         }
@@ -2743,7 +2668,6 @@ export function Globe({
     d.loading = false
     d.seeded = false
     d.baseSeeded = false
-    d.waveClock = 0
     d.plateDrawn = false
     d.interrupted = false
     d.terrain = null
@@ -2757,7 +2681,6 @@ export function Globe({
     d.borderVertexIndex = 0
     d.borderCarry = 0
     d.borderPointCount = 0
-    d.borderWaitStartedAt = 0
     d.borderRetrofitPending = false
     d.borderRetrofit = false
     d.terrainPointIndex = 0
@@ -2782,7 +2705,9 @@ export function Globe({
 
   useFrame((_, delta) => {
     const group = groupRef.current
-    if (!group || !camera) return
+    if (!group || !camera || !heroVisibility.current) return
+    delta = Math.min(delta, 0.05)
+    const dragStep = (1 - Math.exp(-6 * delta)) / 6
 
     const state_ = tour.current
 
@@ -2927,19 +2852,11 @@ export function Globe({
     const scale = scaleRef.current
     const d = dive.current
 
-    /* A second intent may replace an unfinished reseed while the peel is still
-       held at zero. Once geometry is visible, normal interruption rules own
-       the transition and a new target cannot swap the table underneath it. */
-    const canReplacePartialDive = scale.phase === 'dive' &&
-      !d.seeded && scale.morph <= 0.0001
-
-    /* Consume exactly one DOM intent. Terrain may already be warm, but the
-       dive always awaits loadTerrain's module-level promise. The base reseed
-       stages run during the steer (they need no assets); the peel runs on the
-       master clock from there, and only the plot wave waits on d.seeded. */
+    /* One country owns the path until it returns. Assets refine its fixed
+       coordinates; they never replace a moving destination or hold arrival. */
     if (
       intro.current.phase === 'done' &&
-      (scale.phase === 'world' || canReplacePartialDive) &&
+      scale.phase === 'world' &&
       enterRef.current >= 0
     ) {
       const clusterIndex = enterRef.current
@@ -2953,7 +2870,11 @@ export function Globe({
         scale.scan = 0
         d.clock = 0
         d.returnClock = 0
-        d.waveClock = 0
+        d.progress = 0
+        d.detail = 0
+        d.entryIndex = state_.index
+        d.reliefUpgradePending = false
+        DETAIL.value = 0
         d.loading = true
         d.seeded = false
         d.baseSeeded = false
@@ -2968,8 +2889,7 @@ export function Globe({
         d.borderVertexIndex = 0
         d.borderCarry = 0
         d.borderPointCount = 0
-        d.borderWaitStartedAt = 0
-        d.borderRetrofitPending = false
+            d.borderRetrofitPending = false
         d.borderRetrofit = false
         d.terrainPointIndex = 0
         worldPlateFadeWritten = -1
@@ -2996,28 +2916,24 @@ export function Globe({
         if (!cluster.congestedSingleton) selectedRef.current = -1
 
         const loadId = ++d.loadId
-        /* The stroke's asset rides ALONGSIDE the dive. The outline stage will
-           wait BORDER_WAIT_MS for it and retrofit the stroke afterwards if it
-           is later than that, so the one thing this cannot do is leave a
-           landed plate without a figure. A decoded copy from an earlier dive
-           is kept, so the second cap never waits at all. */
+        /* Optional outlines join the same coordinates whenever available. */
         void loadBorders()
           .then((borders) => {
             if (!alive.current || loadId !== dive.current.loadId) return
             dive.current.borders = borders
           })
-          .catch(() => {})
+          .catch(() => { })
         void import('@/content/terrain')
           .then((terrainModule) => terrainModule.loadTerrain())
           .then((terrain) => {
             if (!alive.current || loadId !== dive.current.loadId) return
             dive.current.terrain = terrain
+            dive.current.reliefUpgradePending = true
           })
           .catch(() => {
             if (!alive.current || loadId !== dive.current.loadId) return
             dive.current.loading = false
-            dive.current.reseedStage = 'idle'
-            exitRef.current = true
+            // Coarse cartography and photographs remain usable on failure.
           })
       }
     } else if (scale.phase !== 'world' && enterRef.current >= 0) {
@@ -3025,7 +2941,7 @@ export function Globe({
     }
 
     if (
-      scale.phase === 'dive' &&
+      (scale.phase === 'dive' || scale.phase === 'plate') &&
       !d.seeded &&
       !d.interrupted &&
       !exitRef.current
@@ -3075,211 +2991,118 @@ export function Globe({
            settle pass to give its new marks their positions and alphas.
            Mid-dive the per-frame pass below already does it. */
         if (!d.borderRetrofit && scale.phase === 'plate') {
-          formPlateLayer(plateLayer, 1, false, 1)
+          formPlateLayer(plateLayer, 1)
         }
       }
     }
 
-    const beginReturn = exitRef.current && scale.phase !== 'world' && scale.phase !== 'return'
+    if (d.reliefUpgradePending && d.seeded && d.reseedStage === 'done' &&
+      (scale.phase === 'dive' || scale.phase === 'plate')) {
+      d.reliefUpgradePending = false
+      d.reliefPointIndex = 0
+      d.reseedStage = 'relief'
+    }
+    if (d.seeded && d.reseedStage === 'relief' && !d.borderRetrofit) advancePlateReseed()
+
+    const beginReturn = (exitRef.current || d.interrupted) && scale.phase !== 'world' && scale.phase !== 'return'
     exitRef.current = false
     if (beginReturn) {
-      /* Nothing visible yet → a free snap. Anything visible — even a
-         half-seeded peel whose wave never started — returns through the same
-         continuous gesture; the unplot pass below is gated on d.plateDrawn, so
-         a plate that never lit contributes nothing to it. */
-      if (scale.morph <= 0.0001) {
-        if (!d.seeded) abandonPartialReseed()
-        scale.phase = 'world'
-        scale.cluster = -1
-        scale.morph = 0
-        scale.presence = 0
-        scale.scan = 0
-        MORPH.value = 0
-        FLAT_OCC.value = 1
-      } else {
-        if (!d.seeded) abandonPartialReseed()
-        scale.phase = 'return'
-        d.returnClock = 0
-        d.returnFromMorph = scale.morph
-        d.returnStartYaw = group.rotation.y
-        d.returnStartTilt = group.rotation.x
-        d.nextIndex = pinPoints.length > 0 ? (state_.index + 1) % pinPoints.length : 0
-        const targetYaw = pinPoints.length > 0
-          ? facingRotations[d.nextIndex]
-          : group.rotation.y + SPIN_RESIDUAL
-        const diff = Math.atan2(
-          Math.sin(targetYaw - group.rotation.y),
-          Math.cos(targetYaw - group.rotation.y)
-        )
-        const direction = diff === 0 ? 1 : Math.sign(diff)
-        d.returnYaw = group.rotation.y + diff - direction * SPIN_RESIDUAL
-        d.returnTilt = pinPoints.length > 0 ? facingTilts[d.nextIndex] : group.rotation.x
-        state_.lastSelected = -1
-      }
+      // Reverse from the current path coordinate, including interrupted acquisition.
+      d.interrupted = false
+      scale.phase = 'return'
+      d.returnClock = 0
+      d.returnFromProgress = d.progress
+      state_.lastSelected = -1
     }
 
     if (scale.phase === 'dive') {
-      if (d.interrupted) {
-        const completedReseed = d.seeded
-        if (completedReseed) d.interrupted = false
-        else abandonPartialReseed()
-        /* The midpoint resolves the gesture — but only a fully seeded plate
-           can be snapped forward to. An interrupt over a still-loading peel
-           resolves backward regardless of how far the camera got: the world
-           is always a legal place to stand, and a landed table with no ground
-           is not. */
-        if (scale.morph < 0.5 || !completedReseed) {
-          scale.phase = 'world'
-          scale.cluster = -1
-          scale.morph = 0
-          scale.presence = 0
-          scale.scan = 0
-          MORPH.value = 0
-          FLAT_OCC.value = 1
-          /* The peel may have faded world dots and sunk the routes before the
-             interrupt, seeded or not — restore both unconditionally. */
-          formWorldPlate(layers, 0)
-          if (arcs) {
-            arcs.alpha.fill(1)
-            arcs.geometry.getAttribute('aAlpha').needsUpdate = true
-          }
-          plateLayer.alpha.fill(0)
-          plateLayer.geometry.getAttribute('aAlpha').needsUpdate = true
-        } else {
-          scale.phase = 'plate'
-          scale.morph = 1
-          scale.presence = 1
-          scale.scan = 1
-          MORPH.value = 1
-          FLAT_OCC.value = 0
-          group.rotation.y = d.plateYaw
-          group.rotation.x = d.plateTilt + d.panTilt
-          formWorldPlate(layers, 1)
-          formPlateLayer(plateLayer, 1, false, 1)
-          d.plateDrawn = true
-        }
-      } else {
-        /* ONE CLOCK, OVERLAPPED (v4). The morph occupies [STEER_FRAC,
-           MORPH_END], the plot wave [DEVELOP_AT, 1], the camera pose all of it
-           — and the wave's window sits INSIDE the morph's, so the front is
-           condensing ground onto a surface that is still unfolding. The
-           mirror is the return's unplot [0, RETURN_FILL_END], un-morph
-           [RETURN_MORPH_AT, RETURN_MORPH_END], pose [0, 1]. The only clamp
-           left is the base reseed (pure CPU, finishes inside the steer);
-           assets never hold the clock — a late terrain.bin starts the wave's
-           sub-clock late and the dive simply keeps its landed pose until the
-           front finishes. */
-        d.clock = d.baseSeeded ? d.clock + delta : Math.min(STEER_DUR, d.clock + delta)
-        const p = clamp01(d.clock / ENTER_DUR)
-        const steer = ease(clamp01(d.clock / STEER_DUR))
-        const morph = ease(clamp01((p - STEER_FRAC) / (MORPH_END - STEER_FRAC)))
-        const pose = ease(clamp01((p - STEER_FRAC) / (1 - STEER_FRAC)))
-        const presence = ease(p)
-        if (d.seeded && p >= DEVELOP_AT) d.waveClock += delta
-        const develop = clamp01(d.waveClock / DEVELOP_DUR)
-        scale.morph = morph
-        scale.presence = presence
-        scale.scan = develop
-        MORPH.value = morph
-        FLAT_OCC.value = flatOccFor(morph)
-        group.rotation.y =
-          d.startYaw +
-          (d.sphereYaw - d.startYaw) * steer +
-          (d.plateYaw - d.sphereYaw) * pose
-        group.rotation.x =
-          d.startTilt + (d.sphereTilt - d.startTilt) * steer +
-          (d.plateTilt + d.panTilt - d.sphereTilt) * pose
-        if (d.baseSeeded) formWorldPlate(layers, morph)
-        if (d.seeded) {
-          formPlateLayer(plateLayer, develop, false, morph)
-          if (develop > 0) d.plateDrawn = true
-        }
-        if (arcs) {
-          const route = 1 - ease(clamp01(morph / 0.3))
-          arcs.alpha.fill(route)
-          arcs.geometry.getAttribute('aAlpha').needsUpdate = true
-        }
-        if (p >= 1 && develop >= 1) scale.phase = 'plate'
-      }
-      spinRef.current = 0
-      tiltRef.current = 0
-      activeRef.current = -1
-    } else if (scale.phase === 'plate') {
-      scale.morph = 1
-      scale.presence = 1
-      scale.scan = 1
-      MORPH.value = 1
-      FLAT_OCC.value = 0
-      d.panTargetYaw += spinRef.current
-      d.panTargetTilt += tiltRef.current
-      const panDistance = Math.hypot(d.panTargetYaw, d.panTargetTilt)
-      // Pan re-aims the source cap in angular units; spread only changes where
-      // that cap is drawn. Scaling this clamp would rotate beyond the declared
-      // geography and trade a larger plate for an empty, steeply tilted table.
-      const panLimit = d.capRadius + PAN_MARGIN
-      if (panDistance > panLimit) {
-        const clampScale = panLimit / panDistance
-        d.panTargetYaw *= clampScale
-        d.panTargetTilt *= clampScale
-      }
-      d.panYaw = damp(d.panYaw, d.panTargetYaw, 8, delta)
-      d.panTilt = damp(d.panTilt, d.panTargetTilt, 8, delta)
-      spinRef.current = 0
-      tiltRef.current = 0
-      group.rotation.y = d.plateYaw + d.panYaw
-      group.rotation.x = d.plateTilt + d.panTilt
-      activeRef.current = -1
+      // Only the bounded coordinate preparation can delay deformation; assets cannot.
+      d.clock = d.baseSeeded ? d.clock + delta : Math.min(STEER_DUR, d.clock + delta)
+      d.progress = reduced ? 1 : clamp01(d.clock / ENTER_DUR)
+      if (d.progress >= 1) scale.phase = 'plate'
     } else if (scale.phase === 'return') {
       d.returnClock += delta
-      const progress = clamp01(d.returnClock / RETURN_DUR)
-      const morphProgress = ease(
-        clamp01((progress - RETURN_MORPH_AT) / (RETURN_MORPH_END - RETURN_MORPH_AT))
-      )
-      const morph = d.returnFromMorph * (1 - morphProgress)
-      const pose = ease(progress)
-      const unplot = clamp01(progress / RETURN_FILL_END)
-      scale.morph = morph
-      scale.presence = 1 - pose
-      scale.scan = d.plateDrawn ? 1 - unplot : 0
-      MORPH.value = morph
-      FLAT_OCC.value = flatOccFor(morph)
-      group.rotation.y = d.returnStartYaw + (d.returnYaw - d.returnStartYaw) * pose
-      group.rotation.x = d.returnStartTilt + (d.returnTilt - d.returnStartTilt) * pose
-      formWorldPlate(layers, morph)
-      /* A return from a dive whose wave never lit the plate has nothing to
-         unplot — and its buffers may be half-seeded, which is exactly why the
-         guard is "was drawn", not "was seeded". */
-      if (d.plateDrawn) formPlateLayer(plateLayer, unplot, true, morph)
-      if (arcs) {
-        const route = 1 - ease(clamp01(morph / 0.3))
-        arcs.alpha.fill(route)
-        arcs.geometry.getAttribute('aAlpha').needsUpdate = true
-      }
-      spinRef.current = 0
-      tiltRef.current = 0
-      activeRef.current = -1
-      if (progress >= 1) {
+      const duration = RETURN_DUR * Math.max(0.2, d.returnFromProgress)
+      const returned = reduced ? 1 : clamp01(d.returnClock / duration)
+      d.progress = d.returnFromProgress * (1 - ease(returned))
+      if (returned >= 1) {
         scale.phase = 'world'
         scale.cluster = -1
-        scale.morph = 0
-        scale.presence = 0
-        scale.scan = 0
-        MORPH.value = 0
-        FLAT_OCC.value = 1
+        d.progress = 0
+        DETAIL.value = 0
         selectedRef.current = -1
-        if (pinPoints.length > 0) {
-          state_.index = d.nextIndex
-          state_.target = facingRotations[d.nextIndex]
-          state_.hold = HOLD
-          state_.seeded = true
-          state_.grace = 0
-        }
+        state_.index = d.entryIndex
+        state_.target = facingRotations[d.entryIndex] ?? d.startYaw
+        state_.hold = HOLD
+        state_.seeded = true
+        state_.grace = GRACE
+        group.rotation.y = d.startYaw
+        group.rotation.x = d.startTilt
+        if (!d.seeded) abandonPartialReseed()
       }
+    }
+
+    if (scale.phase !== 'world') {
+      const p = d.progress
+      if (plateMaterialRef.current) plateMaterialRef.current.size = 0.012 / d.cameraZoom
+      const acquire = ease(clamp01(p / 0.54))
+      const settle = ease(clamp01((p - 0.28) / 0.72))
+      const pathYaw = d.startYaw + (d.sphereYaw - d.startYaw) * acquire +
+        (d.plateYaw - d.sphereYaw) * settle
+      const pathTilt = d.startTilt + (d.sphereTilt - d.startTilt) * acquire +
+        (d.plateTilt + PLATE_LANDED_PAN_TILT - d.sphereTilt) * settle
+      if (scale.phase === 'plate') {
+        d.panTargetYaw += spinRef.current * dragStep
+        d.panTargetTilt += tiltRef.current * dragStep
+        const panDistance = Math.hypot(d.panTargetYaw, d.panTargetTilt - PLATE_LANDED_PAN_TILT)
+        const panLimit = Math.min(0.2, d.capRadius + PAN_MARGIN)
+        if (panDistance > panLimit) {
+          const ratio = panLimit / panDistance
+          d.panTargetYaw *= ratio
+          d.panTargetTilt = PLATE_LANDED_PAN_TILT +
+            (d.panTargetTilt - PLATE_LANDED_PAN_TILT) * ratio
+        }
+        d.panYaw = damp(d.panYaw, d.panTargetYaw, 8, delta)
+        d.panTilt = damp(d.panTilt, d.panTargetTilt, 8, delta)
+        group.rotation.y = pathYaw + d.panYaw
+        group.rotation.x = pathTilt + d.panTilt - PLATE_LANDED_PAN_TILT
+      } else {
+        const panRelease = scale.phase === 'return'
+          ? clamp01(d.progress / Math.max(0.001, d.returnFromProgress)) : 0
+        group.rotation.y = pathYaw + d.panYaw * panRelease
+        group.rotation.x = pathTilt + (d.panTilt - PLATE_LANDED_PAN_TILT) * panRelease
+      }
+      scale.morph = journeyMorph(p)
+      scale.presence = ease(p)
+      scale.scan = scale.presence
+      MORPH.value = scale.morph
+      FLAT_OCC.value = flatOccFor(scale.morph)
+      // Late geometry approaches the current detail level gradually instead
+      // of exposing the entire dense buffer in its first ready frame.
+      d.detail = damp(d.detail, d.seeded ? journeyDetail(p) : 0, 6, delta)
+      formPlateLayer(plateLayer, d.detail)
+      formWorldPlate(layers, p)
+      d.plateDrawn ||= DETAIL.value > 0
+      if (scale.phase !== 'plate') {
+        spinRef.current = 0
+        tiltRef.current = 0
+      }
+      activeRef.current = -1
     } else {
+      scale.morph = 0
       scale.presence = 0
       scale.scan = 0
       MORPH.value = 0
+      DETAIL.value = 0
       FLAT_OCC.value = 1
+      if (introPhase === 'done') formWorldPlate(layers, 0)
+    }
+    if (arcs && introPhase === 'done') {
+      const route = 1 - smoothstep(0.08, 0.48, d.progress)
+      if (arcs.alpha[0] !== route) {
+        arcs.alpha.fill(route)
+        arcs.geometry.getAttribute('aAlpha').needsUpdate = true
+      }
     }
 
     /* Binding S3-gate fix: the compiled-from-mount body film stands down with
@@ -3357,7 +3180,7 @@ export function Globe({
           stroke.fade *
           COUNTRY_STROKE_ALPHA
       }
-      ;(geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
+      ; (geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
       stroke.lit = stroke.fade > 0.001
     }
 
@@ -3373,18 +3196,18 @@ export function Globe({
       if (Math.abs(level - rest.written) > 0.002) {
         rest.written = level
         restStroke.alpha.fill(level, 0, rest.count)
-        ;(restStroke.geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
+          ; (restStroke.geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
       }
     }
 
     let dragged = false
     if (worldScale && spinRef.current !== 0) {
-      group.rotation.y += spinRef.current
+      group.rotation.y += spinRef.current * dragStep
       dragged = true
     }
     if (worldScale && tiltRef.current !== 0) {
       group.rotation.x = THREE.MathUtils.clamp(
-        group.rotation.x + tiltRef.current,
+        group.rotation.x + tiltRef.current * dragStep,
         TILT_MIN,
         TILT_MAX
       )
@@ -3394,7 +3217,7 @@ export function Globe({
     // the pointer is up and comes to rest on its own. Exponential, not the
     // linear 1 − 6Δt, which hit zero outright on a slow frame.
     const decay = Math.exp(-6 * delta)
-    if (worldScale) {
+    if (worldScale || scale.phase === 'plate') {
       spinRef.current *= decay
       tiltRef.current *= decay
     }
@@ -3497,7 +3320,8 @@ export function Globe({
             selectedRef.current = -1
             state_.lastSelected = -1
           }
-          state_.index = (state_.index + 1) % pinPoints.length
+          const stop = tourStops.indexOf(state_.index)
+          state_.index = tourStops[(stop + 1) % tourStops.length] ?? 0
           state_.target = facingRotations[state_.index]
           state_.hold = HOLD
         }
@@ -3524,6 +3348,39 @@ export function Globe({
 
     group.updateMatrixWorld()
 
+    // A similarity about the moving geographic centre preserves the fit's
+    // reference frustum. The camera physically approaches the natural-scale
+    // country; its final position is also used for this frame's DOM projections.
+    if (camera.view?.enabled) camera.clearViewOffset()
+    if (scale.phase === 'world') camera.position.copy(worldCameraPosition)
+    else {
+      cameraCenter.fromArray(d.center).applyMatrix4(group.matrixWorld)
+      const zoom = Math.pow(d.cameraZoom, journeyDolly(d.progress))
+      camera.position.copy(worldCameraPosition).sub(cameraCenter)
+        .multiplyScalar(1 / zoom).add(cameraCenter)
+    }
+    camera.updateMatrixWorld()
+
+    if (scale.phase !== 'world') {
+      // Compose with the lens, keeping Australia's geographic centre in
+      // Australia. Moving the tangent origin to reserve UI space distorted
+      // wide countries and pushed their curved surface outside the frame.
+      const viewport = plateViewport()
+      const layout = cachedCountryFrameLayout(viewport)
+      const targetX = viewport.windowWidth * layout.focusX
+      const targetY = viewport.windowHeight * layout.focusY
+      cameraCenter.fromArray(d.center).applyMatrix4(group.matrixWorld).project(camera)
+      const currentX = (cameraCenter.x * 0.5 + 0.5) * viewport.viewWidth
+      const currentY = (0.5 - cameraCenter.y * 0.5) * viewport.viewHeight
+      const composition = journeyDolly(d.progress)
+      camera.setViewOffset(
+        viewport.viewWidth, viewport.viewHeight,
+        (currentX - targetX + viewport.viewLeft) * composition,
+        (currentY - targetY + viewport.viewTop) * composition,
+        viewport.viewWidth, viewport.viewHeight
+      )
+    }
+
     let best = -1
     let bestFront = 0.88
 
@@ -3536,44 +3393,20 @@ export function Globe({
        no branch inside the loop. */
     const labelP =
       introPhase === 'done' ? Infinity : introPhase === 'gather' ? intro.current.t / GATHER_DUR : -Infinity
-    const returnProgress = scale.phase === 'return'
-      ? clamp01(d.returnClock / RETURN_DUR)
-      : 0
-    const returnPlateForm = scale.phase === 'return'
-      ? 1 - ease(clamp01((returnProgress - 0.12) / 0.58))
-      : 0
     const returnWorldForm = scale.phase === 'return'
-      ? ease(clamp01((returnProgress - 0.58) / 0.42))
-      : 0
+      ? 1 - smoothstep(0.05, 0.38, d.progress) : 0
     const activePlateCluster = clusters[scale.cluster]
     for (let i = 0; i < pinPoints.length; i++) {
-      let plateForm = 0
       const onActivePlate = scale.phase !== 'world' && activeMembers[i] === 1
+      const plateForm = onActivePlate ? 1 : 0
+      world.copy(pinPoints[i])
       if (onActivePlate) {
-        if (scale.phase === 'plate') plateForm = 1
-        else if (scale.phase === 'dive') {
-          /* The wave's real progress, not a re-derivation from morph: the
-             front has its own sub-clock and morph no longer implies it. */
-          plateForm = ease(
-            clamp01((scale.scan - pinPlateSeeds[i] * 0.62 - LABEL_LAG) / 0.38)
-          )
-        } else {
-          plateForm = returnPlateForm
-        }
-        const cluster = clusters[scale.cluster]
-        if (cluster) {
-          const c = cluster.centroid
-          const j = i * 3
-          world.set(
-            c[0] * 1.012 + (pinPlate[j] - c[0] * 1.012) * plateForm,
-            c[1] * 1.012 + (pinPlate[j + 1] - c[1] * 1.012) * plateForm,
-            c[2] * 1.012 + (pinPlate[j + 2] - c[2] * 1.012) * plateForm
-          )
-        } else {
-          world.copy(pinPoints[i])
-        }
-      } else {
-        world.copy(pinPoints[i])
+        const j = i * 3
+        world.set(
+          world.x + (pinPlate[j] - world.x) * scale.morph,
+          world.y + (pinPlate[j + 1] - world.y) * scale.morph,
+          world.z + (pinPlate[j + 2] - world.z) * scale.morph
+        )
       }
       world.applyMatrix4(group.matrixWorld)
 
@@ -3583,7 +3416,7 @@ export function Globe({
       // globe looking exactly like near-side ones.
       normal.copy(world).normalize()
       toCam.copy(camera.position).sub(world).normalize()
-      const front = onActivePlate ? 1 : normal.dot(toCam)
+      const front = onActivePlate ? THREE.MathUtils.lerp(normal.dot(toCam), 1, scale.presence) : normal.dot(toCam)
 
       world.project(camera)
       const projection = projectionRef.current[i] ?? { x: 0, y: 0, facing: 0, form: 0 }
@@ -3608,7 +3441,7 @@ export function Globe({
          off centre — tight enough that two clustered pins do not both claim
          the card, loose enough that you do not have to land one perfectly. */
       const present = normal.dot(presentDir)
-      if (manual && present > bestFront) {
+      if (manual && tourStopSet.has(i) && present > bestFront) {
         bestFront = present
         best = i
       }
@@ -3673,6 +3506,7 @@ export function Globe({
          stop it walks to is the one after a pin nobody was looking at. */
       if (best >= 0) state_.index = best
     }
+    onProjectRef?.current?.(delta)
   })
 
   return (
@@ -3690,6 +3524,8 @@ export function Globe({
         makeDefault
         position={[...PLATE_CAMERA_POSITION]}
         fov={PLATE_CAMERA_FOV_DEGREES}
+        near={0.01}
+        far={100}
       />
       <group ref={groupRef} rotation={[0.22, 0, PLATE_GROUP_ROLL]}>
         {/* The body. It exists to write depth, so that everything on the far
@@ -3718,22 +3554,17 @@ export function Globe({
             — which put the film OVER the dots, dimming the whole near
             hemisphere with it. The film must draw first: back dots fade by
             their own alpha, front dots stay lit on top of it. */}
-        <mesh renderOrder={-1}>
-          <sphereGeometry args={[RADIUS * OCCLUDER, 96, 64]} />
-          <meshBasicMaterial
-            ref={occluderMatRef}
-            color="#17171b"
-            transparent
-            opacity={intro.current.phase === 'done' ? 1 : 0}
-            depthWrite={intro.current.phase === 'done'}
-          />
-        </mesh>
+        <GlobeSurface
+          radius={RADIUS * OCCLUDER}
+          materialRef={occluderMatRef}
+          opacity={intro.current.phase === 'done' ? 1 : 0}
+          depthWrite={intro.current.phase === 'done'}
+        />
 
-        {/* Dense country-scale relief. It is mounted and compiled from frame
-            one with zero aAlpha, then the S4 CPU wave condenses the same
-            position/aPlate buffer outward from the chosen centroid. */}
-        <points geometry={plateLayer.geometry} renderOrder={1}>
+        {/* Dense relief shares the world surface and resolves with camera scale. */}
+        <points geometry={plateLayer.geometry} renderOrder={1} frustumCulled={false}>
           <pointsMaterial
+            ref={plateMaterialRef}
             size={0.012}
             color="#f4efe9"
             sizeAttenuation

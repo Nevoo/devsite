@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { View } from '@react-three/drei'
@@ -12,7 +12,7 @@ import {
   dustPointsVertex,
   dustPointsFragment,
 } from './shaders/dust'
-import { patchDotAlpha } from './shaders/globe'
+import { patchDotAlpha, patchGlobeSurface } from './shaders/globe'
 import { imagePlaneVertex, imagePlaneFragment } from './shaders/imagePlane'
 
 /**
@@ -56,10 +56,8 @@ import { imagePlaneVertex, imagePlaneFragment } from './shaders/imagePlane'
  * background has to survive under it. Measured at no cost either way.
  */
 export default function CanvasRoot() {
-  const containerRef = useRef<HTMLDivElement>(null)
-
   return (
-    <div ref={containerRef} className="canvas-root" aria-hidden>
+    <div className="canvas-root" aria-hidden>
       <Canvas
         eventSource={document.body}
         eventPrefix="client"
@@ -67,7 +65,7 @@ export default function CanvasRoot() {
         gl={{ antialias: !softwareGL(), alpha: true, powerPreference: 'high-performance' }}
         style={{ position: 'absolute', inset: 0 }}
       >
-        <FrameloopGate containerRef={containerRef} />
+        <FrameloopGate />
         <ShaderProgramWarmup />
         <BackgroundPass />
         <View.Port />
@@ -120,6 +118,7 @@ function ShaderProgramWarmup() {
     const lineMaterial = new THREE.LineBasicMaterial({ transparent: true, depthWrite: false })
     lineMaterial.onBeforeCompile = patchDotAlpha
     const occluderMaterial = new THREE.MeshBasicMaterial({ transparent: true })
+    occluderMaterial.onBeforeCompile = patchGlobeSurface
     const imageMaterial = new THREE.ShaderMaterial({
       vertexShader: imagePlaneVertex,
       fragmentShader: imagePlaneFragment,
@@ -205,11 +204,10 @@ function ShaderProgramWarmup() {
   return null
 }
 
-function FrameloopGate({ containerRef }: { containerRef: RefObject<HTMLDivElement | null> }) {
+function FrameloopGate() {
   const frozen = useUI((s) => s.canvasFrozen)
   const setFrameloop = useThree((s) => s.setFrameloop)
   const [hidden, setHidden] = useState(() => document.hidden)
-  const [offscreen, setOffscreen] = useState(false)
 
   useEffect(() => {
     const onVisibility = () => setHidden(document.hidden)
@@ -218,25 +216,15 @@ function FrameloopGate({ containerRef }: { containerRef: RefObject<HTMLDivElemen
   }, [])
 
   useEffect(() => {
-    const element = containerRef.current
-    if (!element) return
-    const observer = new IntersectionObserver(([entry]) => {
-      setOffscreen(!entry.isIntersecting || entry.intersectionRatio === 0)
-    })
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [containerRef])
-
-  useEffect(() => {
     // One arbiter owns the render loop. The transition freeze remains mandatory
-    // for a tear-free route swap; hidden/offscreen canvases share that same gate
-    // instead of racing it through independent setFrameloop callers.
+    // for a tear-free route swap. Hero visibility gates its own simulation and
+    // projection: the other image Views must keep rendering after it scrolls away.
     // A controlled 20-navigation bisection found that stopping/restarting the
     // loop retains ~900KB–1MB more heap than never toggling it. A raw store write
     // retained the same amount, so allocation reduction lives in the View/image
     // lifecycle rather than in weakening this correctness boundary.
-    setFrameloop(frozen || hidden || offscreen ? 'never' : 'always')
-  }, [frozen, hidden, offscreen, setFrameloop])
+    setFrameloop(frozen || hidden ? 'never' : 'always')
+  }, [frozen, hidden, setFrameloop])
 
   return null
 }

@@ -12,6 +12,7 @@ import { prefersReducedMotion } from '@/motion/gsap'
 import { webglAvailable } from '@/lib/webgl'
 import { useUI } from '@/stores/ui'
 import type { Photo } from '@/content/categories'
+import { responsiveSrcSet } from '@/lib/responsiveImage'
 
 const GLView = lazy(() => import('./GLView'))
 
@@ -42,26 +43,6 @@ interface WebGLImageProps {
   /** the live 0..1 wipe position during a drag, for DOM that has to change
    *  state on the same beat (the hollow word in the hero) */
   onGrade?: (value: number) => void
-}
-
-const RESPONSIVE_WIDTHS = [640, 1024, 1600] as const
-
-const derivativeSrc = (src: string, width: number) =>
-  src.replace(/\.(jpe?g)$/i, `-${width}.webp`)
-
-const responsiveWidths = (photo: Photo) =>
-  /\.(jpe?g)$/i.test(photo.src)
-    ? RESPONSIVE_WIDTHS.filter((width) => width <= photo.width)
-    : []
-
-const responsiveSrcSet = (photo: Photo) => {
-  const widths = responsiveWidths(photo)
-  if (widths.length === 0) return undefined
-  const candidates = widths.map((width) => `${derivativeSrc(photo.src, width)} ${width}w`)
-  if (!widths.includes(photo.width as (typeof RESPONSIVE_WIDTHS)[number])) {
-    candidates.push(`${photo.src} ${photo.width}w`)
-  }
-  return candidates.join(', ')
 }
 
 const responsiveSizes = (className: string | undefined) => {

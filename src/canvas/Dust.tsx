@@ -31,6 +31,8 @@ interface DustProps {
    * the globe's ScaleState ref directly.
    */
   presenceRef?: { current: { presence: number } }
+  /** A mounting View may pause its own field without stopping other Views. */
+  visibilityRef?: { current: boolean }
 }
 
 /** rejection-sample a point in the unit ball, project to the sphere surface */
@@ -49,6 +51,8 @@ function getSphere(count: number, radius: number) {
   }
   return data
 }
+
+const ORIGIN: readonly [number, number, number] = [0, 0, 0]
 
 /**
  * Darkroom air: the GPGPU curl-noise ambience with the pointer parting, the
@@ -79,7 +83,7 @@ export function Dust(props: DustProps) {
   return <DustField {...props} />
 }
 
-function DustField({ presetRef, size, bounds, pointerRef, presenceRef }: DustProps) {
+function DustField({ presetRef, size, bounds, pointerRef, presenceRef, visibilityRef }: DustProps) {
   const timeRef = useRef(0)
   const camera = useThree((state) => state.camera)
 
@@ -214,6 +218,10 @@ function DustField({ presetRef, size, bounds, pointerRef, presenceRef }: DustPro
   })
 
   useFrame((state, delta) => {
+    if (visibilityRef && !visibilityRef.current) {
+      points.object.visible = false
+      return
+    }
     const s = presetRef.current
 
     // faded out (deep in the dive): stop paying for the sim entirely — the
@@ -235,7 +243,7 @@ function DustField({ presetRef, size, bounds, pointerRef, presenceRef }: DustPro
     // keeps meaning "channel radius at the cloud", same as the lab tuning.
     const p = pointer.current
     const v = scratch.current
-    const center = bounds.center ?? [0, 0, 0]
+    const center = bounds.center ?? ORIGIN
     v.center.set(center[0], center[1], center[2]).applyMatrix4(camera.matrixWorldInverse)
     const refDepth = Math.max(-v.center.z, 0.001)
 
@@ -282,7 +290,8 @@ function DustField({ presetRef, size, bounds, pointerRef, presenceRef }: DustPro
     ;(u.uPointerView.value as THREE.Vector3).set(p.smoothed.x, p.smoothed.y, -refDepth)
     u.uForce.value = p.force
     u.uPointerRadius.value = s.pointerRadius
-    points.material.blending = s.additive ? THREE.AdditiveBlending : THREE.NormalBlending
+    const blending = s.additive ? THREE.AdditiveBlending : THREE.NormalBlending
+    if (points.material.blending !== blending) points.material.blending = blending
 
     // a barely-there yaw so the cloud reads as a volume, not a screensaver
     points.object.rotation.y = timeRef.current * 0.0006
