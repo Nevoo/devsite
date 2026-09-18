@@ -65,7 +65,7 @@ const ABSOLUTE = [
 
 /**
  * Known-unstable metrics, measured over two consecutive runs of the unchanged
- * baseline (PLAN-POLISH-BASELINE.md §3). They are still flagged — hiding them
+ * baseline. They are still flagged — hiding them
  * would be tuning the instrument — but they are marked, and `--ignore-noisy`
  * drops them from the exit code so a real regression isn't lost in them.
  *
