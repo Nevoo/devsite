@@ -175,31 +175,3 @@ export const framesOf = (outing: Outing): Photo[] =>
 
 /** a single frame by src — how places.ts resolves its sittings */
 export const photoOf = (src: string): Photo | undefined => bySrc.get(src)
-
-const outingBySrc = new Map<string, Outing>(
-  outings.flatMap((o) => o.frames.map((frame) => [frame.src, o] as const))
-)
-
-/** which outing a frame belongs to — the projection caption's link target */
-export const outingOf = (src: string): Outing | undefined => outingBySrc.get(src)
-
-export const getOuting = (slug: string | undefined) => outings.find((o) => o.slug === slug)
-
-/**
- * What the hero counts under the globe — derived, so it can never go stale.
- *
- * Places are counted in places.ts, not here, and the two counts only get to
- * share a line once the frames themselves are placed: "10 places · 28 frames"
- * over a globe where none of the 28 came from any of the 10 is three separate
- * facts set with one separator and read as one sentence.
- */
-export const archiveStats = () => {
-  const frames = outings.reduce((n, o) => n + o.frames.length, 0)
-  const span = outings.map((o) => o.from.slice(0, 4)).sort()
-  return {
-    outings: outings.length,
-    frames,
-    from: span[0],
-    to: span[span.length - 1],
-  }
-}

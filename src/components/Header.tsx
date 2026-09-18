@@ -7,7 +7,7 @@ export function Header() {
         rouvens.work
       </TransitionLink>
       <nav className="site-header-nav" aria-label="main">
-        <TransitionLink to="/work">work</TransitionLink>
+        <TransitionLink to="/journal">journal</TransitionLink>
         <TransitionLink to="/about">about</TransitionLink>
         <TransitionLink to="/contact">contact</TransitionLink>
       </nav>

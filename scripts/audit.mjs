@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * devsite measurement harness — Wave 0, lane γ (PLAN-POLISH.md §"Wave 0").
+ * devsite measurement harness.
  *
  *   node scripts/audit.mjs --label baseline
  *
@@ -9,7 +9,7 @@
  * JSON per run to scripts/audit-out/. No npm dependencies, no test framework,
  * no attaching to the browser you happen to have open.
  *
- * What it measures — see the README block at the bottom of PLAN-POLISH-BASELINE.md.
+ * What it measures — see scripts/AUDIT.md.
  *
  * Four things this script knows that cost real time to learn:
  *
@@ -44,7 +44,7 @@ const OUT_DIR = join(HERE, 'audit-out')
 
 /* ---------------------------------------------------------------- matrix */
 
-const ROUTES = ['/', '/work', '/work/nature', '/about', '/contact']
+const ROUTES = ['/', '/journal', '/journal/nature', '/about', '/contact']
 
 const VIEWPORTS = [
   { label: '1440x900', width: 1440, height: 900, dsf: 1, mobile: false, touch: false },
@@ -791,9 +791,9 @@ async function phaseSweeps(cdp, origin, routes) {
  * visitor reaches it, by clicking a work card.
  */
 const CYCLE = [
-  { from: '/', selector: '.site-header-nav a[href="/work"]', to: '/work' },
-  { from: '/work', selector: '.work-grid a[href="/work/nature"]', to: '/work/nature' },
-  { from: '/work/nature', selector: '.site-header-nav a[href="/about"]', to: '/about' },
+  { from: '/', selector: '.site-header-nav a[href="/journal"]', to: '/journal' },
+  { from: '/journal', selector: '.work-grid a[href="/journal/nature"]', to: '/journal/nature' },
+  { from: '/journal/nature', selector: '.site-header-nav a[href="/about"]', to: '/about' },
   { from: '/about', selector: '.site-header-nav a[href="/contact"]', to: '/contact' },
   { from: '/contact', selector: '.site-header-logo', to: '/' },
 ]
@@ -970,7 +970,7 @@ async function phaseCursor(cdp, origin) {
 
   /** the element on each route that arms a labelled badge, and the word it arms */
   const HOVER = {
-    '/work/nature': { selector: '.gallery-flow .gallery-item', mode: 'view' },
+    '/journal/nature': { selector: '.gallery-flow .gallery-item', mode: 'view' },
     // the hero plate is the site's only `grade` surface (WebGLImage.tsx:197,
     // gated on gradable + WebGL + fine pointer). It sits below the fold, so
     // the pointer helper scrolls to it first.
@@ -984,7 +984,7 @@ async function phaseCursor(cdp, origin) {
    * one failure loses every later result. A fresh load costs ~4s and every
    * assertion starts from the same state.
    */
-  const probe = async (name, action, route = '/work/nature') => {
+  const probe = async (name, action, route = '/journal/nature') => {
     const page = await newPage(cdp, { viewport: vp, throttle: false, cacheDisabled: false })
     const s = page.sessionId
     const state = () => evaluate(cdp, s, () => window.__cursorState())
@@ -1120,7 +1120,7 @@ async function phaseCursor(cdp, origin) {
   // coarse pointer: no custom cursor at all
   const mobile = await newPage(cdp, { viewport: VIEWPORTS[1], throttle: false, cacheDisabled: false })
   try {
-    await loadRoute(cdp, mobile, origin + '/work/nature', '/work/nature')
+    await loadRoute(cdp, mobile, origin + '/journal/nature', '/journal/nature')
     await sleep(1000)
     out.coarse = {
       media: await evaluate(cdp, mobile.sessionId, () => window.__media()),
@@ -1152,8 +1152,8 @@ async function phaseReducedMotion(cdp, origin) {
     await sleep(POST_SETTLE_MS)
     const media = await evaluate(cdp, s, () => window.__media())
     await evaluate(cdp, s, () => window.__wipeStart())
-    await clickSelector(cdp, s, '.site-header-nav a[href="/work"]')
-    const settledAt = await evaluate(cdp, s, () => window.__settle('/work'))
+    await clickSelector(cdp, s, '.site-header-nav a[href="/journal"]')
+    const settledAt = await evaluate(cdp, s, () => window.__settle('/journal'))
     await sleep(800)
     const { samples, nav, clicks } = await evaluate(cdp, s, () => window.__wipeStop())
     const t0 = (clicks.find((c) => c.trusted) ?? clicks[0])?.t
@@ -1241,7 +1241,7 @@ function flatten(run) {
 
 /* -------------------------------------------------------------------- main */
 
-const USAGE = `devsite audit harness — see PLAN-POLISH-BASELINE.md
+const USAGE = `devsite audit harness — see scripts/AUDIT.md
 
   node scripts/audit.mjs [--label <name>] [--phases a,b] [--routes /a,/b]
                          [--tcount N] [--mcount N] [--no-build] [--promote]

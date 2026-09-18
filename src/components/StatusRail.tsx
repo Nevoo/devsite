@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { categories } from '@/content/categories'
+import { frameCount } from '@/content/categories'
 import { Ticker } from './Ticker'
 
 const berlin = new Intl.DateTimeFormat('en-GB', {
@@ -12,9 +12,17 @@ const berlin = new Intl.DateTimeFormat('en-GB', {
 
 const berlinNow = () => berlin.format(new Date())
 
-/** Local time where the darkroom is. A clock is content, not decoration, so it
- *  keeps ticking under reduced motion — only the marquee carrying it pauses. */
-export function Clock() {
+/**
+ * The live status rail: the site's one running readout, ink on the footer's
+ * accent drench. Everything here is either true right now (the clock, the
+ * frame count) or a standing fact — nothing decorative.
+ *
+ * Local time where the darkroom is. A clock is content, not decoration, so it
+ * keeps ticking under reduced motion — only the marquee carrying it pauses.
+ * The tick lives here, not in the item: the ticker renders its items twice for
+ * the CSS loop, so a self-ticking clock component would run two intervals.
+ */
+export function StatusRail() {
   const [time, setTime] = useState(berlinNow)
 
   useEffect(() => {
@@ -23,28 +31,15 @@ export function Clock() {
   }, [])
 
   return (
-    <>
-      <span className="ticker-clock">{time}</span> germany
-    </>
-  )
-}
-
-const frames = categories.reduce((n, category) => n + category.photos.length, 0)
-
-/**
- * The live status rail: the site's one running readout, ink on the footer's
- * accent drench. Everything here is either true right now (the clock, the
- * frame count) or a standing fact — nothing decorative.
- */
-export function StatusRail() {
-  return (
     <div className="ticker-ink">
       <Ticker
         items={[
           'rouvens.work',
-          <Clock />,
+          <>
+            <span className="ticker-clock">{time}</span> germany
+          </>,
           'vol. 02',
-          `${frames} frames in the archive`,
+          `${frameCount} frames in the journal`,
         ]}
       />
     </div>

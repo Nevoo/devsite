@@ -214,9 +214,10 @@ export const categories: Category[] = [
   },
 ]
 
-export const getCategory = (slug: string | undefined) =>
-  categories.find((c) => c.slug === slug)
+const bySlug = new Map(categories.map((c) => [c.slug, c] as const))
 
-/** categories featured on the landing page, in order */
-export const featured = ['nature', 'concerts', 'travel', 'weddings']
-  .map((slug) => getCategory(slug)!)
+export const getCategory = (slug: string | undefined) =>
+  slug === undefined ? undefined : bySlug.get(slug)
+
+/** every frame in the journal — the one count Journal and the status rail share */
+export const frameCount = categories.reduce((n, c) => n + c.photos.length, 0)

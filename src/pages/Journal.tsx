@@ -4,9 +4,9 @@ import { gsap, prefersReducedMotion } from '@/motion/gsap'
 import { useUI } from '@/stores/ui'
 import { WebGLImage } from '@/components/WebGLImage'
 import { TransitionLink } from '@/components/TransitionLink'
-import { categories } from '@/content/categories'
+import { categories, frameCount } from '@/content/categories'
 
-export function Work() {
+export function Journal() {
   const rootRef = useRef<HTMLElement>(null)
   // hold the entrance until the wipe (or initial loader) starts revealing
   const revealed = useUI((s) => s.revealed)
@@ -67,21 +67,21 @@ export function Work() {
               against the type, not the container */}
           <span className="work-heading">
             <span className="work-heading-inner">
-              work<span className="accent">.</span>
+              journal<span className="accent">.</span>
             </span>
             <span className="work-heading-front" aria-hidden />
           </span>
         </h1>
         <p className="page-heading-sub">
           six things i keep pointing a camera at.{' '}
-          {categories.reduce((n, c) => n + c.photos.length, 0)} frames i'd stand behind.
+          {frameCount} frames i'd stand behind.
         </p>
       </header>
       <div className="work-grid">
         {categories.map((category, i) => (
           <TransitionLink
             key={category.slug}
-            to={`/work/${category.slug}`}
+            to={`/journal/${category.slug}`}
             className="work-card"
             aria-label={`${category.title} gallery`}
           >

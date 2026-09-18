@@ -113,15 +113,17 @@ export const MASK_H = ${H}
 const PACKED =
   '${b64}'
 
-/** unpacked once at module load; ${(bytes.length / 1024).toFixed(0)}KB of bits */
-const bits = Uint8Array.from(atob(PACKED), (c) => c.charCodeAt(0))
+/** ${(bytes.length / 1024).toFixed(0)}KB of bits, unpacked on first lookup rather than at module load */
+let bits: Uint8Array | null = null
+const unpack = () => (bits ??= Uint8Array.from(atob(PACKED), (c) => c.charCodeAt(0)))
 
 /** true if [lat, lng] in degrees falls on land */
 export function isLand(lat: number, lng: number) {
+  const mask = unpack()
   const row = Math.min(MASK_H - 1, Math.max(0, Math.floor(((90 - lat) / 180) * MASK_H)))
   const col = Math.min(MASK_W - 1, Math.max(0, Math.floor(((lng + 180) / 360) * MASK_W)))
   const bit = row * MASK_W + col
-  return (bits[bit >> 3] & (128 >> (bit & 7))) !== 0
+  return (mask[bit >> 3] & (128 >> (bit & 7))) !== 0
 }
 `
 )

@@ -1,10 +1,5 @@
 import { type MouseEvent, type ReactNode } from 'react'
-import {
-  useHref,
-  useLocation,
-  useNavigate,
-  type NavigateFunction,
-} from 'react-router-dom'
+import { useHref, useNavigate, type NavigateFunction } from 'react-router-dom'
 import { gsap, ScrollTrigger, prefersReducedMotion } from '@/motion/gsap'
 import { lenisRef } from '@/motion/SmoothScroll'
 import { useUI } from '@/stores/ui'
@@ -19,8 +14,9 @@ export const isTransitioning = () => transitioning
 const labelFor = (to: string) => {
   const [, root, slug] = to.split('/')
   if (!root) return 'home'
-  if (root === 'work' && slug) return getCategory(slug)?.title ?? 'work'
-  if (root === 'work') return 'work'
+  // /work still resolves — it redirects to /journal, so it prints that word
+  if (root === 'journal' || root === 'work')
+    return (slug && getCategory(slug)?.title) || 'journal'
   if (root === 'about') return 'about me'
   if (root === 'contact') return 'get in touch'
   return root
@@ -324,10 +320,9 @@ async function runReducedMotionTransition(navigate: NavigateFunction, to: string
 
 export function useTransitionNavigate() {
   const navigate = useNavigate()
-  const location = useLocation()
 
   return (to: string) => {
-    if (transitioning || to === location.pathname) return
+    if (transitioning || to === window.location.pathname) return
 
     if (prefersReducedMotion()) {
       void runReducedMotionTransition(navigate, to)

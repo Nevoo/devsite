@@ -31,9 +31,6 @@ interface UIState {
   canvasFrozen: boolean
   setCanvasFrozen: (v: boolean) => void
 
-  /** current smooth-scroll velocity, written by SmoothScroll every frame, read transiently in useFrame */
-  scrollVelocity: number
-
   lightbox: LightboxState | null
   openLightbox: (label: string, photos: Photo[], index: number) => void
   closeLightbox: () => void
@@ -72,8 +69,6 @@ export const useUI = create<UIState>((set) => ({
 
   canvasFrozen: false,
   setCanvasFrozen: (v) => set({ canvasFrozen: v }),
-
-  scrollVelocity: 0,
 
   lightbox: null,
   openLightbox: (label, photos, index) =>

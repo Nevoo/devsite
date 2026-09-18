@@ -398,9 +398,6 @@ const route: Place[] = [
  */
 export const places: Place[] = [...photographed, ...route]
 
-/** the places that actually hold photographs — the projection panel's tray */
-export const placesWithFrames = places.filter((p) => p.frames.length > 0)
-
 /**
  * ISO-3166 alpha-2 country of a place, parsed from its label's final comma
  * segment ('bromo, east java, id' → 'ID'). The label is the single source of
@@ -429,35 +426,24 @@ export const placeOf = new Map<string, Place>(
 )
 
 /** the Photo records for a place, in capture order; unresolvable srcs drop */
-export const framesAt = (place: Place): Photo[] =>
-  place.frames.map((s) => photoOf(s)).filter((p): p is Photo => Boolean(p))
+export const framesAt = (place: Place): Photo[] => {
+  const out: Photo[] = []
+  for (const src of place.frames) {
+    const photo = photoOf(src)
+    if (photo) out.push(photo)
+  }
+  return out
+}
 
 /** earliest capture at this place, ISO camera-local, or null if none/unknown */
 export const firstAt = (place: Place): string | null => {
-  const stamps = place.frames.map((s) => atBySrc.get(s)).filter((a): a is string => Boolean(a))
-  return stamps.length ? stamps.slice().sort()[0] : null
+  let earliest: string | null = null
+  for (const src of place.frames) {
+    const at = atBySrc.get(src)
+    if (at && (earliest === null || at < earliest)) earliest = at
+  }
+  return earliest
 }
 
 /** the honesty mechanic, rendered: a word a person would say, never a number */
 export const precisionWord = (p: PlacePrecision) => `to the ${p}`
-
-/**
- * Camera-local EXIF ('2023-10-22T22:36:58', clock left on CET) printed as the
- * place's own wall time — the conversion outings.ts:21-27 parked "until a stop
- * is placed". Only runs where the place is known well enough that the zone is
- * certain; at 'region' precision a time off by a whole hour would print with
- * more authority than the date it came from (GLOBE-V2.md §8.8). 'country'
- * passes only because the one country entry (germany) has a single zone — a
- * multi-zone country must use 'region' instead.
- */
-export const localTime = (at: string, place: Place): string | null => {
-  if (place.precision === 'region') return null
-  const utc = new Date(`${at}+01:00`)
-  if (Number.isNaN(utc.getTime())) return null
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: place.tz,
-  }).format(utc)
-}

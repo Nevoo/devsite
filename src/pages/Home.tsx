@@ -152,7 +152,7 @@ function Hero() {
             </span>
             <span className="hero-index-link">
               <Star className="hero-index-star" size="0.55em" aria-hidden />
-              <TransitionLink to="/work">the archive</TransitionLink>
+              <TransitionLink to="/journal">the journal</TransitionLink>
             </span>
           </nav>
           <span className="hero-index-scroll">
@@ -339,7 +339,7 @@ function Craft() {
           <span className="hero-slate-item">
             still <span className="hero-slate-val">{heroSlate.timecode}</span>
           </span>
-          {heroSlate.location && <span className="hero-slate-item">{heroSlate.location}</span>}
+          {heroSlate.location ? <span className="hero-slate-item">{heroSlate.location}</span> : null}
           {/* the transform, and — on a mouse — the fact that you can run it
               yourself. The hint is the whole affordance: the shader's front
               deliberately overshoots both edges so no bright handle is ever
@@ -423,9 +423,9 @@ function Log() {
         </ol>
 
         <div className="log-all">
-          <TransitionLink to="/work" className="big-link">
+          <TransitionLink to="/journal" className="big-link">
             <span className="big-link-text display-lg">
-              the archive<span className="accent">.</span>
+              the journal<span className="accent">.</span>
             </span>
           </TransitionLink>
         </div>
@@ -495,6 +495,11 @@ function LogRow({ outing, n }: { outing: Outing; n: number }) {
   )
 }
 
+const ABOUT_WORDS =
+  "I'm Rouven. Building apps and web projects since 2018, carrying a camera nearly as long. This is where both sides meet.".split(
+    ' '
+  )
+
 function AboutTeaser() {
   const rootRef = useRef<HTMLElement>(null)
 
@@ -517,14 +522,11 @@ function AboutTeaser() {
     { scope: rootRef }
   )
 
-  const text =
-    "I'm Rouven. Building apps and web projects since 2018, carrying a camera nearly as long. This is where both sides meet."
-
   return (
     <section ref={rootRef} className="about-teaser container">
       <Star className="about-teaser-star" size="2.2rem" />
       <p className="about-teaser-text display-md">
-        {text.split(' ').map((word, i) => (
+        {ABOUT_WORDS.map((word, i) => (
           <span key={i} className="about-teaser-word">
             {word}{' '}
           </span>

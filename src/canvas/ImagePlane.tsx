@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { OrthographicCamera } from '@react-three/drei'
 import { gsap, prefersReducedMotion } from '@/motion/gsap'
-import { useUI } from '@/stores/ui'
+import { scrollVelocityRef } from '@/motion/SmoothScroll'
 import type { Photo } from '@/content/categories'
 import { imagePlaneVertex, imagePlaneFragment } from './shaders/imagePlane'
 
@@ -39,18 +39,19 @@ interface ImagePlaneProps {
   onDevelopStart?: () => void
 }
 
+const JPEG_RE = /\.(jpe?g)$/i
 const TEXTURE_WIDTHS = [640, 1024, 1600]
 const MAX_DPR = 1.75
 const RESIZE_SETTLE_MS = 180
 
 const derivativeSrc = (src: string, width: number) =>
-  src.replace(/\.(jpe?g)$/i, `-${width}.webp`)
+  src.replace(JPEG_RE, `-${width}.webp`)
 
 /** Smallest generated texture that covers the rendered pixels. The original
  * remains the last resort when the source is narrower than 640px or the plane
  * genuinely needs more pixels than the largest non-upscaled derivative. */
 function textureSource(photo: Photo, planeWidth: number) {
-  if (!/\.(jpe?g)$/i.test(photo.src)) return photo.src
+  if (!JPEG_RE.test(photo.src)) return photo.src
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
   const requested = Math.ceil(Math.max(planeWidth, 1) * dpr)
   const width = TEXTURE_WIDTHS.find(
@@ -265,6 +266,9 @@ export function ImagePlane({
 }: ImagePlaneProps) {
   // held so a pointer grab can cancel it mid-flight (see the useFrame below)
   const developTween = useRef<ReturnType<typeof gsap.to> | null>(null)
+  // matchMedia is too costly to re-query per frame; the preference never
+  // changes within a session that matters here
+  const reduced = useMemo(() => prefersReducedMotion(), [])
   const desiredTextureSrc = useMemo(
     () => textureSource(photo, planeSize[0]),
     [photo, planeSize]
@@ -354,7 +358,7 @@ export function ImagePlane({
 
   useEffect(() => {
     if (!visible || !textureReady) return
-    if (prefersReducedMotion()) {
+    if (reduced) {
       uniforms.uReveal.value = 1
       uniforms.uDevelop.value = 1
       return
@@ -391,18 +395,18 @@ export function ImagePlane({
       tween.kill()
     }
     // onDevelopStart must be referentially stable, or the develop restarts
-  }, [visible, develop, uniforms, onDevelopStart, textureReady])
+  }, [visible, develop, uniforms, onDevelopStart, textureReady, reduced])
 
   useEffect(() => {
     uniforms.uEdgeFade.value = edgeFade
   }, [edgeFade, uniforms])
 
   useEffect(() => {
-    uniforms.uParallaxAmp.value = prefersReducedMotion() ? 0 : parallax
-  }, [parallax, uniforms])
+    uniforms.uParallaxAmp.value = reduced ? 0 : parallax
+  }, [parallax, uniforms, reduced])
 
   useFrame((_, delta) => {
-    if (!prefersReducedMotion()) uniforms.uTime.value += delta
+    if (!reduced) uniforms.uTime.value += delta
     uniforms.uDissolve.value = dissolveRef?.current ?? 0
 
     // The grade, under the visitor's hand. Written straight through with no
@@ -433,7 +437,7 @@ export function ImagePlane({
     )
     uniforms.uVelocity.value = THREE.MathUtils.damp(
       uniforms.uVelocity.value,
-      useUI.getState().scrollVelocity,
+      scrollVelocityRef.current,
       8,
       delta
     )

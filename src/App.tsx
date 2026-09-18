@@ -3,11 +3,13 @@ import {
   BrowserRouter,
   Route,
   Routes,
+  Navigate,
+  useParams,
   useLocation,
   useNavigationType,
 } from 'react-router-dom'
-import { Analytics } from '@vercel/analytics/react'
 import { SmoothScroll } from '@/motion/SmoothScroll'
+import { useUI } from '@/stores/ui'
 import { ScrollTrigger } from '@/motion/gsap'
 import { Cursor } from '@/components/Cursor'
 import { Header } from '@/components/Header'
@@ -21,7 +23,7 @@ import {
 } from '@/components/TransitionLink'
 import { webglAvailable } from '@/lib/webgl'
 import { Home } from '@/pages/Home'
-import { Work } from '@/pages/Work'
+import { Journal } from '@/pages/Journal'
 import { Gallery } from '@/pages/Gallery'
 import { About } from '@/pages/About'
 import { Contact } from '@/pages/Contact'
@@ -29,6 +31,34 @@ import { Privacy } from '@/pages/Privacy'
 
 // keep the three.js bundle off the critical path — the DOM shell paints first
 const CanvasRoot = lazy(() => import('@/canvas/CanvasRoot'))
+
+const Analytics = lazy(() =>
+  import('@vercel/analytics/react').then((m) => ({ default: m.Analytics }))
+)
+
+/** analytics is never part of the first paint — it waits for an idle main thread */
+function DeferredAnalytics() {
+  const [mounted, setMounted] = useState(false)
+  const revealed = useUI((s) => s.revealed)
+
+  useEffect(() => {
+    if (!revealed) return
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(() => setMounted(true))
+      return () => window.cancelIdleCallback(id)
+    }
+    const timer = window.setTimeout(() => setMounted(true), 2000)
+    return () => window.clearTimeout(timer)
+  }, [revealed])
+
+  if (!mounted) return null
+
+  return (
+    <Suspense fallback={null}>
+      <Analytics />
+    </Suspense>
+  )
+}
 
 // dev-only particle sandbox; the guard is a compile-time constant, so the
 // chunk never even gets built for production
@@ -89,8 +119,10 @@ export default function App() {
         <main>
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/work" element={<Work />} />
-            <Route path="/work/:category" element={<Gallery />} />
+            <Route path="/journal" element={<Journal />} />
+            <Route path="/journal/:category" element={<Gallery />} />
+            <Route path="/work" element={<LegacyWork />} />
+            <Route path="/work/:category" element={<LegacyWork />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy" element={<Privacy />} />
@@ -123,8 +155,14 @@ export default function App() {
         <PageTransitionOverlay />
         <LoadingScreen />
         <RouteChangeEffects />
-        <Analytics />
+        <DeferredAnalytics />
       </SmoothScroll>
     </BrowserRouter>
   )
+}
+
+// old /work links keep resolving
+function LegacyWork() {
+  const { category } = useParams()
+  return <Navigate to={category ? `/journal/${category}` : '/journal'} replace />
 }

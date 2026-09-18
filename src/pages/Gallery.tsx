@@ -50,13 +50,13 @@ export function Gallery() {
     { scope: rootRef, dependencies: [slug, revealed], revertOnUpdate: true }
   )
 
-  if (!category) return <Navigate to="/work" replace />
+  if (!category) return <Navigate to="/journal" replace />
 
   return (
     <section ref={rootRef} className="gallery container">
       <header className="page-heading">
-        <TransitionLink to="/work" className="arrow-link arrow-link-back gallery-back">
-          all work
+        <TransitionLink to="/journal" className="arrow-link arrow-link-back gallery-back">
+          the journal
         </TransitionLink>
         <h1 className="display-xl">
           <span className="gallery-heading-inner">
@@ -129,7 +129,7 @@ function NextCategoryLink({ current }: { current: string }) {
   }, [next.slug])
 
   return (
-    <TransitionLink to={`/work/${next.slug}`} className="gallery-next-link">
+    <TransitionLink to={`/journal/${next.slug}`} className="gallery-next-link">
       <span className="gallery-next-label">next up</span>
       <span className="display-lg">
         <span className="gallery-next-title">

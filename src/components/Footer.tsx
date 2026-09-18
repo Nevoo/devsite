@@ -3,6 +3,8 @@ import { TransitionLink } from './TransitionLink'
 import { Star } from './Star'
 import { StatusRail } from './StatusRail'
 
+const YEAR = new Date().getFullYear()
+
 export function Footer() {
   // /contact makes the site's one direct request; repeating it in the same
   // scroll would turn an invitation into a pitch. The CTA stands down there —
@@ -36,7 +38,7 @@ export function Footer() {
           </a>
           <TransitionLink to="/privacy">privacy</TransitionLink>
         </div>
-        <span>© {new Date().getFullYear()} rouven lührs</span>
+        <span>© {YEAR} rouven lührs</span>
       </div>
     </footer>
   )
